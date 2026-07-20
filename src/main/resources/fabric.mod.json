@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "qazr-addons",
+  "version": "${version}",
+  "name": "Qazr Addons",
+  "description": "Qazr1234 的 Meteor 插件集合 - 矿物追踪、重锤杀戮等功能",
+  "authors": [
+    "Qazr1234"
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "meteor": [
+      "com.macekill.addon.MaceKillAddon"
+    ]
+  },
+  "mixins": [
+    "qazr-addons.mixins.json"
+  ],
+  "custom": {
+    "meteor-client:color": "255,80,80"
+  },
+  "depends": {
+    "java": ">=21",
+    "minecraft": ["*"],
+    "meteor-client": "*"
+  }
+}
