@@ -20,6 +20,7 @@ import meteordevelopment.meteorclient.settings.StringListSetting;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.math.Vec3d;
 
 public class MaceKillModule extends Module {
@@ -27,6 +28,7 @@ public class MaceKillModule extends Module {
     private final SettingGroup sgTarget;
     private final SettingGroup sgKill;
     private final SettingGroup sgDestroy;
+    private final SettingGroup sgTotem;
 
     private final Setting<Double> range;
     private final Setting<Double> moveDistance;
@@ -42,6 +44,9 @@ public class MaceKillModule extends Module {
     private final Setting<Integer> ignoreArmorValue;
     private final Setting<List<String>> destroyHeights;
     private final Setting<List<String>> killHeights;
+    private final Setting<Boolean> bypassTotem;
+    private final Setting<Integer> totemAttacks;
+    private final Setting<Integer> totemHeight;
 
     private final Setting<Boolean> targetPlayers;
     private final Setting<Boolean> targetHostiles;
@@ -54,6 +59,8 @@ public class MaceKillModule extends Module {
     private Vec3d originalPos;
     private Vec3d targetPos;
     private LivingEntity target;
+    private LivingEntity drainTarget;
+    private int totemHits;
 
     public MaceKillModule() {
         super(MaceKillAddon.CATEGORY, "macemiss", "Teleport next to target and VClip jump attack");
@@ -61,6 +68,7 @@ public class MaceKillModule extends Module {
         this.sgTarget = this.settings.createGroup("Targeting");
         this.sgKill = this.settings.createGroup("Kill Heights");
         this.sgDestroy = this.settings.createGroup("Armor Break Heights");
+        this.sgTotem = this.settings.createGroup("Totem Bypass");
 
         this.range = this.sgGeneral.add(new DoubleSetting.Builder()
             .name("Range")
@@ -172,6 +180,27 @@ public class MaceKillModule extends Module {
             .description("Heights used for kills")
             .defaultValue("10", "20", "30")
             .build());
+        this.bypassTotem = this.sgTotem.add(new BoolSetting.Builder()
+            .name("Totem Bypass")
+            .description("Drain totems with low-height hits, then kill at full height")
+            .defaultValue(false)
+            .build());
+        this.totemAttacks = this.sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attacks")
+            .description("Low-height attacks used to drain totems")
+            .defaultValue(3)
+            .range(1, 10)
+            .sliderMax(10)
+            .visible(this.bypassTotem::get)
+            .build());
+        this.totemHeight = this.sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attack Height")
+            .description("Fall height used while draining totems")
+            .defaultValue(4)
+            .range(1, 20)
+            .sliderMax(20)
+            .visible(this.bypassTotem::get)
+            .build());
 
         this.phase = Phase.IDLE;
     }
@@ -181,6 +210,8 @@ public class MaceKillModule extends Module {
         this.phase = Phase.IDLE;
         this.delayTicks = 0;
         this.target = null;
+        this.drainTarget = null;
+        this.totemHits = 0;
     }
 
     @EventHandler
@@ -216,6 +247,10 @@ public class MaceKillModule extends Module {
             this.mc, this.range.get(), filter, this.sortPriority.get());
         if (this.target == null) {
             return;
+        }
+        if (this.target != this.drainTarget) {
+            this.drainTarget = this.target;
+            this.totemHits = 0;
         }
         this.originalPos = new Vec3d(this.mc.player.getX(), this.mc.player.getY(), this.mc.player.getZ());
         this.targetPos = Targeting.predictPosition(
@@ -272,17 +307,33 @@ public class MaceKillModule extends Module {
     }
 
     private void executeAttack() {
+        boolean draining = isDrainingTotem();
+        List<String> heights = draining
+            ? List.of(String.valueOf(this.totemHeight.get()))
+            : this.killHeights.get();
         Config config = new Config(
             this.moveDistance.get(),
             this.swingHand.get(),
             this.autoTotem.get(),
             this.syncClientPos.get(),
-            this.enableArmorDestroy.get(),
+            draining ? false : this.enableArmorDestroy.get(),
             this.ignoreArmorValue.get(),
             this.destroyHeights.get(),
-            this.killHeights.get()
+            heights
         );
         Combat.executeAttack(this.mc, config, this.target, this.targetPos);
+        if (draining) {
+            this.totemHits++;
+        } else {
+            this.totemHits = 0;
+        }
+    }
+
+    private boolean isDrainingTotem() {
+        if (!this.bypassTotem.get() || !(this.target instanceof PlayerEntity)) {
+            return false;
+        }
+        return this.totemHits < this.totemAttacks.get();
     }
 
     private void doReturn() {
@@ -294,6 +345,9 @@ public class MaceKillModule extends Module {
 
     @Override
     public String getInfoString() {
+        if (this.bypassTotem.get() && this.totemHits > 0) {
+            return "Totem " + this.totemHits + "/" + this.totemAttacks.get();
+        }
         int count = Combat.parseHeights(this.killHeights.get()).size();
         if (count == 0) return "Not configured";
         String priority = switch (this.sortPriority.get()) {

@@ -55,6 +55,7 @@ public class MaceMissLite extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
     private final SettingGroup sgTarget = settings.createGroup("Target");
     private final SettingGroup sgArmor = settings.createGroup("Armor Break");
+    private final SettingGroup sgTotem = settings.createGroup("Totem Bypass");
 
     // 通用
     private final Setting<Double> range = sgMain.add(new DoubleSetting.Builder()
@@ -123,6 +124,20 @@ public class MaceMissLite extends Module {
             .name("Armor Break Heights").description("Heights used for armor-break attacks")
             .defaultValue("30", "60").visible(destroyArmor::get).build());
 
+    private final Setting<Boolean> bypassTotem = sgTotem.add(new BoolSetting.Builder()
+            .name("Totem Bypass").description("Drain totems with low-height hits, then kill at full height")
+            .defaultValue(false).build());
+
+    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attacks").description("Low-height attacks used to drain totems")
+            .defaultValue(3).min(1).max(10).sliderMax(10)
+            .visible(bypassTotem::get).build());
+
+    private final Setting<Integer> totemHeight = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attack Height").description("Fall height used while draining totems")
+            .defaultValue(4).min(1).max(20).sliderMax(20)
+            .visible(bypassTotem::get).build());
+
     // 渲染
     private final Setting<Boolean> renderBox = sgMain.add(new BoolSetting.Builder()
             .name("Render Box").description("Render box around the target").defaultValue(true).build());
@@ -134,8 +149,10 @@ public class MaceMissLite extends Module {
     /* ========== 状态 ========== */
     private final MSTimer attackTimer = new MSTimer();
     private LivingEntity currentTarget;
+    private LivingEntity drainTarget;
     private int attackIndex;
     private int delayTicks;
+    private int totemHits;
     private Phase phase = Phase.IDLE;
     private Vec3d originalPos;
 
@@ -148,8 +165,10 @@ public class MaceMissLite extends Module {
     @Override
     public void onDeactivate() {
         currentTarget = null;
+        drainTarget = null;
         attackIndex = 0;
         delayTicks = 0;
+        totemHits = 0;
         phase = Phase.IDLE;
     }
 
@@ -234,6 +253,19 @@ public class MaceMissLite extends Module {
 
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
+        if (bypassTotem.get() && currentTarget instanceof PlayerEntity) {
+            if (currentTarget != drainTarget) {
+                drainTarget = currentTarget;
+                totemHits = 0;
+            }
+            if (totemHits < totemAttacks.get()) {
+                doTpAura(List.of(String.valueOf(totemHeight.get())));
+                totemHits++;
+                return;
+            }
+            totemHits = 0;
+        }
+
         if (destroyArmor.get() && currentTarget instanceof PlayerEntity p && !isNaked(p)) {
             doDestroyArmor();
         } else {
@@ -310,6 +342,9 @@ public class MaceMissLite extends Module {
     @Override
     public String getInfoString() {
         if (currentTarget == null) return "No target";
+        if (phase == Phase.DELAY && bypassTotem.get() && totemHits > 0) {
+            return "Totem " + totemHits + "/" + totemAttacks.get();
+        }
         if (phase == Phase.DELAY) return "CD " + delayTicks;
         String name = currentTarget instanceof PlayerEntity p ? p.getName().getString()
                 : currentTarget.getType().getName().getString();

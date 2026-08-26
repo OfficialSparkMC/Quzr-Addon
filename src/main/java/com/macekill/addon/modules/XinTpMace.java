@@ -26,6 +26,7 @@ import net.minecraft.util.math.Vec3d;
 public class XinTpMace extends Module {
 
     private final SettingGroup sgMain = settings.getDefaultGroup();
+    private final SettingGroup sgTotem = settings.createGroup("Totem Bypass");
 
     private final Setting<Double> range = sgMain.add(new DoubleSetting.Builder()
             .name("Range").description("Target detection range")
@@ -53,9 +54,25 @@ public class XinTpMace extends Module {
     private final Setting<Boolean> onlyPlayers = sgMain.add(new BoolSetting.Builder()
             .name("Players Only").description("Only attack players").defaultValue(true).build());
 
+    private final Setting<Boolean> bypassTotem = sgTotem.add(new BoolSetting.Builder()
+            .name("Totem Bypass").description("Drain totems with low-height hits, then kill at full height")
+            .defaultValue(false).build());
+
+    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attacks").description("Low-height attacks used to drain totems")
+            .defaultValue(3).min(1).max(10).sliderMax(10)
+            .visible(bypassTotem::get).build());
+
+    private final Setting<Integer> totemHeight = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attack Height").description("Fall height used while draining totems")
+            .defaultValue(4).min(1).max(20).sliderMax(20)
+            .visible(bypassTotem::get).build());
+
     // 状态
     private int cooldownTicks;
     private Vec3d originalPos;
+    private LivingEntity drainTarget;
+    private int totemHits;
 
     public XinTpMace() {
         super(MaceKillAddon.CATEGORY, "xintpmace", "New TP mace - predicted teleport+multi-height VClip attack");
@@ -64,6 +81,8 @@ public class XinTpMace extends Module {
     @Override
     public void onDeactivate() {
         cooldownTicks = 0;
+        drainTarget = null;
+        totemHits = 0;
     }
 
     @EventHandler
@@ -78,6 +97,21 @@ public class XinTpMace extends Module {
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         Vec3d predicted = Targeting.predictPosition(mc, target, true, predictTicks.get());
 
+        boolean draining = false;
+        List<String> rawHeights = heights.get();
+        if (bypassTotem.get() && target instanceof PlayerEntity) {
+            if (target != drainTarget) {
+                drainTarget = target;
+                totemHits = 0;
+            }
+            if (totemHits < totemAttacks.get()) {
+                draining = true;
+                rawHeights = List.of(String.valueOf(totemHeight.get()));
+            } else {
+                totemHits = 0;
+            }
+        }
+
         int oldSlot = Inventory.switchToMace(mc);
         if (oldSlot == -1) return;
 
@@ -86,7 +120,7 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, predicted, maxStep.get(), false);
 
             // 多高度VClip攻击
-            for (String hStr : heights.get()) {
+            for (String hStr : rawHeights) {
                 double h;
                 try { h = Double.parseDouble(hStr.trim()); }
                 catch (NumberFormatException e) { continue; }
@@ -113,6 +147,10 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, originalPos, maxStep.get(), false);
         }
 
+        if (draining) {
+            totemHits++;
+        }
+
         cooldownTicks = cooldown.get();
     }
 
@@ -137,6 +175,9 @@ public class XinTpMace extends Module {
 
     @Override
     public String getInfoString() {
+        if (cooldownTicks > 0 && bypassTotem.get() && totemHits > 0) {
+            return "Totem " + totemHits + "/" + totemAttacks.get();
+        }
         if (cooldownTicks > 0) return "CD " + cooldownTicks;
         return "Ready";
     }
