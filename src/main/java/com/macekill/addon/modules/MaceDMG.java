@@ -19,46 +19,46 @@ public class MaceDMG extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Double> fakeHeight = sgGeneral.add(new DoubleSetting.Builder()
-        .name("伪造高度")
-        .description("MaceDMG发送的高空位置高度(sqrt值,如√500≈22.36)")
+        .name("Fake Height")
+        .description("Fake high position height sent by MaceDMG (sqrt value, e.g. √500≈22.36)")
         .defaultValue(22.36)
         .min(1.0).max(50.0).sliderMax(35.0)
         .build()
     );
 
     private final Setting<Integer> attackInterval = sgGeneral.add(new IntSetting.Builder()
-        .name("攻击间隔")
-        .description("攻击间隔(毫秒, 最小25ms)")
+        .name("Attack Interval")
+        .description("Attack interval in ms (min 25ms)")
         .defaultValue(55)
         .min(25).max(2000).sliderMax(500)
         .build()
     );
 
     private final Setting<Boolean> globalDetection = sgGeneral.add(new BoolSetting.Builder()
-        .name("全局攻击检测")
-        .description("ON:拦截所有攻击事件自动触发 | OFF:仅玩家手动左键攻击时触发")
+        .name("Global Attack Detect")
+        .description("ON: intercept all attack events | OFF: only manual left-click attacks")
         .defaultValue(true)
         .build()
     );
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-        .name("自动切换重锤")
-        .description("背包中有重锤时自动切换到主手")
+        .name("Auto Switch Mace")
+        .description("Auto-switch to mace when one is in the inventory")
         .defaultValue(true)
         .build()
     );
 
     private final Setting<Integer> normalPackets = sgGeneral.add(new IntSetting.Builder()
-        .name("正常包数量")
-        .description("高空包之前发送的正常位置包数量(参考Wurst:4)")
+        .name("Normal Packets")
+        .description("Normal position packets before the high packet (Wurst uses 4)")
         .defaultValue(4)
         .min(1).max(10).sliderMax(8)
         .build()
     );
 
     private final Setting<Boolean> chatInfo = sgGeneral.add(new BoolSetting.Builder()
-        .name("聊天信息")
-        .description("在聊天栏显示触发信息")
+        .name("Chat Info")
+        .description("Show trigger info in chat")
         .defaultValue(false)
         .build()
     );
@@ -68,21 +68,21 @@ public class MaceDMG extends Module {
     private float lastCooldown;
 
     public MaceDMG() {
-        super(MaceKillAddon.CATEGORY, "平地重锤",
-            "手持重锤攻击时伪造高度打出满伤害.\n" +
-            "支持全局攻击检测(自动劫持攻击事件)或手动触发.");
+        super(MaceKillAddon.CATEGORY, "MaceDMG",
+            "Fakes fall height on mace hits for max damage.\n" +
+            "Supports global attack detection (auto-hijacks attacks) or manual trigger.");
     }
 
     @Override
     public void onActivate() {
         lastAttackTime = 0;
         lastCooldown = 0;
-        if (chatInfo.get()) info("§a平地重锤已启动! 伪造高度=" + String.format("%.1f", fakeHeight.get()) + " 全局检测=" + (globalDetection.get() ? "ON" : "OFF"));
+        if (chatInfo.get()) info("§aMaceDMG enabled! FakeHeight=" + String.format("%.1f", fakeHeight.get()) + " GlobalDetect=" + (globalDetection.get() ? "ON" : "OFF"));
     }
 
     @Override
     public void onDeactivate() {
-        if (chatInfo.get()) info("§c平地重锤已关闭!");
+        if (chatInfo.get()) info("§cMaceDMG disabled!");
     }
 
     @EventHandler
@@ -141,7 +141,7 @@ public class MaceDMG extends Module {
         mc.player.fallDistance = 0;
 
         if (chatInfo.get()) {
-            info("§b触发MaceDMG | height=" + String.format("%.1f", Math.sqrt(height)));
+            info("§bMaceDMG triggered | height=" + String.format("%.1f", Math.sqrt(height)));
         }
     }
 
@@ -209,6 +209,6 @@ public class MaceDMG extends Module {
     }
 
     private void info(String msg) {
-        ChatUtils.sendMsg(Text.literal("§8[§b平地重锤§8] §f" + msg));
+            ChatUtils.sendMsg(Text.literal("§8[§bMaceDMG§8] §f" + msg));
     }
 }

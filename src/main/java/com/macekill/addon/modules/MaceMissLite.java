@@ -53,82 +53,82 @@ public class MaceMissLite extends Module {
 
     /* ========== 设置 ========== */
     private final SettingGroup sgMain = settings.getDefaultGroup();
-    private final SettingGroup sgTarget = settings.createGroup("目标");
-    private final SettingGroup sgArmor = settings.createGroup("破甲");
+    private final SettingGroup sgTarget = settings.createGroup("Target");
+    private final SettingGroup sgArmor = settings.createGroup("Armor Break");
 
     // 通用
     private final Setting<Double> range = sgMain.add(new DoubleSetting.Builder()
-            .name("范围").description("检测范围")
+            .name("Range").description("Detection range")
             .defaultValue(20.0).min(1.0).max(200.0).sliderRange(1.0, 128.0).build());
 
     private final Setting<Double> moveDistance = sgMain.add(new DoubleSetting.Builder()
-            .name("移动步长").description("每个移动包的最大距离")
+            .name("Move Step").description("Max distance per move packet")
             .defaultValue(8.0).min(1.0).max(128.0).sliderRange(1.0, 128.0).build());
 
     private final Setting<List<String>> killHeights = sgMain.add(new StringListSetting.Builder()
-            .name("击杀高度").description("击杀攻击使用的高度列表")
+            .name("Kill Heights").description("Heights used for kill attacks")
             .defaultValue("10", "20", "30").build());
 
     private final Setting<Integer> attackDelay = sgMain.add(new IntSetting.Builder()
-            .name("攻击延迟").description("攻击间隔(tick)")
+            .name("Attack Delay").description("Attack interval in ticks")
             .defaultValue(10).min(0).max(40).sliderMax(40).build());
 
     private final Setting<Boolean> predict = sgMain.add(new BoolSetting.Builder()
-            .name("预测位置").description("预测目标未来位置").defaultValue(true).build());
+            .name("Predict Position").description("Predict target's future position").defaultValue(true).build());
 
     private final Setting<Integer> predictTicks = sgMain.add(new IntSetting.Builder()
-            .name("预测tick").description("预测tick数")
+            .name("Predict Ticks").description("Ticks to predict ahead")
             .defaultValue(5).min(1).sliderMax(20).visible(predict::get).build());
 
     // dv偏移
     private final Setting<Double> dv1 = sgMain.add(new DoubleSetting.Builder()
-            .name("偏移dv1").description("第一次攻击的水平偏移")
+            .name("Attack 1 Offset").description("Horizontal offset for the first attack")
             .defaultValue(0.0).min(0).max(10).sliderMax(5).build());
 
     private final Setting<Double> dv2 = sgMain.add(new DoubleSetting.Builder()
-            .name("偏移dv2").description("第二次攻击的水平偏移")
+            .name("Attack 2 Offset").description("Horizontal offset for the second attack")
             .defaultValue(0.0).min(0).max(10).sliderMax(5).build());
 
     private final Setting<Boolean> swingHand = sgMain.add(new BoolSetting.Builder()
-            .name("挥手").description("攻击时挥手").defaultValue(false).build());
+            .name("Swing Hand").description("Swing hand when attacking").defaultValue(false).build());
 
     // 强制忽略
     private final Setting<Boolean> forceIgnore = sgMain.add(new BoolSetting.Builder()
-            .name("强制忽略").description("启用以跳过当前目标").defaultValue(false).build());
+            .name("Force Skip").description("Enable to skip the current target").defaultValue(false).build());
 
     // 目标
     private final Setting<Boolean> targetPlayers = sgTarget.add(new BoolSetting.Builder()
-            .name("玩家").description("攻击玩家").defaultValue(true).build());
+            .name("Players").description("Attack players").defaultValue(true).build());
 
     private final Setting<Boolean> targetHostiles = sgTarget.add(new BoolSetting.Builder()
-            .name("敌对生物").description("攻击敌对生物").defaultValue(true).build());
+            .name("Hostile Mobs").description("Attack hostile mobs").defaultValue(true).build());
 
     private final Setting<Boolean> targetAnimals = sgTarget.add(new BoolSetting.Builder()
-            .name("动物").description("攻击动物").defaultValue(true).build());
+            .name("Animals").description("Attack animals").defaultValue(true).build());
 
     private final Setting<SortPriority> sortPriority = sgTarget.add(new EnumSetting.Builder<SortPriority>()
-            .name("排序方式").description("目标排序方式")
+            .name("Sort Priority").description("How targets are sorted")
             .defaultValue(SortPriority.DISTANCE).build());
 
     // 破甲
     private final Setting<Boolean> destroyArmor = sgArmor.add(new BoolSetting.Builder()
-            .name("破甲").description("先破甲再击杀").defaultValue(false).build());
+            .name("Armor Break").description("Break armor before killing").defaultValue(false).build());
 
     private final Setting<Integer> ignoreValue = sgArmor.add(new IntSetting.Builder()
-            .name("破甲阈值").description("目标剩余护甲≤此值时改用击杀")
+            .name("Armor Threshold").description("Switch to kill when target armor is at or below this")
             .defaultValue(0).min(0).max(4).sliderMax(4)
             .visible(destroyArmor::get).build());
 
     private final Setting<List<String>> destroyHeights = sgArmor.add(new StringListSetting.Builder()
-            .name("破甲高度").description("破甲攻击使用的高度")
+            .name("Armor Break Heights").description("Heights used for armor-break attacks")
             .defaultValue("30", "60").visible(destroyArmor::get).build());
 
     // 渲染
     private final Setting<Boolean> renderBox = sgMain.add(new BoolSetting.Builder()
-            .name("渲染方块").description("渲染目标方块框").defaultValue(true).build());
+            .name("Render Box").description("Render box around the target").defaultValue(true).build());
 
     private final Setting<SettingColor> boxColor = sgMain.add(new ColorSetting.Builder()
-            .name("方块颜色").description("渲染颜色")
+            .name("Box Color").description("Render color")
             .defaultValue(new SettingColor(255, 0, 0, 100)).build());
 
     /* ========== 状态 ========== */
@@ -142,7 +142,7 @@ public class MaceMissLite extends Module {
     private enum Phase { IDLE, DELAY }
 
     public MaceMissLite() {
-        super(MaceKillAddon.CATEGORY, "MaceMissLite", "重锤导弹精简版 - 双偏移+强制忽略+破甲");
+        super(MaceKillAddon.CATEGORY, "MaceMissLite", "Lite mace missile - dual offsets+force skip+armor break");
     }
 
     @Override
@@ -309,7 +309,7 @@ public class MaceMissLite extends Module {
 
     @Override
     public String getInfoString() {
-        if (currentTarget == null) return "无目标";
+        if (currentTarget == null) return "No target";
         if (phase == Phase.DELAY) return "CD " + delayTicks;
         String name = currentTarget instanceof PlayerEntity p ? p.getName().getString()
                 : currentTarget.getType().getName().getString();

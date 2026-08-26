@@ -15,11 +15,11 @@ public class AutoTotemToHotbar extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
 
     private final Setting<Integer> slot = sgMain.add(new IntSetting.Builder()
-            .name("槽位").description("图腾移动到的目标槽位")
+            .name("Slot").description("Hotbar slot to move the totem to")
             .defaultValue(7).min(0).max(8).build());
 
     public AutoTotemToHotbar() {
-        super(MaceKillAddon.CATEGORY, "AutoTotemToHotbar", "图腾快捷栏");
+        super(MaceKillAddon.CATEGORY, "AutoTotemToHotbar", "Moves a totem to a hotbar slot");
     }
 
     @EventHandler

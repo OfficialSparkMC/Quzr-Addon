@@ -6,7 +6,7 @@ public record Config(
     double moveDistance,
     boolean swingHand,
     boolean autoTotem,
-    boolean kehd,
+    boolean syncClientPos,
     boolean enableArmorDestroy,
     int ignoreArmorValue,
     List<String> destroyHeights,

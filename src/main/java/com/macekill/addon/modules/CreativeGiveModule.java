@@ -40,12 +40,12 @@ public class CreativeGiveModule extends Module {
     private final MinecraftClient mc = MinecraftClient.getInstance();
 
     public CreativeGiveModule() {
-        super(MaceKillAddon.CATEGORY, "物品生成器",
-            "创造模式通用物品生成 - 类型化组件\n" +
-            "附魔列表格式: 附魔ID:等级 (如 minecraft:sharpness:10)\n" +
-            "属性列表格式: 属性ID|值|槽位 (如 generic.attack_damage|1000|MAINHAND)\n" +
-            "槽位: MAINHAND, OFFHAND, HAND, HEAD, CHEST, LEGS, FEET, ARMOR, ANY\n" +
-            "提示: 药水请使用「药水生成器」模块");
+        super(MaceKillAddon.CATEGORY, "ItemGiver",
+            "Creative-mode generic item spawner - typed components\n" +
+            "Enchant list format: enchantID:level (e.g. minecraft:sharpness:10)\n" +
+            "Attribute list format: attributeID|amount|slot (e.g. generic.attack_damage|1000|MAINHAND)\n" +
+            "Slots: MAINHAND, OFFHAND, HAND, HEAD, CHEST, LEGS, FEET, ARMOR, ANY\n" +
+            "Tip: use the \"PotionGiver\" module for potions");
     }
 
     public enum Preset {
@@ -55,54 +55,54 @@ public class CreativeGiveModule extends Module {
     private final SettingGroup sg = settings.getDefaultGroup();
 
     private final Setting<Preset> preset = sg.add(new EnumSetting.Builder<Preset>()
-        .name("快捷预设").defaultValue(Preset.NONE).build()
+        .name("Preset").defaultValue(Preset.NONE).build()
     );
 
     private final Setting<String> itemId = sg.add(new StringSetting.Builder()
-        .name("物品ID").defaultValue("minecraft:diamond_sword").build()
+        .name("Item ID").defaultValue("minecraft:diamond_sword").build()
     );
 
     private final Setting<Integer> count = sg.add(new IntSetting.Builder()
-        .name("数量").defaultValue(1).min(1).max(64).sliderMax(64).build()
+        .name("Count").defaultValue(1).min(1).max(64).sliderMax(64).build()
     );
 
     private final Setting<Boolean> enableName = sg.add(new BoolSetting.Builder()
-        .name("自定义名称").defaultValue(false).build()
+        .name("Custom Name").defaultValue(false).build()
     );
 
     private final Setting<String> customName = sg.add(new StringSetting.Builder()
-        .name("名称文本")
-        .description("支持颜色代码: 输入 &6金色 &c红色 &a绿色 &b浅蓝 &9蓝 &d粉 &e黄 &f白 &0黑 等\n" +
-                     "& 加一个字母 = 颜色, &l=粗体 &o=斜体 &n=下划线 &m=删除线 &k=混淆\n" +
-                     "示例: &6&lQazr1234 &c&l神剑")
-        .defaultValue("&6&lQazr1234 &c&l测试剑").build()
+        .name("Name Text")
+        .description("Supports color codes: &6gold &cred &agreen &blight blue &9blue &dpink &eyellow &fwhite &0black etc.\n" +
+                     "& + letter = color, &l=bold &o=italic &n=underline &m=strikethrough &k=obfuscated\n" +
+                     "Example: &6&lQazr1234 &c&lGod Sword")
+        .defaultValue("&6&lQazr1234 &c&lGod Sword").build()
     );
 
     private final Setting<List<String>> enchantments = sg.add(new StringListSetting.Builder()
-        .name("附魔列表")
-        .description("每行一个，格式: 附魔ID:等级 (附魔ID可省略 minecraft: 前缀, 等级支持任意64位整数)")
+        .name("Enchantments")
+        .description("One per line, format: enchantID:level (minecraft: prefix optional, level supports any 64-bit integer)")
         .defaultValue(List.of("minecraft:sharpness:10"))
         .build()
     );
 
     private final Setting<List<String>> attributes = sg.add(new StringListSetting.Builder()
-        .name("属性列表")
-        .description("每行一个，格式: 属性ID|值|槽位\n" +
-                     "属性ID可省略 minecraft: 前缀\n" +
-                     "槽位: MAINHAND, OFFHAND, HAND, HEAD, CHEST, LEGS, FEET, ARMOR, ANY")
+        .name("Attributes")
+        .description("One per line, format: attributeID|amount|slot\n" +
+                     "minecraft: prefix optional for attribute IDs\n" +
+                     "Slots: MAINHAND, OFFHAND, HAND, HEAD, CHEST, LEGS, FEET, ARMOR, ANY")
         .defaultValue(List.of("generic.attack_damage|1000|MAINHAND"))
         .build()
     );
 
     private final Setting<Boolean> continuous = sg.add(new BoolSetting.Builder()
-        .name("连续生成").defaultValue(false).build()
+        .name("Continuous").defaultValue(false).build()
     );
 
     @Override
     public void onActivate() {
         if (mc.player == null || mc.world == null) { toggle(); return; }
         if (!mc.player.getAbilities().creativeMode) {
-            CreativeGiveUtil.warn("需要创造模式!"); toggle(); return;
+            CreativeGiveUtil.warn("Creative mode required!"); toggle(); return;
         }
         CreativeGiveUtil.resetError();
         generateAndGive();
@@ -121,7 +121,7 @@ public class CreativeGiveModule extends Module {
         if (p != Preset.NONE) { genPreset(p); return; }
 
         Item item = resolveItem(itemId.get());
-        if (item == Items.AIR) { CreativeGiveUtil.warn("未找到物品: " + itemId.get()); return; }
+        if (item == Items.AIR) { CreativeGiveUtil.warn("Item not found: " + itemId.get()); return; }
 
         ItemStack stack = new ItemStack(item, count.get());
 
@@ -137,7 +137,7 @@ public class CreativeGiveModule extends Module {
         }
 
         if (CreativeGiveUtil.give(stack)) {
-            CreativeGiveUtil.info("已生成 " + stack.getCount() + "x " + itemId.get());
+            CreativeGiveUtil.info("Given " + stack.getCount() + "x " + itemId.get());
         }
     }
 
@@ -181,18 +181,18 @@ public class CreativeGiveModule extends Module {
         String s = entry.trim();
         if (s.isEmpty()) return;
         int idx = s.lastIndexOf(':');
-        if (idx <= 0) { CreativeGiveUtil.warn("附魔格式错误: " + s + " (应为 id:level)"); return; }
+        if (idx <= 0) { CreativeGiveUtil.warn("Invalid enchant format: " + s + " (expected id:level)"); return; }
         String id = s.substring(0, idx);
         String levelStr = s.substring(idx + 1);
         long level;
         try { level = Long.parseLong(levelStr.trim()); }
-        catch (Exception e) { CreativeGiveUtil.warn("附魔等级解析错误: " + levelStr); return; }
+        catch (Exception e) { CreativeGiveUtil.warn("Enchant level parse error: " + levelStr); return; }
 
         try {
             Identifier enchId = Identifier.tryParse(id.contains(":") ? id : "minecraft:" + id);
-            if (enchId == null) { CreativeGiveUtil.warn("附魔ID错误: " + id); return; }
+            if (enchId == null) { CreativeGiveUtil.warn("Unknown enchant ID: " + id); return; }
             Optional<RegistryEntry.Reference<Enchantment>> ref = enchantmentRegistry().getEntry(enchId);
-            if (ref.isEmpty()) { CreativeGiveUtil.warn("附魔未找到: " + id); return; }
+            if (ref.isEmpty()) { CreativeGiveUtil.warn("Enchant not found: " + id); return; }
 
             int safeLevel = (int) Math.min(level, Integer.MAX_VALUE);
             ItemEnchantmentsComponent current = stack.getOrDefault(
@@ -201,7 +201,7 @@ public class CreativeGiveModule extends Module {
             builder.add(ref.get(), safeLevel);
             stack.set(DataComponentTypes.ENCHANTMENTS, builder.build());
         } catch (Exception e) {
-            CreativeGiveUtil.warn("附魔失败 [" + id + "]: " + e.getMessage());
+            CreativeGiveUtil.warn("Enchant failed [" + id + "]: " + e.getMessage());
         }
     }
 
@@ -211,19 +211,19 @@ public class CreativeGiveModule extends Module {
         String s = entry.trim();
         if (s.isEmpty()) return;
         String[] parts = s.split("\\|");
-        if (parts.length < 2) { CreativeGiveUtil.warn("属性格式错误: " + s + " (应为 id|值|槽位)"); return; }
+        if (parts.length < 2) { CreativeGiveUtil.warn("Invalid attribute format: " + s + " (expected id|amount|slot)"); return; }
         String id = parts[0].trim();
         String amountStr = parts[1].trim();
         String slotStr = parts.length >= 3 ? parts[2].trim().toUpperCase() : "ANY";
         double amount;
         try { amount = Double.parseDouble(amountStr); }
-        catch (Exception e) { CreativeGiveUtil.warn("属性值解析错误: " + amountStr); return; }
+        catch (Exception e) { CreativeGiveUtil.warn("Attribute amount parse error: " + amountStr); return; }
 
         try {
             Identifier attrId = Identifier.tryParse(id.contains(":") ? id : "minecraft:" + id);
-            if (attrId == null) { CreativeGiveUtil.warn("属性ID错误: " + id); return; }
+            if (attrId == null) { CreativeGiveUtil.warn("Unknown attribute ID: " + id); return; }
             Optional<RegistryEntry.Reference<EntityAttribute>> ref = attributeRegistry().getEntry(attrId);
-            if (ref.isEmpty()) { CreativeGiveUtil.warn("属性未找到: " + id); return; }
+            if (ref.isEmpty()) { CreativeGiveUtil.warn("Attribute not found: " + id); return; }
 
             EntityAttributeModifier modifier = new EntityAttributeModifier(
                 Identifier.of("qazr1234", "mod_" + System.nanoTime()),
@@ -236,7 +236,7 @@ public class CreativeGiveModule extends Module {
             AttributeModifiersComponent updated = current.with(ref.get(), modifier, slot);
             stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, updated);
         } catch (Exception e) {
-            CreativeGiveUtil.warn("属性失败 [" + id + "]: " + e.getMessage());
+            CreativeGiveUtil.warn("Attribute failed [" + id + "]: " + e.getMessage());
         }
     }
 
@@ -244,7 +244,7 @@ public class CreativeGiveModule extends Module {
         try {
             return AttributeModifierSlot.valueOf(s);
         } catch (Exception e) {
-            CreativeGiveUtil.warn("未知槽位: " + s + " (使用ANY)"); return AttributeModifierSlot.ANY;
+            CreativeGiveUtil.warn("Unknown slot: " + s + " (using ANY)"); return AttributeModifierSlot.ANY;
         }
     }
 
@@ -272,7 +272,7 @@ public class CreativeGiveModule extends Module {
     private void genDamageSword() {
         ItemStack stack = new ItemStack(Items.NETHERITE_SWORD, 1);
         stack.set(DataComponentTypes.CUSTOM_NAME,
-            Text.literal("Qazr1234 伤害神剑").formatted(Formatting.YELLOW, Formatting.BOLD));
+            Text.literal("Qazr1234 God Sword").formatted(Formatting.YELLOW, Formatting.BOLD));
 
         Optional<RegistryEntry.Reference<EntityAttribute>> dmgAttr =
             attributeRegistry().getEntry(Identifier.of("generic.attack_damage"));
@@ -286,7 +286,7 @@ public class CreativeGiveModule extends Module {
                 current.with(dmgAttr.get(), mod, AttributeModifierSlot.MAINHAND));
         }
         if (CreativeGiveUtil.give(stack))
-            CreativeGiveUtil.info("伤害神剑(137891)已生成");
+            CreativeGiveUtil.info("God Sword (137891) given");
     }
 
     private void genDamageArmor() {
@@ -305,7 +305,7 @@ public class CreativeGiveModule extends Module {
         for (int i = 0; i < pieces.length; i++) {
             ItemStack stack = new ItemStack(pieces[i], 1);
             stack.set(DataComponentTypes.CUSTOM_NAME,
-                Text.literal("Qazr1234 伤害神甲").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD));
+                Text.literal("Qazr1234 God Armor").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD));
             AttributeModifiersComponent comp = stack.getOrDefault(
                 DataComponentTypes.ATTRIBUTE_MODIFIERS, AttributeModifiersComponent.DEFAULT);
             if (armor.isPresent())
@@ -323,15 +323,15 @@ public class CreativeGiveModule extends Module {
             stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, comp);
             CreativeGiveUtil.give(stack);
         }
-        CreativeGiveUtil.info("伤害神甲全套(137891)已生成");
+        CreativeGiveUtil.info("Full God Armor set (137891) given");
     }
 
     private void genTotem() {
         ItemStack stack = new ItemStack(Items.TOTEM_OF_UNDYING, 1);
         stack.set(DataComponentTypes.CUSTOM_NAME,
-            Text.literal("Qazr1234 不死图腾").formatted(Formatting.GOLD, Formatting.BOLD));
+            Text.literal("Qazr1234 Undying Totem").formatted(Formatting.GOLD, Formatting.BOLD));
         if (CreativeGiveUtil.give(stack))
-            CreativeGiveUtil.info("不死图腾已生成");
+            CreativeGiveUtil.info("Undying Totem given");
     }
 
     /* ==================== 工具 ==================== */

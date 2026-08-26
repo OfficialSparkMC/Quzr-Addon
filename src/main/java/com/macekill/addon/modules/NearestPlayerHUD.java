@@ -15,19 +15,19 @@ public class NearestPlayerHUD extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
 
     private final Setting<Double> range = sgMain.add(new DoubleSetting.Builder()
-            .name("范围").description("检测范围")
+            .name("Range").description("Detection range")
             .defaultValue(100).min(1).max(500).sliderRange(1, 500).build()
     );
 
     public NearestPlayerHUD() {
-        super(MaceKillAddon.CATEGORY, "NearestPlayerHUD", "显示最近玩家信息");
+        super(MaceKillAddon.CATEGORY, "NearestPlayerHUD", "Shows nearest player info");
     }
 
     // ==================== HUD信息 ====================
 
     @Override
     public String getInfoString() {
-        if (mc.player == null || mc.world == null) return "无";
+        if (mc.player == null || mc.world == null) return "None";
 
         double rangeSq = range.get() * range.get();
         PlayerEntity nearest = null;
@@ -46,7 +46,7 @@ public class NearestPlayerHUD extends Module {
             }
         }
 
-        if (nearest == null) return "无";
+        if (nearest == null) return "None";
 
         double dist = mc.player.distanceTo(nearest);
         return String.format("%s %.1f", nearest.getName().getString(), dist);

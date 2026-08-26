@@ -39,54 +39,54 @@ public class MaceAura extends Module {
 
     /* ========== 设置 ========== */
     private final SettingGroup sgMain = settings.getDefaultGroup();
-    private final SettingGroup sgTotem = settings.createGroup("图腾绕过");
-    private final SettingGroup sgOffset = settings.createGroup("偏移");
+    private final SettingGroup sgTotem = settings.createGroup("Totem Bypass");
+    private final SettingGroup sgOffset = settings.createGroup("Offset");
 
     private final Setting<Double> range = sgMain.add(new DoubleSetting.Builder()
-            .name("范围").description("目标检测范围")
+            .name("Range").description("Target detection range")
             .defaultValue(20.0).min(1.0).max(200.0).sliderRange(1.0, 128.0).build());
 
     private final Setting<Boolean> onlyPlayers = sgMain.add(new BoolSetting.Builder()
-            .name("仅玩家").description("仅攻击玩家").defaultValue(true).build());
+            .name("Players Only").description("Only attack players").defaultValue(true).build());
 
     private final Setting<Boolean> swingArm = sgMain.add(new BoolSetting.Builder()
-            .name("挥手").description("攻击时挥手").defaultValue(false).build());
+            .name("Swing Arm").description("Swing arm when attacking").defaultValue(false).build());
 
     private final Setting<Integer> fallHeight = sgMain.add(new IntSetting.Builder()
-            .name("攻击高度").description("基础下落高度")
+            .name("Attack Height").description("Base fall height")
             .defaultValue(30).min(1).max(170).sliderRange(1, 170).build());
 
     private final Setting<Integer> spamPackets = sgMain.add(new IntSetting.Builder()
-            .name("垃圾包").description("每个高度发送的额外移动包")
+            .name("Spam Packets").description("Extra move packets sent per height")
             .defaultValue(2).min(0).max(20).sliderMax(10).build());
 
     private final Setting<Integer> attackDelay = sgMain.add(new IntSetting.Builder()
-            .name("攻击延迟").description("攻击间隔(tick)")
+            .name("Attack Delay").description("Attack interval in ticks")
             .defaultValue(10).min(0).max(40).sliderMax(40).build());
 
     private final Setting<Boolean> useOffset = sgOffset.add(new BoolSetting.Builder()
-            .name("启用偏移").description("不精确到目标正上方").defaultValue(false).build());
+            .name("Use Offset").description("Don't land exactly above the target").defaultValue(false).build());
 
     private final Setting<Double> horizontalOffset = sgOffset.add(new DoubleSetting.Builder()
-            .name("水平偏移").description("水平方向偏移量")
+            .name("Horizontal Offset").description("Horizontal offset amount")
             .defaultValue(1.5).min(0).max(10).sliderMax(5)
             .visible(useOffset::get).build());
 
     private final Setting<Double> yOffset = sgOffset.add(new DoubleSetting.Builder()
-            .name("高度偏移").description("垂直高度额外偏移")
+            .name("Vertical Offset").description("Extra vertical height offset")
             .defaultValue(0.5).min(0).max(5).sliderMax(5)
             .visible(useOffset::get).build());
 
     private final Setting<Boolean> bypassTotem = sgTotem.add(new BoolSetting.Builder()
-            .name("图腾绕过").description("先用小高度消耗图腾").defaultValue(false).build());
+            .name("Totem Bypass").description("Drain totems with low-height hits first").defaultValue(false).build());
 
     private final Setting<Integer> attackCount = sgTotem.add(new IntSetting.Builder()
-            .name("图腾攻击次数").description("消耗图腾的攻击次数")
+            .name("Totem Attacks").description("Attacks used to drain the totem")
             .defaultValue(3).min(1).max(10).sliderMax(10)
             .visible(bypassTotem::get).build());
 
     private final Setting<Integer> heightIncrement = sgTotem.add(new IntSetting.Builder()
-            .name("高度增量").description("每次图腾攻击增加的高度")
+            .name("Height Increment").description("Height added per totem attack")
             .defaultValue(2).min(1).max(10).sliderMax(10)
             .visible(bypassTotem::get).build());
 
@@ -97,7 +97,7 @@ public class MaceAura extends Module {
     private int totemAttackIndex;
 
     public MaceAura() {
-        super(MaceKillAddon.CATEGORY, "MaceAura", "重锤光环 - 带图腾绕过+偏移+位置缓存的自动攻击");
+        super(MaceKillAddon.CATEGORY, "MaceAura", "Mace aura - auto attack with totem bypass+offsets+position caching");
     }
 
     @Override
@@ -342,6 +342,6 @@ public class MaceAura extends Module {
     @Override
     public String getInfoString() {
         if (remainingCooldown > 0) return "CD " + remainingCooldown;
-        return bypassTotem.get() ? "图腾绕过" : "就绪";
+        return bypassTotem.get() ? "Totem Bypass" : "Ready";
     }
 }

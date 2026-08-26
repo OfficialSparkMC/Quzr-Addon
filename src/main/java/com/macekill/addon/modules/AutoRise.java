@@ -16,19 +16,19 @@ public class AutoRise extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
 
     private final Setting<Double> detectRange = sgMain.add(new DoubleSetting.Builder()
-            .name("检测范围").description("目标检测范围")
+            .name("Detection Range").description("Target detection range")
             .defaultValue(6.0).min(1.0).max(20.0).sliderRange(1.0, 20.0).build());
 
     private final Setting<Double> riseHeight = sgMain.add(new DoubleSetting.Builder()
-            .name("上升高度").description("VClip上升高度")
+            .name("Rise Height").description("VClip rise height")
             .defaultValue(10.0).min(1.0).max(50.0).sliderRange(1.0, 50.0).build());
 
     private final Setting<Boolean> sendRotationsWhenHigh = sgMain.add(new BoolSetting.Builder()
-            .name("发送旋转").description("高度>12时发送垃圾旋转包")
+            .name("Send Rotations").description("Send junk rotation packets when height > 12")
             .defaultValue(true).build());
 
     public AutoRise() {
-        super(MaceKillAddon.CATEGORY, "AutoRise", "自动上升");
+        super(MaceKillAddon.CATEGORY, "AutoRise", "Automatically rises");
     }
 
     @EventHandler

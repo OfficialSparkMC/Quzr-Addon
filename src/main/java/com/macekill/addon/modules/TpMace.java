@@ -37,77 +37,77 @@ public class TpMace extends Module {
 
     // ==================== 设置组 ====================
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgExploit = settings.createGroup("攻击");
-    private final SettingGroup sgTotem = settings.createGroup("图腾绕过");
-    private final SettingGroup sgTarget = settings.createGroup("目标");
+    private final SettingGroup sgExploit = settings.createGroup("Attack");
+    private final SettingGroup sgTotem = settings.createGroup("Totem Bypass");
+    private final SettingGroup sgTarget = settings.createGroup("Target");
 
     // ---- 通用 ----
     private final Setting<Double> range = sgGeneral.add(new DoubleSetting.Builder()
-            .name("范围").description("检测周围实体的距离")
+            .name("Range").description("Distance to search for entities")
             .defaultValue(20).min(1).max(200).sliderRange(1, 128).build()
     );
 
     private final Setting<Double> moveDistance = sgGeneral.add(new DoubleSetting.Builder()
-            .name("移动步长").description("每个移动包的最大距离")
+            .name("Move Step").description("Max distance per movement packet")
             .defaultValue(8).min(1).max(128).sliderRange(1, 128).build()
     );
 
     private final Setting<Integer> attackDelay = sgGeneral.add(new IntSetting.Builder()
-            .name("攻击延迟").description("攻击间隔(tick)")
+            .name("Attack Delay").description("Attack interval in ticks")
             .defaultValue(10).min(0).max(40).sliderMax(40).build()
     );
 
     private final Setting<Boolean> autoSwitch = sgGeneral.add(new BoolSetting.Builder()
-            .name("自动切换").description("自动切换到重锤").defaultValue(true).build()
+            .name("Auto Switch").description("Auto-switch to mace").defaultValue(true).build()
     );
 
     private final Setting<Boolean> rotate = sgGeneral.add(new BoolSetting.Builder()
-            .name("旋转").description("攻击时面向目标").defaultValue(true).build()
+            .name("Rotate").description("Face target when attacking").defaultValue(true).build()
     );
 
     private final Setting<Boolean> swingHand = sgGeneral.add(new BoolSetting.Builder()
-            .name("挥手").description("攻击时客户端挥手").defaultValue(false).build()
+            .name("Swing Hand").description("Swing hand client-side on attack").defaultValue(false).build()
     );
 
     private final Setting<Boolean> returnPos = sgGeneral.add(new BoolSetting.Builder()
-            .name("返回原位").description("攻击后返回原始位置").defaultValue(false).build()
+            .name("Return to Start").description("Return to original position after attack").defaultValue(false).build()
     );
 
     // ---- 攻击 ----
     private final Setting<Boolean> maxPower = sgExploit.add(new BoolSetting.Builder()
-            .name("最大化伤害").description("启用时使用最大安全高度(170)，关闭时使用指定高度")
+            .name("Max Damage").description("Use max safe height (170) when on, set height when off")
             .defaultValue(true).build()
     );
 
     private final Setting<Integer> fallHeight = sgExploit.add(new IntSetting.Builder()
-            .name("攻击高度").description("下落攻击使用的高度")
+            .name("Attack Height").description("Fall height used for the attack")
             .defaultValue(30).min(1).max(170).sliderRange(1, 170)
             .visible(() -> !maxPower.get()).build()
     );
 
     private final Setting<Boolean> airCheck = sgExploit.add(new BoolSetting.Builder()
-            .name("空气检测").description("确保目标上方有足够空气才攻击")
+            .name("Air Check").description("Only attack if there is enough air above the target")
             .defaultValue(true).build()
     );
 
     private final Setting<Boolean> silentSwap = sgExploit.add(new BoolSetting.Builder()
-            .name("静默切换").description("不发送切换包直接换到重锤").defaultValue(false).build()
+            .name("Silent Swap").description("Swap to mace without sending a slot packet").defaultValue(false).build()
     );
 
     // ---- 图腾绕过 ----
     private final Setting<Boolean> totemBypass = sgTotem.add(new BoolSetting.Builder()
-            .name("图腾绕过").description("先用小高度攻击消耗图腾，再用完整高度击杀")
+            .name("Totem Bypass").description("Drain totems with low-height hits, then kill at full height")
             .defaultValue(false).build()
     );
 
     private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
-            .name("图腾攻击次数").description("消耗图腾的小高度攻击次数")
+            .name("Totem Attacks").description("Low-height attacks used to drain totems")
             .defaultValue(3).min(1).max(10).sliderMax(10)
             .visible(totemBypass::get).build()
     );
 
     private final Setting<Integer> totemHeight = sgTotem.add(new IntSetting.Builder()
-            .name("图腾攻击高度").description("消耗图腾时使用的下落高度")
+            .name("Totem Attack Height").description("Fall height used while draining totems")
             .defaultValue(4).min(1).max(20).sliderMax(20)
             .visible(totemBypass::get).build()
     );
@@ -116,22 +116,22 @@ public class TpMace extends Module {
     private enum ListMode { Off, Whitelist, Blacklist }
 
     private final Setting<Boolean> players = sgTarget.add(new BoolSetting.Builder()
-            .name("玩家").description("攻击玩家").defaultValue(true).build()
+            .name("Players").description("Attack players").defaultValue(true).build()
     );
     private final Setting<Boolean> entities = sgTarget.add(new BoolSetting.Builder()
-            .name("生物").description("攻击生物").defaultValue(false).build()
+            .name("Entities").description("Attack living entities").defaultValue(false).build()
     );
     private final Setting<Boolean> throughWalls = sgTarget.add(new BoolSetting.Builder()
-            .name("穿墙").description("穿墙攻击").defaultValue(false).build()
+            .name("Through Walls").description("Attack through walls").defaultValue(false).build()
     );
     private final Setting<Boolean> ignoreNamed = sgTarget.add(new BoolSetting.Builder()
-            .name("忽略命名生物").description("忽略有自定义名称的生物").defaultValue(false).build()
+            .name("Ignore Named").description("Ignore entities with custom names").defaultValue(false).build()
     );
     private final Setting<ListMode> listMode = sgTarget.add(new EnumSetting.Builder<ListMode>()
-            .name("列表模式").description("白名单/黑名单").defaultValue(ListMode.Off).build()
+            .name("List Mode").description("Whitelist or blacklist").defaultValue(ListMode.Off).build()
     );
     private final Setting<String> playerList = sgTarget.add(new StringSetting.Builder()
-            .name("玩家列表").description("用逗号分隔").defaultValue("")
+            .name("Player List").description("Comma separated").defaultValue("")
             .visible(() -> listMode.get() != ListMode.Off).build()
     );
 
@@ -146,7 +146,7 @@ public class TpMace extends Module {
     private int maceSlot = -1;
 
     public TpMace() {
-        super(MaceKillAddon.CATEGORY, "TpMace", "百米重锤 - 融合TP传送+图腾绕过+静默切换");
+        super(MaceKillAddon.CATEGORY, "TpMace", "Long-range mace - TP teleport+totem bypass+silent swap");
     }
 
     @Override
@@ -482,6 +482,6 @@ public class TpMace extends Module {
 
     @Override
     public String getInfoString() {
-        return target != null ? target.getName().getString() : "无目标";
+        return target != null ? target.getName().getString() : "No target";
     }
 }

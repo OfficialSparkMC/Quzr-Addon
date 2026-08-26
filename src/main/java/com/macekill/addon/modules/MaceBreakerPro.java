@@ -28,28 +28,28 @@ public class MaceBreakerPro extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Boolean> onlyOnShield = sgGeneral.add(new BoolSetting.Builder()
-            .name("仅持盾").description("仅在目标举盾时触发连击")
+            .name("Only Blocking").description("Only trigger the combo when the target is blocking")
             .defaultValue(true).build()
     );
 
     private final Setting<Boolean> swordTrigger = sgGeneral.add(new BoolSetting.Builder()
-            .name("剑触发").description("手持剑时也可触发连击").defaultValue(false).build()
+            .name("Sword Trigger").description("Also trigger the combo when holding a sword").defaultValue(false).build()
     );
 
     private final Setting<Boolean> axeTrigger = sgGeneral.add(new BoolSetting.Builder()
-            .name("斧触发").description("手持斧时也可触发连击").defaultValue(true).build()
+            .name("Axe Trigger").description("Also trigger the combo when holding an axe").defaultValue(true).build()
     );
 
     private final Setting<Boolean> maceTrigger = sgGeneral.add(new BoolSetting.Builder()
-            .name("重锤触发").description("手持重锤时也可触发连击").defaultValue(false).build()
+            .name("Mace Trigger").description("Also trigger the combo when holding a mace").defaultValue(false).build()
     );
 
     private final Setting<Boolean> autoReturn = sgGeneral.add(new BoolSetting.Builder()
-            .name("自动返回").description("攻击后切换回原手持物品").defaultValue(true).build()
+            .name("Auto Return").description("Switch back to the original item after attacking").defaultValue(true).build()
     );
 
     public MaceBreakerPro() {
-        super(MaceKillAddon.CATEGORY, "MaceBreakerPro", "攻击时自动斧+重锤连击破盾");
+        super(MaceKillAddon.CATEGORY, "MaceBreakerPro", "Auto axe+mace combo to break shields on attack");
     }
 
     @EventHandler

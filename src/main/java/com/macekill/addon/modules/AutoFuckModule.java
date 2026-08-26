@@ -16,166 +16,248 @@ import java.util.Random;
 public class AutoFuckModule extends Module {
     private final Random random = new Random();
 
-    // ==================== 设置组 ====================
-    private final SettingGroup sgMode = settings.createGroup("模式");
-    private final SettingGroup sgPlayer = settings.createGroup("目标玩家");
-    private final SettingGroup sgPhrases = settings.createGroup("语录");
-    private final SettingGroup sgTypo = settings.createGroup("错字");
+    // ==================== Settings Groups ====================
 
-    // ---- 模式 ----
-    private enum TriggerMode { RANDOM_INTERVAL, WAIT_FOR_MESSAGE }
-    private enum SendMode { SINGLE, BURST }
+    private final SettingGroup sgMode = settings.createGroup("Mode");
+    private final SettingGroup sgPlayer = settings.createGroup("Target");
+    private final SettingGroup sgPhrases = settings.createGroup("Messages");
+    private final SettingGroup sgTypo = settings.createGroup("Typos");
 
-    private final Setting<TriggerMode> triggerMode = sgMode.add(new EnumSetting.Builder<TriggerMode>()
-            .name("触发模式")
-            .description("随机间隔 / 等待对方消息")
+    // ==================== Trigger Settings ====================
+
+    private enum TriggerMode {
+        RANDOM_INTERVAL,
+        WAIT_FOR_MESSAGE
+    }
+
+    private enum SendMode {
+        SINGLE,
+        BURST
+    }
+
+    private final Setting<TriggerMode> triggerMode = sgMode.add(
+        new EnumSetting.Builder<TriggerMode>()
+            .name("trigger-mode")
+            .description("Choose whether messages are sent at random intervals or after receiving messages.")
             .defaultValue(TriggerMode.RANDOM_INTERVAL)
             .build()
     );
 
-    private final Setting<Double> minIntervalSec = sgMode.add(new DoubleSetting.Builder()
-            .name("最小间隔")
-            .description("随机发送的最小间隔（秒）")
-            .defaultValue(5.0).min(1.0).max(30.0).sliderRange(1.0, 30.0)
+    private final Setting<Double> minIntervalSec = sgMode.add(
+        new DoubleSetting.Builder()
+            .name("minimum-interval")
+            .description("Minimum random delay between messages, in seconds.")
+            .defaultValue(5.0)
+            .min(1.0)
+            .max(30.0)
+            .sliderRange(1.0, 30.0)
             .visible(() -> triggerMode.get() == TriggerMode.RANDOM_INTERVAL)
             .build()
     );
 
-    private final Setting<Double> maxIntervalSec = sgMode.add(new DoubleSetting.Builder()
-            .name("最大间隔")
-            .description("随机发送的最大间隔（秒）")
-            .defaultValue(15.0).min(1.0).max(30.0).sliderRange(1.0, 30.0)
+    private final Setting<Double> maxIntervalSec = sgMode.add(
+        new DoubleSetting.Builder()
+            .name("maximum-interval")
+            .description("Maximum random delay between messages, in seconds.")
+            .defaultValue(15.0)
+            .min(1.0)
+            .max(30.0)
+            .sliderRange(1.0, 30.0)
             .visible(() -> triggerMode.get() == TriggerMode.RANDOM_INTERVAL)
             .build()
     );
 
-    private final Setting<Integer> waitMsgCountMin = sgMode.add(new IntSetting.Builder()
-            .name("等待消息数(最小)")
-            .description("等待对方发多少条消息后触发")
-            .defaultValue(2).min(1).max(50).sliderRange(1, 20)
+    private final Setting<Integer> waitMsgCountMin = sgMode.add(
+        new IntSetting.Builder()
+            .name("minimum-message-count")
+            .description("Minimum number of messages to wait for before triggering.")
+            .defaultValue(2)
+            .min(1)
+            .max(50)
+            .sliderRange(1, 20)
             .visible(() -> triggerMode.get() == TriggerMode.WAIT_FOR_MESSAGE)
             .build()
     );
 
-    private final Setting<Integer> waitMsgCountMax = sgMode.add(new IntSetting.Builder()
-            .name("等待消息数(最大)")
-            .description("随机最大等待消息数（等于最小值则固定）")
-            .defaultValue(5).min(1).max(50).sliderRange(1, 20)
+    private final Setting<Integer> waitMsgCountMax = sgMode.add(
+        new IntSetting.Builder()
+            .name("maximum-message-count")
+            .description("Maximum random number of messages to wait for.")
+            .defaultValue(5)
+            .min(1)
+            .max(50)
+            .sliderRange(1, 20)
             .visible(() -> triggerMode.get() == TriggerMode.WAIT_FOR_MESSAGE)
             .build()
     );
 
-    private final Setting<SendMode> sendMode = sgMode.add(new EnumSetting.Builder<SendMode>()
-            .name("发送模式")
-            .description("单发 / 连发")
+    // ==================== Send Settings ====================
+
+    private final Setting<SendMode> sendMode = sgMode.add(
+        new EnumSetting.Builder<SendMode>()
+            .name("send-mode")
+            .description("Send a single message or send multiple messages in a burst.")
             .defaultValue(SendMode.SINGLE)
             .build()
     );
 
-    private final Setting<Integer> burstCountMin = sgMode.add(new IntSetting.Builder()
-            .name("连发数量(最小)")
-            .defaultValue(2).min(1).max(20).sliderRange(1, 10)
+    private final Setting<Integer> burstCountMin = sgMode.add(
+        new IntSetting.Builder()
+            .name("minimum-burst-count")
+            .description("Minimum number of messages sent during a burst.")
+            .defaultValue(2)
+            .min(1)
+            .max(20)
+            .sliderRange(1, 10)
             .visible(() -> sendMode.get() == SendMode.BURST)
             .build()
     );
 
-    private final Setting<Integer> burstCountMax = sgMode.add(new IntSetting.Builder()
-            .name("连发数量(最大)")
-            .defaultValue(5).min(1).max(20).sliderRange(1, 10)
+    private final Setting<Integer> burstCountMax = sgMode.add(
+        new IntSetting.Builder()
+            .name("maximum-burst-count")
+            .description("Maximum number of messages sent during a burst.")
+            .defaultValue(5)
+            .min(1)
+            .max(20)
+            .sliderRange(1, 10)
             .visible(() -> sendMode.get() == SendMode.BURST)
             .build()
     );
 
-    private final Setting<Double> burstIntervalMin = sgMode.add(new DoubleSetting.Builder()
-            .name("连发间隔(最小)")
-            .description("连发每条之间的间隔（秒）")
-            .defaultValue(0.5).min(0.1).max(5.0).sliderRange(0.1, 5.0)
+    private final Setting<Double> burstIntervalMin = sgMode.add(
+        new DoubleSetting.Builder()
+            .name("minimum-burst-delay")
+            .description("Minimum delay between messages in a burst, in seconds.")
+            .defaultValue(0.5)
+            .min(0.1)
+            .max(5.0)
+            .sliderRange(0.1, 5.0)
             .visible(() -> sendMode.get() == SendMode.BURST)
             .build()
     );
 
-    private final Setting<Double> burstIntervalMax = sgMode.add(new DoubleSetting.Builder()
-            .name("连发间隔(最大)")
-            .description("连发每条之间的随机最大间隔（秒）")
-            .defaultValue(1.5).min(0.1).max(5.0).sliderRange(0.1, 5.0)
+    private final Setting<Double> burstIntervalMax = sgMode.add(
+        new DoubleSetting.Builder()
+            .name("maximum-burst-delay")
+            .description("Maximum random delay between messages in a burst, in seconds.")
+            .defaultValue(1.5)
+            .min(0.1)
+            .max(5.0)
+            .sliderRange(0.1, 5.0)
             .visible(() -> sendMode.get() == SendMode.BURST)
             .build()
     );
 
-    // ---- 目标玩家 ----
-    private enum PlayerMode { NEAREST, RANDOM, FIXED }
+    // ==================== Target Settings ====================
 
-    private final Setting<PlayerMode> playerMode = sgPlayer.add(new EnumSetting.Builder<PlayerMode>()
-            .name("目标选择")
-            .description("最近玩家 / 随机玩家 / 固定玩家")
+    private enum PlayerMode {
+        NEAREST,
+        RANDOM,
+        FIXED
+    }
+
+    private final Setting<PlayerMode> playerMode = sgPlayer.add(
+        new EnumSetting.Builder<PlayerMode>()
+            .name("target-selection")
+            .description("Select the nearest, random, or a specific player.")
             .defaultValue(PlayerMode.NEAREST)
             .build()
     );
 
-    private final Setting<String> fixedPlayer = sgPlayer.add(new StringSetting.Builder()
-            .name("固定玩家名")
+    private final Setting<String> fixedPlayer = sgPlayer.add(
+        new StringSetting.Builder()
+            .name("fixed-player")
+            .description("Player name to target when fixed targeting is enabled.")
             .defaultValue("")
             .visible(() -> playerMode.get() == PlayerMode.FIXED)
             .build()
     );
 
-    private final Setting<String> customCommand = sgPlayer.add(new StringSetting.Builder()
-            .name("自定义指令")
-            .description("为空则公聊发送，填写则用指令发送。{player}=目标名 {fuck}=骂人文本")
+    private final Setting<String> customCommand = sgPlayer.add(
+        new StringSetting.Builder()
+            .name("custom-command")
+            .description("Leave empty for public chat. Use {player} for the target and {fuck} for the generated message.")
             .defaultValue("")
             .build()
     );
 
-    // ---- 语录 ----
-    private final Setting<List<String>> phraseList = sgPhrases.add(new StringListSetting.Builder()
-            .name("语录列表")
-            .description("右键列表打开编辑界面。用 [组名] 开头建立分组，{player} = 目标玩家名")
-            .defaultValue("[默认]", "你菜得扣脚 {player}", "{player} 你好菜啊", "ez {player}")
+    // ==================== Message Settings ====================
+
+    private final Setting<List<String>> phraseList = sgPhrases.add(
+        new StringListSetting.Builder()
+            .name("message-list")
+            .description("Message templates. Use [Group Name] for group headers and {player} for the target name.")
+            .defaultValue(
+                "[Default]",
+                "You are terrible {player}",
+                "{player} you are so bad",
+                "ez {player}"
+            )
             .build()
     );
 
-    // ---- 错字 ----
-    private final Setting<Boolean> typoEnabled = sgTypo.add(new BoolSetting.Builder()
-            .name("启用错字")
-            .description("发送时随机打乱字母大小写、标点符号、随机删除字符")
+    // ==================== Typo Settings ====================
+
+    private final Setting<Boolean> typoEnabled = sgTypo.add(
+        new BoolSetting.Builder()
+            .name("enable-typos")
+            .description("Randomly alter capitalization, punctuation, and characters before sending.")
             .defaultValue(false)
             .build()
     );
 
-    private final Setting<Double> typoFrequency = sgTypo.add(new DoubleSetting.Builder()
-            .name("错字频率")
-            .description("每条消息触发错字的概率（0=从不, 1=总是）")
-            .defaultValue(0.3).min(0.0).max(1.0).sliderRange(0.0, 1.0)
+    private final Setting<Double> typoFrequency = sgTypo.add(
+        new DoubleSetting.Builder()
+            .name("typo-frequency")
+            .description("Probability of applying typo effects to each message.")
+            .defaultValue(0.3)
+            .min(0.0)
+            .max(1.0)
+            .sliderRange(0.0, 1.0)
             .visible(typoEnabled::get)
             .build()
     );
 
-    private final Setting<Double> typoStrength = sgTypo.add(new DoubleSetting.Builder()
-            .name("错字强度")
-            .description("错字程度（0=几乎不变, 1=面目全非）")
-            .defaultValue(0.5).min(0.0).max(1.0).sliderRange(0.0, 1.0)
+    private final Setting<Double> typoStrength = sgTypo.add(
+        new DoubleSetting.Builder()
+            .name("typo-strength")
+            .description("Controls how heavily the generated message is modified.")
+            .defaultValue(0.5)
+            .min(0.0)
+            .max(1.0)
+            .sliderRange(0.0, 1.0)
             .visible(typoEnabled::get)
             .build()
     );
 
-    private final Setting<List<String>> typoTable = sgTypo.add(new StringListSetting.Builder()
-            .name("错字替换表")
-            .description("格式：原词 -> 替换词（每行一条映射）")
-            .defaultValue("ni hao -> n1 h4o", "hello -> he110")
+    private final Setting<List<String>> typoTable = sgTypo.add(
+        new StringListSetting.Builder()
+            .name("typo-replacements")
+            .description("Custom replacements using the format: original -> replacement.")
+            .defaultValue(
+                "ni hao -> n1 h4o",
+                "hello -> he110"
+            )
             .visible(typoEnabled::get)
             .build()
     );
 
-    // ==================== 运行时状态 ====================
+    // ==================== Runtime State ====================
+
     private int tickCounter;
     private int nextTriggerTick;
-    private int waitedMsgCount;
-    private int needMsgCount;
+    private int waitedMessageCount;
+    private int requiredMessageCount;
     private int burstRemaining;
     private int burstDelayTicks;
 
     public AutoFuckModule() {
-        super(MaceKillAddon.CATEGORY, "AutoFuck", "自动骂人");
+        super(
+            MaceKillAddon.CATEGORY,
+            "auto-fuck",
+            "Automatically sends configured messages toward selected players."
+        );
     }
 
     @Override
@@ -191,29 +273,37 @@ public class AutoFuckModule extends Module {
     private void resetState() {
         tickCounter = 0;
         nextTriggerTick = randomTriggerDelay();
-        waitedMsgCount = 0;
-        needMsgCount = randomRange(waitMsgCountMin.get(), waitMsgCountMax.get());
+        waitedMessageCount = 0;
+        requiredMessageCount = randomRange(
+            waitMsgCountMin.get(),
+            waitMsgCountMax.get()
+        );
         burstRemaining = 0;
         burstDelayTicks = 0;
     }
 
-    // ==================== Tick ====================
+    // ==================== Tick Handler ====================
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.world == null) {
+            return;
+        }
 
-        // 连发延迟中
+        // Process burst messages.
         if (burstRemaining > 0) {
             if (burstDelayTicks > 0) {
                 burstDelayTicks--;
                 return;
             }
-            doSend();
+
+            sendMessage();
             burstRemaining--;
+
             if (burstRemaining > 0) {
                 burstDelayTicks = randomBurstDelayTicks();
             }
+
             return;
         }
 
@@ -222,96 +312,154 @@ public class AutoFuckModule extends Module {
         if (triggerMode.get() == TriggerMode.RANDOM_INTERVAL) {
             if (tickCounter >= nextTriggerTick) {
                 trigger();
+
                 tickCounter = 0;
                 nextTriggerTick = randomTriggerDelay();
             }
         }
-        // WAIT_FOR_MESSAGE 模式在 onPacketReceive 中触发
+
+        // WAIT_FOR_MESSAGE mode is handled by onPacketReceive().
     }
 
-    // ==================== 接收消息 ====================
+    // ==================== Incoming Message Handler ====================
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
-        if (mc.world == null || mc.player == null) return;
-        if (triggerMode.get() != TriggerMode.WAIT_FOR_MESSAGE) return;
-        if (!(event.packet instanceof GameMessageS2CPacket packet)) return;
+        if (mc.world == null || mc.player == null) {
+            return;
+        }
 
-        String myName = mc.player.getName().getString();
-        String sender = getMessageAuthor(packet);
-        if (sender.isEmpty()) return;
+        if (triggerMode.get() != TriggerMode.WAIT_FOR_MESSAGE) {
+            return;
+        }
 
-        // 自己的消息不计数
-        if (sender.equals(myName)) return;
+        if (!(event.packet instanceof GameMessageS2CPacket packet)) {
+            return;
+        }
 
-        // 检查是否为目标的发言
-        String target = getTargetName();
-        if (!target.isEmpty() && !sender.equals(target)) return;
+        String localPlayerName = mc.player.getName().getString();
+        String senderName = getMessageAuthor(packet);
 
-        waitedMsgCount++;
-        if (waitedMsgCount >= needMsgCount) {
+        if (senderName.isEmpty()) {
+            return;
+        }
+
+        // Ignore messages sent by ourselves.
+        if (senderName.equals(localPlayerName)) {
+            return;
+        }
+
+        String targetName = getTargetName();
+
+        // Only count messages from the selected target.
+        if (!targetName.isEmpty() && !senderName.equals(targetName)) {
+            return;
+        }
+
+        waitedMessageCount++;
+
+        if (waitedMessageCount >= requiredMessageCount) {
             trigger();
-            waitedMsgCount = 0;
-            needMsgCount = randomRange(waitMsgCountMin.get(), waitMsgCountMax.get());
+
+            waitedMessageCount = 0;
+            requiredMessageCount = randomRange(
+                waitMsgCountMin.get(),
+                waitMsgCountMax.get()
+            );
         }
     }
 
-    // ==================== 触发逻辑 ====================
+    // ==================== Trigger Logic ====================
 
     private void trigger() {
-        String target = getTargetName();
-        if (target.isEmpty()) return;
+        String targetName = getTargetName();
 
-        List<String> phrases = collectPhrases();
-        if (phrases.isEmpty()) return;
+        if (targetName.isEmpty()) {
+            return;
+        }
+
+        List<String> messages = collectMessages();
+
+        if (messages.isEmpty()) {
+            return;
+        }
 
         if (sendMode.get() == SendMode.BURST) {
-            burstRemaining = randomRange(burstCountMin.get(), burstCountMax.get());
+            burstRemaining = randomRange(
+                burstCountMin.get(),
+                burstCountMax.get()
+            );
+
             burstDelayTicks = 0;
         } else {
-            doSend();
+            sendMessage();
         }
     }
 
-    private void doSend() {
-        if (mc.getNetworkHandler() == null || mc.player == null) return;
-
-        List<String> phrases = collectPhrases();
-        if (phrases.isEmpty()) return;
-
-        String target = getTargetName();
-        if (target.isEmpty()) return;
-
-        // 随机选一句
-        String msg = phrases.get(random.nextInt(phrases.size()));
-        msg = msg.replace("{player}", target);
-
-        // 错字处理
-        if (typoEnabled.get() && random.nextDouble() < typoFrequency.get()) {
-            msg = applyTypo(msg);
+    private void sendMessage() {
+        if (mc.getNetworkHandler() == null || mc.player == null) {
+            return;
         }
 
-        String cmd = customCommand.get();
-        if (!cmd.isEmpty()) {
-            msg = cmd.replace("{player}", target).replace("{fuck}", msg);
+        List<String> messages = collectMessages();
+
+        if (messages.isEmpty()) {
+            return;
         }
 
-        mc.getNetworkHandler().sendChatMessage(msg);
+        String targetName = getTargetName();
+
+        if (targetName.isEmpty()) {
+            return;
+        }
+
+        // Select a random message.
+        String message = messages.get(
+            random.nextInt(messages.size())
+        );
+
+        message = message.replace("{player}", targetName);
+
+        // Apply typo effects.
+        if (typoEnabled.get() &&
+            random.nextDouble() < typoFrequency.get()) {
+            message = applyTypo(message);
+        }
+
+        // Use the custom command if configured.
+        String command = customCommand.get();
+
+        if (!command.isEmpty()) {
+            message = command
+                .replace("{player}", targetName)
+                .replace("{fuck}", message);
+        }
+
+        mc.getNetworkHandler().sendChatMessage(message);
     }
 
-    // ==================== 语录收集 ====================
+    // ==================== Message Collection ====================
 
-    private List<String> collectPhrases() {
+    private List<String> collectMessages() {
         List<String> result = new ArrayList<>();
+
         for (String line : phraseList.get()) {
-            if (line.isEmpty()) continue;
-            if (line.startsWith("[") && line.endsWith("]")) continue; // 跳过组名
+            if (line.isEmpty()) {
+                continue;
+            }
+
+            // Ignore group headers.
+            if (line.startsWith("[") && line.endsWith("]")) {
+                continue;
+            }
+
             result.add(line);
         }
+
         return result;
     }
 
-    // ==================== 目标获取 ====================
+    // ==================== Target Selection ====================
 
     private String getTargetName() {
         return switch (playerMode.get()) {
@@ -322,49 +470,89 @@ public class AutoFuckModule extends Module {
     }
 
     private String getNearestPlayerName() {
-        if (mc.world == null || mc.player == null) return "";
-        PlayerEntity nearest = null;
-        double best = Double.MAX_VALUE;
-        for (PlayerEntity p : mc.world.getPlayers()) {
-            if (p == mc.player) continue;
-            double d = mc.player.squaredDistanceTo(p);
-            if (d < best) { best = d; nearest = p; }
+        if (mc.world == null || mc.player == null) {
+            return "";
         }
-        return nearest != null ? nearest.getName().getString() : "";
+
+        PlayerEntity nearestPlayer = null;
+        double closestDistance = Double.MAX_VALUE;
+
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player == mc.player) {
+                continue;
+            }
+
+            double distance =
+                mc.player.squaredDistanceTo(player);
+
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                nearestPlayer = player;
+            }
+        }
+
+        return nearestPlayer != null
+            ? nearestPlayer.getName().getString()
+            : "";
     }
 
     private String getRandomPlayerName() {
-        if (mc.world == null || mc.player == null) return "";
-        List<PlayerEntity> others = new ArrayList<>();
-        for (PlayerEntity p : mc.world.getPlayers()) {
-            if (p != mc.player) others.add(p);
+        if (mc.world == null || mc.player == null) {
+            return "";
         }
-        if (others.isEmpty()) return "";
-        return others.get(random.nextInt(others.size())).getName().getString();
+
+        List<PlayerEntity> players = new ArrayList<>();
+
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player != mc.player) {
+                players.add(player);
+            }
+        }
+
+        if (players.isEmpty()) {
+            return "";
+        }
+
+        return players
+            .get(random.nextInt(players.size()))
+            .getName()
+            .getString();
     }
 
-    // ==================== 消息作者提取 ====================
+    // ==================== Message Author Detection ====================
 
     private String getMessageAuthor(GameMessageS2CPacket packet) {
-        String text = packet.content().getString();
-        // Minecraft 聊天格式通常以昵称开头，如 "<playerName> message"
-        // 检测格式：<昵称> 后续
-        if (text.startsWith("<")) {
-            int end = text.indexOf(">");
-            if (end > 1) return text.substring(1, end);
+        String message = packet.content().getString();
+
+        // Detect standard Minecraft chat format:
+        // <PlayerName> message
+        if (message.startsWith("<")) {
+            int closingBracket = message.indexOf(">");
+
+            if (closingBracket > 1) {
+                return message.substring(1, closingBracket);
+            }
         }
+
         return "";
     }
 
-    // ==================== 错字系统 ====================
+    // ==================== Typo System ====================
 
     private String applyTypo(String text) {
         double strength = typoStrength.get();
-        int ops = Math.max(1, (int) Math.ceil(text.length() * strength * 0.3));
 
-        for (int i = 0; i < ops; i++) {
-            int r = random.nextInt(3);
-            text = switch (r) {
+        int operations = Math.max(
+            1,
+            (int) Math.ceil(
+                text.length() * strength * 0.3
+            )
+        );
+
+        for (int i = 0; i < operations; i++) {
+            int operation = random.nextInt(3);
+
+            text = switch (operation) {
                 case 0 -> swapCaseRandom(text);
                 case 1 -> swapPunctuation(text);
                 case 2 -> deleteRandomChar(text);
@@ -372,14 +560,19 @@ public class AutoFuckModule extends Module {
             };
         }
 
-        // 应用自定义替换表
+        // Apply custom replacement mappings.
         for (String mapping : typoTable.get()) {
             String[] parts = mapping.split("->");
+
             if (parts.length == 2) {
-                String from = parts[0].trim();
-                String to = parts[1].trim();
+                String original = parts[0].trim();
+                String replacement = parts[1].trim();
+
                 if (random.nextDouble() < strength) {
-                    text = text.replace(from, to);
+                    text = text.replace(
+                        original,
+                        replacement
+                    );
                 }
             }
         }
@@ -388,59 +581,105 @@ public class AutoFuckModule extends Module {
     }
 
     private String swapCaseRandom(String text) {
-        if (text.isEmpty()) return text;
-        int idx = random.nextInt(text.length());
-        char c = text.charAt(idx);
-        if (Character.isUpperCase(c)) c = Character.toLowerCase(c);
-        else if (Character.isLowerCase(c)) c = Character.toUpperCase(c);
-        else return text;
-        return text.substring(0, idx) + c + text.substring(idx + 1);
+        if (text.isEmpty()) {
+            return text;
+        }
+
+        int index = random.nextInt(text.length());
+        char character = text.charAt(index);
+
+        if (Character.isUpperCase(character)) {
+            character = Character.toLowerCase(character);
+        } else if (Character.isLowerCase(character)) {
+            character = Character.toUpperCase(character);
+        } else {
+            return text;
+        }
+
+        return text.substring(0, index)
+            + character
+            + text.substring(index + 1);
     }
 
     private String swapPunctuation(String text) {
-        if (text.isEmpty()) return text;
-        String[] targets = {"，", "。", "！", "？", ",", ".", "!", "?"};
-        String[] replacements = {",", ".", "!", "?", "，", "。", "！", "？"};
-        for (int i = 0; i < targets.length; i++) {
-            if (text.contains(targets[i])) {
-                int pair = i < 4 ? i + 4 : i - 4;
-                text = text.replace(targets[i], replacements[pair]);
-                return text;
+        if (text.isEmpty()) {
+            return text;
+        }
+
+        String[] punctuation = {
+            "，", "。", "！", "？",
+            ",", ".", "!", "?"
+        };
+
+        String[] replacements = {
+            ",", ".", "!", "?",
+            "，", "。", "！", "？"
+        };
+
+        for (int i = 0; i < punctuation.length; i++) {
+            if (text.contains(punctuation[i])) {
+                int replacementIndex =
+                    i < 4 ? i + 4 : i - 4;
+
+                return text.replace(
+                    punctuation[i],
+                    replacements[replacementIndex]
+                );
             }
         }
+
         return text;
     }
 
     private String deleteRandomChar(String text) {
-        if (text.length() <= 1) return text;
-        int idx = random.nextInt(text.length());
-        return text.substring(0, idx) + text.substring(idx + 1);
+        if (text.length() <= 1) {
+            return text;
+        }
+
+        int index = random.nextInt(text.length());
+
+        return text.substring(0, index)
+            + text.substring(index + 1);
     }
 
-    // ==================== 工具方法 ====================
+    // ==================== Utility Methods ====================
 
     private int randomTriggerDelay() {
-        double sec = minIntervalSec.get();
-        double max = maxIntervalSec.get();
-        if (max > sec) sec += random.nextDouble() * (max - sec);
-        return (int) (sec * 20);
+        double delay = minIntervalSec.get();
+        double maximum = maxIntervalSec.get();
+
+        if (maximum > delay) {
+            delay += random.nextDouble() * (maximum - delay);
+        }
+
+        return (int) (delay * 20);
     }
 
     private int randomBurstDelayTicks() {
-        double sec = burstIntervalMin.get();
-        double max = burstIntervalMax.get();
-        if (max > sec) sec += random.nextDouble() * (max - sec);
-        return (int) (sec * 20);
+        double delay = burstIntervalMin.get();
+        double maximum = burstIntervalMax.get();
+
+        if (maximum > delay) {
+            delay += random.nextDouble() * (maximum - delay);
+        }
+
+        return (int) (delay * 20);
     }
 
     private int randomRange(int min, int max) {
-        if (max <= min) return min;
+        if (max <= min) {
+            return min;
+        }
+
         return min + random.nextInt(max - min + 1);
     }
 
     @Override
     public String getInfoString() {
-        String target = getTargetName();
-        return target.isEmpty() ? "无目标" : target;
+        String targetName = getTargetName();
+
+        return targetName.isEmpty()
+            ? "No target"
+            : targetName;
     }
 }

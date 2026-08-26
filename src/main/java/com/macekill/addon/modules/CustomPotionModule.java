@@ -46,34 +46,34 @@ public class CustomPotionModule extends Module {
     }
 
     public CustomPotionModule() {
-        super(MaceKillAddon.CATEGORY, "药水生成器",
-            "创造模式自定义药水生成\n" +
-            "效果列表: 每行一个, 格式 效果ID|等级|持续秒数\n" +
-            "示例: instant_health|125|1   (瞬间治疗125级)\n" +
-            "可省略 minecraft: 前缀, 持续时间最大60分钟");
+        super(MaceKillAddon.CATEGORY, "PotionGiver",
+            "Creative-mode custom potion spawner\n" +
+            "Effect list: one per line, format effectID|level|durationSeconds\n" +
+            "Example: instant_health|125|1   (Instant Health lvl 125)\n" +
+            "minecraft: prefix optional, duration capped at 60 minutes");
     }
 
     private final SettingGroup sg = settings.getDefaultGroup();
 
     private final Setting<PotionType> potionType = sg.add(new EnumSetting.Builder<PotionType>()
-        .name("药水类型")
+        .name("Potion Type")
         .defaultValue(PotionType.SPLASH).build()
     );
 
     private final Setting<Integer> count = sg.add(new IntSetting.Builder()
-        .name("数量").defaultValue(1).min(1).max(64).sliderMax(64).build()
+        .name("Count").defaultValue(1).min(1).max(64).sliderMax(64).build()
     );
 
     private final Setting<List<String>> potionEffects = sg.add(new StringListSetting.Builder()
-        .name("效果列表")
-        .description("每行一个，格式: 效果ID|等级(0-255)|持续时间(秒)\n" +
-                     "可省略 minecraft: 前缀\n" +
-                     "示例:\n" +
-                     "  instant_health|125|1    (瞬间治疗125级)\n" +
-                     "  strength|10|300        (力量10级 5分钟)\n" +
-                     "  regeneration|5|30      (再生5级 30秒)\n" +
-                     "  speed|2|600            (速度2级 10分钟)\n" +
-                     "常用: instant_health, instant_damage, strength, regeneration, " +
+        .name("Effect List")
+        .description("One per line, format: effectID|level (0-255)|duration (seconds)\n" +
+                     "minecraft: prefix optional\n" +
+                     "Examples:\n" +
+                     "  instant_health|125|1    (Instant Health lvl 125)\n" +
+                     "  strength|10|300        (Strength 10 for 5 min)\n" +
+                     "  regeneration|5|30      (Regeneration 5 for 30s)\n" +
+                     "  speed|2|600            (Speed 2 for 10 min)\n" +
+                     "Common: instant_health, instant_damage, strength, regeneration, " +
                      "speed, slowness, jump_boost, resistance, fire_resistance, " +
                      "invisibility, night_vision, water_breathing, absorption, " +
                      "health_boost, saturation, glowing, levitation, slow_falling, " +
@@ -84,36 +84,36 @@ public class CustomPotionModule extends Module {
     );
 
     private final Setting<Boolean> customColor = sg.add(new BoolSetting.Builder()
-        .name("自定义颜色").defaultValue(false).build()
+        .name("Custom Color").defaultValue(false).build()
     );
 
     private final Setting<SettingColor> potionColor = sg.add(new ColorSetting.Builder()
-        .name("药水颜色")
-        .description("点击打开 HSV 颜色选择器, 选定后应用到药水的粒子颜色")
+        .name("Potion Color")
+        .description("Click to open the HSV color picker; applied as the potion particle color")
         .defaultValue(new SettingColor(255, 0, 0)) // 默认红色
         .build()
     );
 
     private final Setting<Boolean> customName = sg.add(new BoolSetting.Builder()
-        .name("自定义名称").defaultValue(false).build()
+        .name("Custom Name").defaultValue(false).build()
     );
 
     private final Setting<String> nameText = sg.add(new StringSetting.Builder()
-        .name("名称文本")
-        .description("支持颜色代码: &6金色 &c红色 &a绿色 &b浅蓝 &9蓝 &d粉 &e黄 &f白 &0黑 等\n" +
-                     "&l=粗体 &o=斜体 &n=下划线 &m=删除线 &k=混淆")
-        .defaultValue("&c&lQazr1234 &6&l杀戮药水").build()
+        .name("Name Text")
+        .description("Supports color codes: &6gold &cred &agreen &blight blue &9blue &dpink &eyellow &fwhite &0black etc.\n" +
+                     "&l=bold &o=italic &n=underline &m=strikethrough &k=obfuscated")
+        .defaultValue("&c&lQazr1234 &6&lKill Potion").build()
     );
 
     private final Setting<Boolean> continuous = sg.add(new BoolSetting.Builder()
-        .name("连续生成").defaultValue(false).build()
+        .name("Continuous").defaultValue(false).build()
     );
 
     @Override
     public void onActivate() {
         if (mc.player == null || mc.world == null) { toggle(); return; }
         if (!mc.player.getAbilities().creativeMode) {
-            CreativeGiveUtil.warn("需要创造模式!"); toggle(); return;
+            CreativeGiveUtil.warn("Creative mode required!"); toggle(); return;
         }
         CreativeGiveUtil.resetError();
         generateAndGive();
@@ -144,35 +144,35 @@ public class CustomPotionModule extends Module {
             String s = entry.trim();
             if (s.isEmpty()) continue;
             String[] parts = s.split("\\|");
-            if (parts.length < 1) { CreativeGiveUtil.warn("效果格式错误: " + s + " (应为 id|等级|秒)"); continue; }
+            if (parts.length < 1) { CreativeGiveUtil.warn("Invalid effect format: " + s + " (expected id|level|seconds)"); continue; }
 
             String idStr = parts[0].trim();
             int amplifier = 0;
             int durationTicks = 600; // 默认30秒
             if (parts.length >= 2) {
                 try { amplifier = Integer.parseInt(parts[1].trim()); }
-                catch (Exception e) { CreativeGiveUtil.warn("效果等级解析错误: " + parts[1]); }
+                catch (Exception e) { CreativeGiveUtil.warn("Effect level parse error: " + parts[1]); }
             }
             if (parts.length >= 3) {
                 try {
                     int seconds = Integer.parseInt(parts[2].trim());
                     durationTicks = Math.min(seconds * 20, 72000); // 最大60分钟
-                } catch (Exception e) { CreativeGiveUtil.warn("效果持续时间解析错误: " + parts[2]); }
+                } catch (Exception e) { CreativeGiveUtil.warn("Effect duration parse error: " + parts[2]); }
             }
 
             try {
                 Identifier effId = Identifier.tryParse(idStr.contains(":") ? idStr : "minecraft:" + idStr);
-                if (effId == null) { CreativeGiveUtil.warn("效果ID错误: " + idStr); continue; }
+                if (effId == null) { CreativeGiveUtil.warn("Unknown effect ID: " + idStr); continue; }
                 Optional<RegistryEntry.Reference<StatusEffect>> ref = statusEffectRegistry().getEntry(effId);
-                if (ref.isEmpty()) { CreativeGiveUtil.warn("效果未找到: " + idStr); continue; }
+                if (ref.isEmpty()) { CreativeGiveUtil.warn("Effect not found: " + idStr); continue; }
                 effects.add(new StatusEffectInstance(ref.get(), durationTicks, amplifier, false, true));
             } catch (Exception e) {
-                CreativeGiveUtil.warn("效果失败 [" + idStr + "]: " + e.getMessage());
+                CreativeGiveUtil.warn("Effect failed [" + idStr + "]: " + e.getMessage());
             }
         }
 
         if (effects.isEmpty()) {
-            CreativeGiveUtil.warn("未添加任何效果!"); return;
+            CreativeGiveUtil.warn("No effects added!"); return;
         }
 
         // 组装 PotionContentsComponent (照搬 Wurst: Optional<potion>, Optional<customColor>, List<customEffects>, Optional<customName>)
@@ -193,7 +193,7 @@ public class CustomPotionModule extends Module {
         }
 
         if (CreativeGiveUtil.give(stack)) {
-            CreativeGiveUtil.info("已生成 " + type + " 药水 x" + stack.getCount() + " (效果数: " + effects.size() + ")");
+            CreativeGiveUtil.info("Given " + type + " potion x" + stack.getCount() + " (effects: " + effects.size() + ")");
         }
     }
 

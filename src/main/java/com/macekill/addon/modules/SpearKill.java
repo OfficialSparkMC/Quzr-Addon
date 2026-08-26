@@ -56,86 +56,86 @@ public class SpearKill extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgBlink = settings.createGroup("Blink");
     private final SettingGroup sgLunge = settings.createGroup("Lunge");
-    private final SettingGroup sgTarget = settings.createGroup("目标");
+    private final SettingGroup sgTarget = settings.createGroup("Target");
 
     // ---- 通用 ----
     private final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>()
-            .name("模式").description("Blink=闪现, Lunge=冲刺")
+            .name("Mode").description("Blink=blink, Lunge=lunge")
             .defaultValue(Mode.Blink).build()
     );
 
-    private final Setting<Double> maxrange = sgGeneral.add(new DoubleSetting.Builder()
-            .name("范围").description("检测目标的最大距离")
+    private final Setting<Double> maxRange = sgGeneral.add(new DoubleSetting.Builder()
+            .name("Range").description("Max distance to search for targets")
             .defaultValue(50).min(1).max(200).sliderRange(1, 128).build()
     );
 
-    private final Setting<Boolean> nonofall = sgGeneral.add(new BoolSetting.Builder()
-            .name("防摔落").description("攻击时临时启用 NoFall").defaultValue(true).build()
+    private final Setting<Boolean> noFall = sgGeneral.add(new BoolSetting.Builder()
+            .name("NoFall").description("Temporarily enable NoFall when attacking").defaultValue(true).build()
     );
 
     // ---- Blink ----
     private final Setting<Double> flushRange = sgBlink.add(new DoubleSetting.Builder()
-            .name("释放距离").description("距离目标多远时释放所有移动包（实现瞬移）")
+            .name("Flush Distance").description("Release all queued packets at this distance from the target (teleport)")
             .defaultValue(2.0).min(0.5).max(10).sliderRange(0.5, 10)
             .visible(() -> mode.get() == Mode.Blink).build()
     );
 
     private final Setting<Double> maxFlushRange = sgBlink.add(new DoubleSetting.Builder()
-            .name("最大闪现距离").description("超过此距离即使没到释放距离也强制释放")
+            .name("Max Blink Distance").description("Force release beyond this distance even if flush distance not reached")
             .defaultValue(25).min(5).max(100).sliderRange(5, 100)
             .visible(() -> mode.get() == Mode.Blink).build()
     );
 
     private final Setting<Double> blinkDistanceBoost = sgBlink.add(new DoubleSetting.Builder()
-            .name("距离加成").description("额外增加闪现距离").defaultValue(2)
+            .name("Distance Boost").description("Extra blink distance").defaultValue(2)
             .min(0).max(10).sliderRange(0, 10)
             .visible(() -> mode.get() == Mode.Blink).build()
     );
 
     // ---- Lunge ----
     private final Setting<LungeMode> lungeMode = sgLunge.add(new EnumSetting.Builder<LungeMode>()
-            .name("冲刺方向").description("Normal=正面, FromAbove=从上方, Auto=优先从上方")
+            .name("Lunge Direction").description("Normal=front, FromAbove=top, Auto=top preferred")
             .defaultValue(LungeMode.FromAbove)
             .visible(() -> mode.get() == Mode.Lunge).build()
     );
 
     private final Setting<Double> aboveHeight = sgLunge.add(new DoubleSetting.Builder()
-            .name("上方高度").description("从目标上方多高的位置发起冲刺")
+            .name("Above Height").description("How high above the target to start the lunge")
             .defaultValue(10).min(1).max(50).sliderRange(1, 50)
             .visible(() -> mode.get() == Mode.Lunge && lungeMode.get() != LungeMode.Normal)
             .build()
     );
 
     private final Setting<Double> lungeStrength = sgLunge.add(new DoubleSetting.Builder()
-            .name("冲刺强度").description("冲刺力度倍数").defaultValue(1.5)
+            .name("Lunge Strength").description("Lunge power multiplier").defaultValue(1.5)
             .min(0.5).max(5).sliderRange(0.5, 5)
             .visible(() -> mode.get() == Mode.Lunge).build()
     );
 
     private final Setting<Boolean> stop = sgLunge.add(new BoolSetting.Builder()
-            .name("攻击前停止").description("冲刺前在目标面前短暂停顿，看起来更自然")
+            .name("Pause Before Hit").description("Brief pause in front of the target before lunging, looks more natural")
             .defaultValue(true)
             .visible(() -> mode.get() == Mode.Lunge).build()
     );
 
     private final Setting<Double> stopDistance = sgLunge.add(new DoubleSetting.Builder()
-            .name("停止距离").description("在距目标多远时停顿").defaultValue(3)
+            .name("Stop Distance").description("Distance from target at which to pause").defaultValue(3)
             .min(0.5).max(10).sliderRange(0.5, 10)
             .visible(() -> mode.get() == Mode.Lunge && stop.get()).build()
     );
 
     // ---- 目标 ----
     private final Setting<TargetListMode> targetListMode = sgTarget.add(new EnumSetting.Builder<TargetListMode>()
-            .name("列表模式").defaultValue(TargetListMode.Off).build()
+            .name("List Mode").defaultValue(TargetListMode.Off).build()
     );
 
     private final Setting<String> targetList = sgTarget.add(new StringSetting.Builder()
-            .name("目标列表").description("逗号分隔").defaultValue("")
+            .name("Target List").description("Comma separated").defaultValue("")
             .visible(() -> targetListMode.get() != TargetListMode.Off).build()
     );
 
     private final Setting<Boolean> ignoreFriends = sgTarget.add(new BoolSetting.Builder()
-            .name("忽略好友").defaultValue(true).build()
+            .name("Ignore Friends").defaultValue(true).build()
     );
 
     // ==================== 状态 ====================
@@ -149,7 +149,7 @@ public class SpearKill extends Module {
     private Entity currentTarget;
 
     public SpearKill() {
-        super(MaceKillAddon.CATEGORY, "SpearKill", "长矛杀戮 - Blink/Lunge 攻击");
+        super(MaceKillAddon.CATEGORY, "SpearKill", "Spear kill - Blink/Lunge attack");
     }
 
     @Override
@@ -390,7 +390,7 @@ public class SpearKill extends Module {
 
         Entity best = null;
         double bestDist = Double.MAX_VALUE;
-        double range = maxrange.get();
+        double range = maxRange.get();
 
         for (Entity e : mc.world.getEntities()) {
             if (!(e instanceof LivingEntity le)) continue;
@@ -490,7 +490,7 @@ public class SpearKill extends Module {
     @Override
     public String getInfoString() {
         return mode.get() == Mode.Blink
-                ? (isBlinking ? "闪现中" : "就绪")
-                : "冲刺";
+                ? (isBlinking ? "Blinking" : "Ready")
+                : "Lunge";
     }
 }

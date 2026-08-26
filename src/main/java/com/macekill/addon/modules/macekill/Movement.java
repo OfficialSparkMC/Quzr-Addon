@@ -10,7 +10,7 @@ import net.minecraft.util.math.Vec3d;
 public final class Movement {
     private Movement() {}
 
-    public static void doTpTo(MinecraftClient mc, Vec3d to, double moveDistance, boolean kehd) {
+    public static void doTpTo(MinecraftClient mc, Vec3d to, double moveDistance, boolean syncClientPos) {
         Vec3d from = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         double dist = from.distanceTo(to);
         int steps = (int) Math.ceil(dist / moveDistance);
@@ -18,7 +18,7 @@ public final class Movement {
             sendMovePacket(mc, from.x, from.y, from.z);
         }
         sendMovePacket(mc, to.x, to.y, to.z);
-        if (kehd) {
+        if (syncClientPos) {
             mc.player.updatePosition(to.x, to.y, to.z);
         }
     }

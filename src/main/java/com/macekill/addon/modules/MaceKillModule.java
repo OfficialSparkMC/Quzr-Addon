@@ -26,7 +26,7 @@ public class MaceKillModule extends Module {
     private final SettingGroup sgGeneral;
     private final SettingGroup sgTarget;
     private final SettingGroup sgKill;
-    private final SettingGroup sgDestory;
+    private final SettingGroup sgDestroy;
 
     private final Setting<Double> range;
     private final Setting<Double> moveDistance;
@@ -35,7 +35,7 @@ public class MaceKillModule extends Module {
     private final Setting<Integer> teleportDelay;
     private final Setting<Boolean> spamRotations;
     private final Setting<Boolean> autoTotem;
-    private final Setting<Boolean> kehd;
+    private final Setting<Boolean> syncClientPos;
     private final Setting<Boolean> predict;
     private final Setting<Integer> predictTicks;
     private final Setting<Boolean> enableArmorDestroy;
@@ -56,80 +56,80 @@ public class MaceKillModule extends Module {
     private LivingEntity target;
 
     public MaceKillModule() {
-        super(MaceKillAddon.CATEGORY, "macemiss", "瞬移到目标旁，VClip起跳攻击");
+        super(MaceKillAddon.CATEGORY, "macemiss", "Teleport next to target and VClip jump attack");
         this.sgGeneral = this.settings.getDefaultGroup();
-        this.sgTarget = this.settings.createGroup("目标选择");
-        this.sgKill = this.settings.createGroup("击杀高度");
-        this.sgDestory = this.settings.createGroup("破甲高度");
+        this.sgTarget = this.settings.createGroup("Targeting");
+        this.sgKill = this.settings.createGroup("Kill Heights");
+        this.sgDestroy = this.settings.createGroup("Armor Break Heights");
 
         this.range = this.sgGeneral.add(new DoubleSetting.Builder()
-            .name("范围")
-            .description("检测周围生物的距离")
+            .name("Range")
+            .description("Distance to detect nearby entities")
             .defaultValue(20.0)
             .min(1.0)
             .max(200.0)
             .sliderRange(1.0, 128.0)
             .build());
         this.moveDistance = this.sgGeneral.add(new DoubleSetting.Builder()
-            .name("移动步长")
-            .description("每个移动包的最大距离")
+            .name("Move Step")
+            .description("Max distance per move packet")
             .defaultValue(20.0)
             .min(1.0)
             .max(128.0)
             .sliderRange(1.0, 128.0)
             .build());
         this.swingHand = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("挥手")
-            .description("攻击时客户端挥手")
+            .name("Swing Hand")
+            .description("Swing hand client-side on attack")
             .defaultValue(false)
             .build());
         this.requireFullCooldown = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("需要满冷却")
-            .description("攻击需要满冷却才执行")
+            .name("Require Full Cooldown")
+            .description("Only attack when weapon cooldown is full")
             .defaultValue(false)
             .build());
         this.teleportDelay = this.sgGeneral.add(new IntSetting.Builder()
-            .name("传送延迟")
-            .description("传送后等待的tick数，0为无延迟")
+            .name("Teleport Delay")
+            .description("Ticks to wait after teleport, 0 = no delay")
             .defaultValue(5)
             .range(0, 20)
             .build());
         this.spamRotations = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("垃圾旋转包")
-            .description("在第一次传送前发送4个旋转包")
+            .name("Spam Rotations")
+            .description("Send 4 rotation packets before the first teleport")
             .defaultValue(false)
             .build());
         this.autoTotem = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("自动切图腾")
-            .description("攻击结束后自动换回图腾")
+            .name("Auto Totem")
+            .description("Auto-switch back to a totem after attacking")
             .defaultValue(false)
             .build());
-        this.kehd = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("kehud")
-            .description("同时更新客户端位置")
+        this.syncClientPos = this.sgGeneral.add(new BoolSetting.Builder()
+            .name("Sync Client Position")
+            .description("Also update the client-side position")
             .defaultValue(false)
             .build());
         this.predict = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("预测位置")
-            .description("根据目标速度预测其位置")
+            .name("Predict Position")
+            .description("Predict target position from velocity")
             .defaultValue(true)
             .build());
         this.predictTicks = this.sgGeneral.add(new IntSetting.Builder()
-            .name("预测tick")
-            .description("预测的tick数")
+            .name("Predict Ticks")
+            .description("Ticks to predict ahead")
             .defaultValue(5)
             .min(1)
             .sliderMax(20)
             .visible(() -> this.predict.get())
             .build());
         this.enableArmorDestroy = this.sgGeneral.add(new BoolSetting.Builder()
-            .name("启用破甲")
-            .description("先使用破甲高度攻击直到目标护甲不足")
+            .name("Armor Break")
+            .description("Attack with break heights until target armor is low")
             .defaultValue(false)
             .build());
         this.ignoreArmorValue = this.sgGeneral.add(new IntSetting.Builder()
-            .name("破甲阈值")
-            .description("目标剩余护甲≤此值时改用击杀高度")
+            .name("Armor Threshold")
+            .description("Switch to kill heights when target armor is at or below this")
             .defaultValue(0)
             .min(0)
             .max(4)
@@ -137,39 +137,39 @@ public class MaceKillModule extends Module {
             .visible(() -> this.enableArmorDestroy.get())
             .build());
         this.targetPlayers = this.sgTarget.add(new BoolSetting.Builder()
-            .name("玩家")
-            .description("以玩家为目标")
+            .name("Players")
+            .description("Target players")
             .defaultValue(true)
             .build());
         this.targetHostiles = this.sgTarget.add(new BoolSetting.Builder()
-            .name("敌对生物")
-            .description("以敌对生物为目标")
+            .name("Hostile Mobs")
+            .description("Target hostile mobs")
             .defaultValue(true)
             .build());
         this.targetAnimals = this.sgTarget.add(new BoolSetting.Builder()
-            .name("动物")
-            .description("以动物为目标")
+            .name("Animals")
+            .description("Target animals")
             .defaultValue(true)
             .build());
         this.targetOthers = this.sgTarget.add(new BoolSetting.Builder()
-            .name("其他生物")
-            .description("以其他生物为目标")
+            .name("Other Entities")
+            .description("Target other entities")
             .defaultValue(false)
             .build());
         this.sortPriority = this.sgTarget.add(new EnumSetting.Builder<SortPriority>()
-            .name("优先攻击")
-            .description("距离最近/最接近准星/血量最低")
+            .name("Priority")
+            .description("Nearest / crosshair angle / lowest health")
             .defaultValue(SortPriority.DISTANCE)
             .build());
-        this.destroyHeights = this.sgDestory.add(new StringListSetting.Builder()
-            .name("破甲高度列表")
-            .description("破坏护甲时使用的高度")
+        this.destroyHeights = this.sgDestroy.add(new StringListSetting.Builder()
+            .name("Armor Break Heights")
+            .description("Heights used for armor breaking")
             .defaultValue("30", "60")
             .visible(() -> this.enableArmorDestroy.get())
             .build());
         this.killHeights = this.sgKill.add(new StringListSetting.Builder()
-            .name("击杀高度列表")
-            .description("击杀时使用的高度")
+            .name("Kill Heights")
+            .description("Heights used for kills")
             .defaultValue("10", "20", "30")
             .build());
 
@@ -223,7 +223,7 @@ public class MaceKillModule extends Module {
         if (this.spamRotations.get()) {
             Movement.sendRotations(this.mc, 4);
         }
-        Movement.doTpTo(this.mc, this.targetPos, this.moveDistance.get(), this.kehd.get());
+        Movement.doTpTo(this.mc, this.targetPos, this.moveDistance.get(), this.syncClientPos.get());
         int delay = this.teleportDelay.get();
         if (delay > 0) {
             this.phase = Phase.START_DELAY;
@@ -234,8 +234,8 @@ public class MaceKillModule extends Module {
     }
 
     private void tickStartDelay() {
-        Movement.doTpTo(this.mc, this.targetPos, this.moveDistance.get(), this.kehd.get());
-        if (this.kehd.get()) {
+        Movement.doTpTo(this.mc, this.targetPos, this.moveDistance.get(), this.syncClientPos.get());
+        if (this.syncClientPos.get()) {
             this.mc.player.updatePosition(this.targetPos.x, this.targetPos.y, this.targetPos.z);
         }
         this.delayTicks--;
@@ -276,7 +276,7 @@ public class MaceKillModule extends Module {
             this.moveDistance.get(),
             this.swingHand.get(),
             this.autoTotem.get(),
-            this.kehd.get(),
+            this.syncClientPos.get(),
             this.enableArmorDestroy.get(),
             this.ignoreArmorValue.get(),
             this.destroyHeights.get(),
@@ -289,19 +289,19 @@ public class MaceKillModule extends Module {
         if (this.originalPos == null) {
             return;
         }
-        Movement.doTpTo(this.mc, this.originalPos, this.moveDistance.get(), this.kehd.get());
+        Movement.doTpTo(this.mc, this.originalPos, this.moveDistance.get(), this.syncClientPos.get());
     }
 
     @Override
     public String getInfoString() {
         int count = Combat.parseHeights(this.killHeights.get()).size();
-        if (count == 0) return "待配置";
+        if (count == 0) return "Not configured";
         String priority = switch (this.sortPriority.get()) {
-            case DISTANCE -> "距离";
-            case ANGLE -> "角度";
-            case HEALTH -> "血量";
+            case DISTANCE -> "Dist";
+            case ANGLE -> "Angle";
+            case HEALTH -> "HP";
         };
-        return count + "次 | " + priority;
+        return count + " hits | " + priority;
     }
 
     private enum Phase {

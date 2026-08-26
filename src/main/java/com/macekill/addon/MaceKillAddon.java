@@ -19,7 +19,7 @@ import com.macekill.addon.modules.CreativeGiveModule;
 import com.macekill.addon.modules.CustomPotionModule;
 import com.macekill.addon.modules.MaceDMG;
 import com.macekill.addon.modules.MaceKillModule;
-import com.macekill.addon.modules.fanmiss;
+import com.macekill.addon.modules.AntiAirMiss;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -42,7 +42,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new TpMace());
         Modules.get().add(new MaceBreakerPro());
         Modules.get().add(new MaceDMG());
-        Modules.get().add(new fanmiss());
+        Modules.get().add(new AntiAirMiss());
 
         // ---- 长矛战斗 ----
         Modules.get().add(new SpearKill());

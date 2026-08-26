@@ -12,15 +12,15 @@ public class SpeedModule extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
 
     private final Setting<Integer> riseHeight = sgMain.add(new IntSetting.Builder()
-            .name("上升高度").description("每次循环的上升高度")
+            .name("Rise Height").description("Height gained per cycle")
             .defaultValue(5).min(1).max(20).build());
 
     private final Setting<Integer> cycles = sgMain.add(new IntSetting.Builder()
-            .name("循环次数").description("上升循环次数")
+            .name("Cycles").description("Number of rise cycles")
             .defaultValue(10).min(1).max(50).build());
 
     public SpeedModule() {
-        super(MaceKillAddon.CATEGORY, "Speed", "循环上升");
+        super(MaceKillAddon.CATEGORY, "Speed", "Cyclic rise");
     }
 
     @EventHandler

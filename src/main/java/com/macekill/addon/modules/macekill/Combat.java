@@ -46,7 +46,7 @@ public final class Combat {
                     mc.player.getX(), mc.player.getY(), mc.player.getZ(), h);
                 Vec3d vclipPos = Vec3d.ofBottomCenter(vclipHole);
 
-                Movement.doTpTo(mc, vclipPos, config.moveDistance(), config.kehd());
+                Movement.doTpTo(mc, vclipPos, config.moveDistance(), config.syncClientPos());
                 Movement.sendMovePacket(mc, targetPos.x, targetPos.y + 0.5, targetPos.z);
                 Movement.sendMovePacket(mc, basePos.x, basePos.y, basePos.z);
 

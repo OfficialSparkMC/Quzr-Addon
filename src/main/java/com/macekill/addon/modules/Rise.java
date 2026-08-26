@@ -12,21 +12,21 @@ public class Rise extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
 
     private final Setting<Integer> height = sgMain.add(new IntSetting.Builder()
-            .name("高度").description("VClip上升高度")
+            .name("Height").description("VClip rise height")
             .defaultValue(10).min(1).max(50).build());
 
     private final Setting<Integer> delay = sgMain.add(new IntSetting.Builder()
-            .name("延迟").description("每次上升间隔(tick)")
+            .name("Delay").description("Interval between rises in ticks")
             .defaultValue(20).min(1).max(100).build());
 
     private final Setting<Boolean> bypass = sgMain.add(new BoolSetting.Builder()
-            .name("绕过").description("启用绕过模式")
+            .name("Bypass").description("Enable bypass mode")
             .defaultValue(true).build());
 
     private int delayTicks;
 
     public Rise() {
-        super(MaceKillAddon.CATEGORY, "Rise", "垂直上升");
+        super(MaceKillAddon.CATEGORY, "Rise", "Vertical rise");
     }
 
     @Override

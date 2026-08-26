@@ -25,7 +25,7 @@ public class CreativeGiveUtil {
         int slot = mc.player.getInventory().getEmptySlot();
         if (slot < 0) {
             if (mc.player != null) {
-                mc.player.sendMessage(Text.of("§c[Qazr] 背包已满，无法生成"), false);
+                mc.player.sendMessage(Text.of("§c[Qazr] Inventory full, cannot give item"), false);
             }
             return false;
         }

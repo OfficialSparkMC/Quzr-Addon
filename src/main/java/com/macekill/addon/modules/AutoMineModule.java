@@ -36,65 +36,65 @@ public class AutoMineModule extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Double> scanRange = sgGeneral.add(new DoubleSetting.Builder()
-        .name("扫描范围").description("搜索矿石的最大半径(格)")
+        .name("Scan Range").description("Max radius to search for ores (blocks)")
         .defaultValue(64.0).min(8.0).max(256.0).sliderMax(128.0).build());
 
     private final Setting<Boolean> autoMine = sgGeneral.add(new BoolSetting.Builder()
-        .name("自动挖矿").description("自动寻路+挖掘")
+        .name("Auto Mine").description("Auto pathfinding + mining")
         .defaultValue(true).build());
 
     private final Setting<Integer> minY = sgGeneral.add(new IntSetting.Builder()
-        .name("最低Y层").description("此层数及以下的方块不会被向下挖掘")
+        .name("Min Y Level").description("Blocks at or below this Y level are never dug down into")
         .defaultValue(-64).min(-64).max(320).build());
 
     private final Setting<Integer> stuckTime = sgGeneral.add(new IntSetting.Builder()
-        .name("卡住判定").description("多久不动算卡住(tick)")
+        .name("Stuck Timeout").description("How long standing still counts as stuck (ticks)")
         .defaultValue(60).min(10).max(200).build());
 
     private final Setting<Integer> abandonThreshold = sgGeneral.add(new IntSetting.Builder()
-        .name("放弃阈值").description("上一个矿挖完后超时未到达则黑名单3分钟(tick)")
+        .name("Abandon Timeout").description("Blacklist the ore for 3 min if not reached within this time after the last ore (ticks)")
         .defaultValue(200).min(20).max(1200).build());
 
     private final Setting<Integer> safeDistance = sgGeneral.add(new IntSetting.Builder()
-        .name("安全距离").description("躲避流体的最小距离(格)")
+        .name("Safe Distance").description("Min distance to keep from fluids (blocks)")
         .defaultValue(5).min(2).max(15).build());
 
     private final Setting<Boolean> avoidCaves = sgGeneral.add(new BoolSetting.Builder()
-        .name("躲避洞穴").description("隧道避开天然空气/洞穴(会降低寻路成功率)")
+        .name("Avoid Caves").description("Tunnel around natural air pockets/caves (lowers pathfinding success)")
         .defaultValue(false).build());
 
     private final Setting<Boolean> filterDangerOres = sgGeneral.add(new BoolSetting.Builder()
-        .name("排除危险区矿物").description("不挖掘安全距离内靠近流体/洞穴的矿物")
+        .name("Skip Dangerous Ores").description("Don't mine ores near fluids/caves within the safe distance")
         .defaultValue(true).build());
 
     private final Setting<Boolean> chatInfo = sgGeneral.add(new BoolSetting.Builder()
-        .name("聊天信息").description("在聊天栏输出状态")
+        .name("Chat Info").description("Print status to chat")
         .defaultValue(false).build());
 
     /* 矿石过滤 */
-    private final SettingGroup sgOres = settings.createGroup("矿物列表");
-    private final Setting<Boolean> mineCoal        = sgOres.add(new BoolSetting.Builder().name("煤矿").defaultValue(true).build());
-    private final Setting<Boolean> mineIron        = sgOres.add(new BoolSetting.Builder().name("铁矿").defaultValue(true).build());
-    private final Setting<Boolean> mineCopper      = sgOres.add(new BoolSetting.Builder().name("铜矿").defaultValue(true).build());
-    private final Setting<Boolean> mineGold        = sgOres.add(new BoolSetting.Builder().name("金矿").defaultValue(true).build());
-    private final Setting<Boolean> mineRedstone    = sgOres.add(new BoolSetting.Builder().name("红石矿").defaultValue(true).build());
-    private final Setting<Boolean> mineLapis       = sgOres.add(new BoolSetting.Builder().name("青金石").defaultValue(true).build());
-    private final Setting<Boolean> mineDiamond     = sgOres.add(new BoolSetting.Builder().name("钻石矿").defaultValue(true).build());
-    private final Setting<Boolean> mineEmerald     = sgOres.add(new BoolSetting.Builder().name("绿宝石").defaultValue(true).build());
-    private final Setting<Boolean> mineNetherQuartz= sgOres.add(new BoolSetting.Builder().name("下界石英").defaultValue(true).build());
-    private final Setting<Boolean> mineNetherGold  = sgOres.add(new BoolSetting.Builder().name("下界金矿").defaultValue(true).build());
-    private final Setting<Boolean> mineAncientDebris=sgOres.add(new BoolSetting.Builder().name("远古残骸").defaultValue(true).build());
+    private final SettingGroup sgOres = settings.createGroup("Ores");
+    private final Setting<Boolean> mineCoal        = sgOres.add(new BoolSetting.Builder().name("Coal Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineIron        = sgOres.add(new BoolSetting.Builder().name("Iron Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineCopper      = sgOres.add(new BoolSetting.Builder().name("Copper Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineGold        = sgOres.add(new BoolSetting.Builder().name("Gold Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineRedstone    = sgOres.add(new BoolSetting.Builder().name("Redstone Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineLapis       = sgOres.add(new BoolSetting.Builder().name("Lapis Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineDiamond     = sgOres.add(new BoolSetting.Builder().name("Diamond Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineEmerald     = sgOres.add(new BoolSetting.Builder().name("Emerald Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineNetherQuartz= sgOres.add(new BoolSetting.Builder().name("Nether Quartz Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineNetherGold  = sgOres.add(new BoolSetting.Builder().name("Nether Gold Ore").defaultValue(true).build());
+    private final Setting<Boolean> mineAncientDebris=sgOres.add(new BoolSetting.Builder().name("Ancient Debris").defaultValue(true).build());
 
     /* 渲染 */
-    private final SettingGroup sgRender = settings.createGroup("渲染");
+    private final SettingGroup sgRender = settings.createGroup("Render");
     private final Setting<Boolean> renderOres = sgRender.add(new BoolSetting.Builder()
-        .name("渲染矿石").defaultValue(true).build());
+        .name("Render Ores").defaultValue(true).build());
     private final Setting<SettingColor> oreColor = sgRender.add(new ColorSetting.Builder()
-        .name("矿石颜色").defaultValue(new SettingColor(255, 255, 0, 200)).visible(renderOres::get).build());
+        .name("Ore Color").defaultValue(new SettingColor(255, 255, 0, 200)).visible(renderOres::get).build());
     private final Setting<SettingColor> targetColor = sgRender.add(new ColorSetting.Builder()
-        .name("目标颜色").defaultValue(new SettingColor(0, 255, 0, 200)).build());
+        .name("Target Color").defaultValue(new SettingColor(0, 255, 0, 200)).build());
     private final Setting<SettingColor> pathColor = sgRender.add(new ColorSetting.Builder()
-        .name("路径颜色").defaultValue(new SettingColor(100, 200, 255, 180)).build());
+        .name("Path Color").defaultValue(new SettingColor(100, 200, 255, 180)).build());
 
     /* ==================== 状态 ==================== */
     private enum Phase { IDLE, WALK_XZ, FLY_UP, DIG_DOWN, MINE_ORE, RETURN_TO_TUNNEL }
@@ -133,7 +133,7 @@ public class AutoMineModule extends Module {
 
     /* ==================== 构造 & 生命周期 ==================== */
     public AutoMineModule() {
-        super(MaceKillAddon.CATEGORY, "矿物追踪", "Wurst TunnelHack风格: 折线寻路+飞行垂直+自动挖掘");
+        super(MaceKillAddon.CATEGORY, "OreTracker", "Wurst TunnelHack style: polyline pathing+fly up+auto mining");
     }
 
     @Override public void onActivate() {
@@ -164,12 +164,12 @@ public class AutoMineModule extends Module {
     }
 
     @Override public String getInfoString() {
-        if (isStuck) return "清理...";
+        if (isStuck) return "Clearing...";
         if (phase == Phase.WALK_XZ && currentTarget != null) return "→" + currentTarget.toShortString();
-        if (phase == Phase.FLY_UP) return "飞行上升...";
-        if (phase == Phase.DIG_DOWN) return "阶梯下降...";
-        if (phase == Phase.MINE_ORE) return "挖掘矿石...";
-        if (phase == Phase.RETURN_TO_TUNNEL) return "返回隧道...";
+        if (phase == Phase.FLY_UP) return "Flying up...";
+        if (phase == Phase.DIG_DOWN) return "Digging down...";
+        if (phase == Phase.MINE_ORE) return "Mining ore...";
+        if (phase == Phase.RETURN_TO_TUNNEL) return "Returning...";
         return orePositions.size() + " ore(s)";
     }
 
@@ -215,7 +215,7 @@ public class AutoMineModule extends Module {
                 targetLockTime = 0;
                 breakingPos = null; breakTicks = 0;
                 returnIfFlying();
-                notify("矿石已采掘完毕");
+                notify("Ore fully mined");
             }
         }
 
@@ -228,7 +228,7 @@ public class AutoMineModule extends Module {
                 currentTarget = null; waypoints.clear(); wpIndex = 0; phase = Phase.IDLE;
                 lastOreMinedTime = 0; // 重置, 避免每tick触发
                 returnIfFlying();
-                notify("放弃目标,黑名单3分钟");
+                notify("Abandoned target, blacklisted for 3 min");
             }
         }
 
@@ -268,7 +268,7 @@ public class AutoMineModule extends Module {
         if (perfPauseUntil > 0) {
             if (System.currentTimeMillis() < perfPauseUntil) return;
             perfPauseUntil = 0; cpuCheckTick = 0;
-            notify("寻路已恢复");
+            notify("Pathfinding resumed");
         }
 
         // CPU实时监测: 每100tick检查进程CPU负载
@@ -287,7 +287,7 @@ public class AutoMineModule extends Module {
                     breakingPos = null; breakTicks = 0;
                     mc.interactionManager.cancelBlockBreaking();
                     perfPauseUntil = System.currentTimeMillis() + 5_000L;
-                    notify(String.format("CPU过载(%.0f%%),暂停5秒", cpuLoad * 100));
+                    notify(String.format("CPU overload (%.0f%%), paused 5s", cpuLoad * 100));
                     return;
                 }
             } catch (Exception ignored) {}
@@ -301,7 +301,7 @@ public class AutoMineModule extends Module {
             targetLockTime = 0; lastOreMinedTime = 0;
             breakingPos = null; breakTicks = 0;
             mc.interactionManager.cancelBlockBreaking();
-            notify("无法接近,黑名单3分钟");
+            notify("Unreachable, blacklisted for 3 min");
             return;
         }
 
@@ -343,7 +343,7 @@ public class AutoMineModule extends Module {
 
         // 终检: 路径为空或无效则放弃
         if (waypoints.isEmpty()) {
-            blacklistAndNext("无法规划安全路径");
+            blacklistAndNext("No safe path found");
             return;
         }
 
@@ -565,7 +565,7 @@ public class AutoMineModule extends Module {
             if (wpIndex < waypoints.size() && isDangerZone(waypoints.get(wpIndex), feet.getY())) {
                 planWaypoints();
                 if (waypoints.isEmpty() || wpIndex >= waypoints.size()) {
-                    blacklistAndNext("下一节点不安全");
+                    blacklistAndNext("Next node unsafe");
                     return;
                 }
                 wpIndex = 0;
@@ -593,7 +593,7 @@ public class AutoMineModule extends Module {
         BlockPos frontHigh = frontLow.up();
 
         if (frontLow.getY() <= minY.get() || frontHigh.getY() <= minY.get()) {
-            blacklistAndNext("到达最低Y层限制"); return;
+            blacklistAndNext("Reached min Y limit"); return;
         }
 
         // 找到需要挖掘的方块 (Wurst: dig box in front)
@@ -610,7 +610,7 @@ public class AutoMineModule extends Module {
             }
             planWaypoints();
             if (waypoints.isEmpty() || wpIndex >= waypoints.size()) {
-                blacklistAndNext("路径进入危险区");
+                blacklistAndNext("Path enters danger zone");
                 return;
             }
             wpIndex = 0;
@@ -657,7 +657,7 @@ public class AutoMineModule extends Module {
         // 挖掘从头顶到矿石之间的所有阻挡方块
         for (int dy = 1; dy <= (tY - feet.getY() + 1); dy++) {
             BlockPos check = new BlockPos(feet.getX(), feet.getY() + dy, feet.getZ());
-            if (check.getY() <= minY.get()) { blacklistAndNext("到达最低Y层"); return; }
+            if (check.getY() <= minY.get()) { blacklistAndNext("Reached min Y limit"); return; }
             if (isBlocking(mc.world.getBlockState(check))) {
                 face(Vec3d.ofCenter(check));
                 doDigBlock(check);
@@ -685,7 +685,7 @@ public class AutoMineModule extends Module {
         // 挖掘从脚底到矿石之间的所有阻挡方块
         for (int dy = 1; dy <= (feet.getY() - tY); dy++) {
             BlockPos check = new BlockPos(feet.getX(), feet.getY() - dy, feet.getZ());
-            if (check.getY() <= minY.get()) { blacklistAndNext("到达最低Y层"); return; }
+            if (check.getY() <= minY.get()) { blacklistAndNext("Reached min Y limit"); return; }
             if (isBlocking(mc.world.getBlockState(check))) {
                 face(Vec3d.ofCenter(check));
                 doDigBlock(check);
@@ -951,7 +951,7 @@ public class AutoMineModule extends Module {
         targetLockTime = 0;
         breakingPos = null; breakTicks = 0;
         returnIfFlying();
-        if (chatInfo.get()) notify(reason + ", 黑名单3分钟");
+            if (chatInfo.get()) notify(reason + ", blacklisted for 3 min");
     }
 
     private void blacklistBlock(BlockPos pos) {
@@ -987,7 +987,7 @@ public class AutoMineModule extends Module {
 
     private void notify(String msg) {
         if (mc.player != null)
-            mc.player.sendMessage(net.minecraft.text.Text.literal("§8[§6矿物追踪§8] §f" + msg), true);
+            mc.player.sendMessage(net.minecraft.text.Text.literal("§8[§6OreTracker§8] §f" + msg), true);
     }
 
     private void releaseControls() {

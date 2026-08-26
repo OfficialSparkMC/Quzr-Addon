@@ -28,37 +28,37 @@ public class XinTpMace extends Module {
     private final SettingGroup sgMain = settings.getDefaultGroup();
 
     private final Setting<Double> range = sgMain.add(new DoubleSetting.Builder()
-            .name("范围").description("目标检测范围")
+            .name("Range").description("Target detection range")
             .defaultValue(20.0).min(1.0).max(200.0).sliderRange(1.0, 128.0).build());
 
     private final Setting<Integer> predictTicks = sgMain.add(new IntSetting.Builder()
-            .name("预测tick").description("预测未来位置的tick数")
+            .name("Predict Ticks").description("Ticks to predict future position")
             .defaultValue(5).min(1).sliderMax(20).build());
 
     private final Setting<Double> maxStep = sgMain.add(new DoubleSetting.Builder()
-            .name("最大步长").description("传送分段步长")
+            .name("Max Step").description("Max distance per teleport segment")
             .defaultValue(8.0).min(1.0).max(128.0).sliderRange(1.0, 128.0).build());
 
     private final Setting<Integer> cooldown = sgMain.add(new IntSetting.Builder()
-            .name("冷却").description("攻击冷却(tick)")
+            .name("Cooldown").description("Attack cooldown in ticks")
             .defaultValue(10).min(0).max(40).sliderMax(40).build());
 
     private final Setting<List<String>> heights = sgMain.add(new StringListSetting.Builder()
-            .name("高度列表").description("VClip攻击使用的高度列表")
+            .name("Height List").description("Heights used for VClip attacks")
             .defaultValue("10", "20", "30").build());
 
     private final Setting<Boolean> swingHand = sgMain.add(new BoolSetting.Builder()
-            .name("挥手").description("攻击时挥手").defaultValue(false).build());
+            .name("Swing Hand").description("Swing hand when attacking").defaultValue(false).build());
 
     private final Setting<Boolean> onlyPlayers = sgMain.add(new BoolSetting.Builder()
-            .name("仅玩家").description("仅攻击玩家").defaultValue(true).build());
+            .name("Players Only").description("Only attack players").defaultValue(true).build());
 
     // 状态
     private int cooldownTicks;
     private Vec3d originalPos;
 
     public XinTpMace() {
-        super(MaceKillAddon.CATEGORY, "xintpmace", "新TP重锤 - 预测传送+多高度VClip攻击");
+        super(MaceKillAddon.CATEGORY, "xintpmace", "New TP mace - predicted teleport+multi-height VClip attack");
     }
 
     @Override
@@ -138,6 +138,6 @@ public class XinTpMace extends Module {
     @Override
     public String getInfoString() {
         if (cooldownTicks > 0) return "CD " + cooldownTicks;
-        return "就绪";
+        return "Ready";
     }
 }

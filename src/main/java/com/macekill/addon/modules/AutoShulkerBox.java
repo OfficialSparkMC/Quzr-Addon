@@ -74,20 +74,20 @@ public class AutoShulkerBox extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
     private final Setting<Integer> hotbarSlot = sgGeneral.add(new IntSetting.Builder()
-            .name("潜影盒槽位")
-            .description("潜影盒在快捷栏的位置(0-8)")
+            .name("Shulker Slot")
+            .description("Hotbar slot of the shulker box (0-8)")
             .defaultValue(0).min(0).max(8).build()
     );
 
     private final Setting<Integer> durabilityThreshold = sgGeneral.add(new IntSetting.Builder()
-            .name("镐子耐久阈值")
-            .description("只使用剩余耐久高于此值的镐子")
+            .name("Pickaxe Durability Threshold")
+            .description("Only use pickaxes with durability above this value")
             .defaultValue(1).min(1).max(10000).sliderRange(1, 5000).build()
     );
 
     private final Setting<Boolean> cycleBoxes = sgGeneral.add(new BoolSetting.Builder()
-            .name("循环潜影盒")
-            .description("挖掉后自动把下一个潜影盒换到槽位")
+            .name("Cycle Shulkers")
+            .description("Auto-swap the next shulker box into the slot after breaking one")
             .defaultValue(true).build()
     );
 
@@ -97,7 +97,7 @@ public class AutoShulkerBox extends Module {
     private boolean wasPlacing;
 
     public AutoShulkerBox() {
-        super(MaceKillAddon.CATEGORY, "AutoShulkerBox", "潜影盒刷取");
+        super(MaceKillAddon.CATEGORY, "AutoShulkerBox", "Shulker box farmer");
     }
 
     @Override
@@ -333,9 +333,9 @@ public class AutoShulkerBox extends Module {
 
     @Override
     public String getInfoString() {
-        if (targetPos == null) return "无目标";
+        if (targetPos == null) return "No target";
         BlockState s = mc.world != null ? mc.world.getBlockState(targetPos) : null;
         if (s == null) return targetPos.toShortString();
-        return s.isAir() ? "放置" : "挖掘";
+        return s.isAir() ? "Placing" : "Mining";
     }
 }
