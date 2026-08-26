@@ -13,3 +13,8 @@ classes/
 # OS
 .DS_Store
 Thumbs.db
+.gradle/
+build/
+bin/
+classes/
+*.class
