@@ -4,6 +4,7 @@ import com.macekill.addon.MaceKillAddon;
 import com.macekill.addon.modules.macekill.Inventory;
 import com.macekill.addon.modules.macekill.Movement;
 import com.macekill.addon.modules.macekill.Targeting;
+import java.util.ArrayList;
 import java.util.List;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -90,8 +91,6 @@ public class XinTpMace extends Module {
     // 状态
     private int cooldownTicks;
     private Vec3d originalPos;
-    private LivingEntity drainTarget;
-    private int totemHits;
 
     public XinTpMace() {
         super(MaceKillAddon.CATEGORY, "xintpmace", "New TP mace - predicted teleport+multi-height VClip attack");
@@ -100,8 +99,6 @@ public class XinTpMace extends Module {
     @Override
     public void onDeactivate() {
         cooldownTicks = 0;
-        drainTarget = null;
-        totemHits = 0;
     }
 
     @EventHandler
@@ -118,18 +115,12 @@ public class XinTpMace extends Module {
 
         boolean draining = false;
         List<String> rawHeights = heights.get();
-        if (bypassTotem.get() && target instanceof PlayerEntity p) {
-            if (target != drainTarget) {
-                drainTarget = target;
-                totemHits = 0;
-            }
-            if (totemHits < totemAttacks.get()
-                    && (!detectTotem.get() || targetHasTotem(p))) {
-                draining = true;
-                rawHeights = List.of(getDrainHeight(totemHits));
-            } else {
-                totemHits = 0;
-            }
+        if (bypassTotem.get() && target instanceof PlayerEntity p
+                && (!detectTotem.get() || targetHasTotem(p))) {
+            draining = true;
+            rawHeights = new ArrayList<>();
+            rawHeights.addAll(getDrainHeights());
+            rawHeights.addAll(heights.get());
         }
 
         int oldSlot = Inventory.switchToMace(mc);
@@ -167,10 +158,6 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, originalPos, maxStep.get(), false);
         }
 
-        if (draining) {
-            totemHits++;
-        }
-
         cooldownTicks = cooldown.get();
     }
 
@@ -195,8 +182,8 @@ public class XinTpMace extends Module {
 
     @Override
     public String getInfoString() {
-        if (cooldownTicks > 0 && bypassTotem.get() && totemHits > 0) {
-            return "Drain " + totemHits + "/" + totemAttacks.get();
+        if (cooldownTicks > 0 && bypassTotem.get()) {
+            return "Totem Bypass";
         }
         if (cooldownTicks > 0) return "CD " + cooldownTicks;
         return "Ready";
@@ -207,13 +194,15 @@ public class XinTpMace extends Module {
             || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
     }
 
-    private String getDrainHeight(int index) {
+    private List<String> getDrainHeights() {
         if (drainMode.get() == DrainMode.INCREMENTAL) {
-            return String.valueOf(baseDrainHeight.get() + index * heightIncrement.get());
+            List<String> list = new ArrayList<>();
+            for (int i = 0; i < totemAttacks.get(); i++) {
+                list.add(String.valueOf(baseDrainHeight.get() + i * heightIncrement.get()));
+            }
+            return list;
         }
-        List<String> list = drainHeights.get();
-        if (index < list.size()) return list.get(index);
-        return String.valueOf(baseDrainHeight.get());
+        return drainHeights.get();
     }
 
     private enum DrainMode {

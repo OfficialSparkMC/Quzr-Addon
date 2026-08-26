@@ -111,6 +111,10 @@ public class MaceMissLite extends Module {
             .name("Sort Priority").description("How targets are sorted")
             .defaultValue(SortPriority.DISTANCE).build());
 
+    private final Setting<Boolean> autoAttackEntity = sgTarget.add(new BoolSetting.Builder()
+            .name("Auto Attack Entities").description("Attack any living entity, ignoring the target filters above")
+            .defaultValue(false).build());
+
     // 破甲
     private final Setting<Boolean> destroyArmor = sgArmor.add(new BoolSetting.Builder()
             .name("Armor Break").description("Break armor before killing").defaultValue(false).build());
@@ -167,10 +171,8 @@ public class MaceMissLite extends Module {
     /* ========== 状态 ========== */
     private final MSTimer attackTimer = new MSTimer();
     private LivingEntity currentTarget;
-    private LivingEntity drainTarget;
     private int attackIndex;
     private int delayTicks;
-    private int totemHits;
     private Phase phase = Phase.IDLE;
     private Vec3d originalPos;
 
@@ -183,10 +185,8 @@ public class MaceMissLite extends Module {
     @Override
     public void onDeactivate() {
         currentTarget = null;
-        drainTarget = null;
         attackIndex = 0;
         delayTicks = 0;
-        totemHits = 0;
         phase = Phase.IDLE;
     }
 
@@ -259,6 +259,7 @@ public class MaceMissLite extends Module {
             if (p.isCreative() || p.isSpectator() || !Friends.get().shouldAttack(p)) return false;
             return targetPlayers.get();
         }
+        if (autoAttackEntity.get()) return true;
         if (entity instanceof HostileEntity) return targetHostiles.get();
         if (entity instanceof AnimalEntity) return targetAnimals.get();
         return false;
@@ -271,19 +272,12 @@ public class MaceMissLite extends Module {
 
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
-        if (bypassTotem.get() && currentTarget instanceof PlayerEntity) {
-            PlayerEntity p = (PlayerEntity) currentTarget;
-            if (currentTarget != drainTarget) {
-                drainTarget = currentTarget;
-                totemHits = 0;
-            }
-            if (totemHits < totemAttacks.get()
-                    && (!detectTotem.get() || targetHasTotem(p))) {
-                doTpAura(List.of(getDrainHeight(totemHits)));
-                totemHits++;
-                return;
-            }
-            totemHits = 0;
+        if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
+                && (!detectTotem.get() || targetHasTotem(p))) {
+            List<String> all = new ArrayList<>(getDrainHeights());
+            all.addAll(killHeights.get());
+            doTpAura(all);
+            return;
         }
 
         if (destroyArmor.get() && currentTarget instanceof PlayerEntity p && !isNaked(p)) {
@@ -355,13 +349,15 @@ public class MaceMissLite extends Module {
             || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
     }
 
-    private String getDrainHeight(int index) {
+    private List<String> getDrainHeights() {
         if (drainMode.get() == DrainMode.INCREMENTAL) {
-            return String.valueOf(baseDrainHeight.get() + index * heightIncrement.get());
+            List<String> list = new ArrayList<>();
+            for (int i = 0; i < totemAttacks.get(); i++) {
+                list.add(String.valueOf(baseDrainHeight.get() + i * heightIncrement.get()));
+            }
+            return list;
         }
-        List<String> list = drainHeights.get();
-        if (index < list.size()) return list.get(index);
-        return String.valueOf(baseDrainHeight.get());
+        return drainHeights.get();
     }
 
     // ========== 渲染 ==========
@@ -376,8 +372,8 @@ public class MaceMissLite extends Module {
     @Override
     public String getInfoString() {
         if (currentTarget == null) return "No target";
-        if (phase == Phase.DELAY && bypassTotem.get() && totemHits > 0) {
-            return "Drain " + totemHits + "/" + totemAttacks.get();
+        if (phase == Phase.DELAY && bypassTotem.get()) {
+            return "Totem Bypass";
         }
         if (phase == Phase.DELAY) return "CD " + delayTicks;
         String name = currentTarget instanceof PlayerEntity p ? p.getName().getString()

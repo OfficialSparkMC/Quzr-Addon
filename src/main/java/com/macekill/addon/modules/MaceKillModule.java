@@ -58,6 +58,7 @@ public class MaceKillModule extends Module {
     private final Setting<Boolean> targetHostiles;
     private final Setting<Boolean> targetAnimals;
     private final Setting<Boolean> targetOthers;
+    private final Setting<Boolean> autoAttackEntity;
     private final Setting<SortPriority> sortPriority;
 
     private Phase phase;
@@ -170,6 +171,11 @@ public class MaceKillModule extends Module {
             .description("Target other entities")
             .defaultValue(false)
             .build());
+        this.autoAttackEntity = this.sgTarget.add(new BoolSetting.Builder()
+            .name("Auto Attack Entities")
+            .description("Attack any living entity, ignoring the target filters above")
+            .defaultValue(false)
+            .build());
         this.sortPriority = this.sgTarget.add(new EnumSetting.Builder<SortPriority>()
             .name("Priority")
             .description("Nearest / crosshair angle / lowest health")
@@ -271,12 +277,14 @@ public class MaceKillModule extends Module {
     }
 
     private void tickIdle() {
-        TargetFilter filter = new TargetFilter(
-            this.targetPlayers.get(),
-            this.targetHostiles.get(),
-            this.targetAnimals.get(),
-            this.targetOthers.get()
-        );
+        TargetFilter filter = this.autoAttackEntity.get()
+            ? new TargetFilter(true, true, true, true)
+            : new TargetFilter(
+                this.targetPlayers.get(),
+                this.targetHostiles.get(),
+                this.targetAnimals.get(),
+                this.targetOthers.get()
+            );
         this.target = Targeting.findBestTarget(
             this.mc, this.range.get(), filter, this.sortPriority.get());
         if (this.target == null) {
@@ -341,36 +349,46 @@ public class MaceKillModule extends Module {
     }
 
     private void executeAttack() {
-        boolean draining = isDrainingTotem();
-        List<String> heights = draining
-            ? getDrainHeights()
-            : this.killHeights.get();
+        if (isBypassingTotem()) {
+            List<String> allHeights = new ArrayList<>();
+            allHeights.addAll(getDrainHeights());
+            allHeights.addAll(this.killHeights.get());
+            Config config = new Config(
+                this.moveDistance.get(),
+                this.swingHand.get(),
+                this.autoTotem.get(),
+                this.syncClientPos.get(),
+                false,
+                this.ignoreArmorValue.get(),
+                this.destroyHeights.get(),
+                allHeights
+            );
+            Combat.executeAttack(this.mc, config, this.target, this.targetPos);
+            this.totemHits = 0;
+            return;
+        }
         Config config = new Config(
             this.moveDistance.get(),
             this.swingHand.get(),
             this.autoTotem.get(),
             this.syncClientPos.get(),
-            draining ? false : this.enableArmorDestroy.get(),
+            this.enableArmorDestroy.get(),
             this.ignoreArmorValue.get(),
             this.destroyHeights.get(),
-            heights
+            this.killHeights.get()
         );
         Combat.executeAttack(this.mc, config, this.target, this.targetPos);
-        if (draining) {
-            this.totemHits++;
-        } else {
-            this.totemHits = 0;
-        }
+        this.totemHits = 0;
     }
 
-    private boolean isDrainingTotem() {
+    private boolean isBypassingTotem() {
         if (!this.bypassTotem.get() || !(this.target instanceof PlayerEntity)) {
             return false;
         }
         if (this.detectTotem.get() && !targetHasTotem((PlayerEntity) this.target)) {
             return false;
         }
-        return this.totemHits < this.totemAttacks.get();
+        return true;
     }
 
     private boolean targetHasTotem(PlayerEntity player) {
@@ -398,8 +416,8 @@ public class MaceKillModule extends Module {
 
     @Override
     public String getInfoString() {
-        if (this.bypassTotem.get() && this.totemHits > 0) {
-            return "Drain " + this.totemHits + "/" + this.totemAttacks.get();
+        if (this.bypassTotem.get()) {
+            return "Totem Bypass";
         }
         int count = Combat.parseHeights(this.killHeights.get()).size();
         if (count == 0) return "Not configured";
