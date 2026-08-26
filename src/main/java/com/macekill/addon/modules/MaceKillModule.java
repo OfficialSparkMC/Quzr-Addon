@@ -8,6 +8,7 @@ import com.macekill.addon.modules.macekill.Movement;
 import com.macekill.addon.modules.macekill.SortPriority;
 import com.macekill.addon.modules.macekill.TargetFilter;
 import com.macekill.addon.modules.macekill.Targeting;
+import java.util.ArrayList;
 import java.util.List;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.BoolSetting;
@@ -21,6 +22,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Items;
 import net.minecraft.util.math.Vec3d;
 
 public class MaceKillModule extends Module {
@@ -45,8 +47,12 @@ public class MaceKillModule extends Module {
     private final Setting<List<String>> destroyHeights;
     private final Setting<List<String>> killHeights;
     private final Setting<Boolean> bypassTotem;
+    private final Setting<Boolean> detectTotem;
+    private final Setting<DrainMode> drainMode;
+    private final Setting<List<String>> drainHeights;
+    private final Setting<Integer> baseDrainHeight;
+    private final Setting<Integer> heightIncrement;
     private final Setting<Integer> totemAttacks;
-    private final Setting<Integer> totemHeight;
 
     private final Setting<Boolean> targetPlayers;
     private final Setting<Boolean> targetHostiles;
@@ -182,23 +188,51 @@ public class MaceKillModule extends Module {
             .build());
         this.bypassTotem = this.sgTotem.add(new BoolSetting.Builder()
             .name("Totem Bypass")
-            .description("Drain totems with low-height hits, then kill at full height")
+            .description("Drain totems with multi-height hits, then kill at full height")
             .defaultValue(false)
+            .build());
+        this.detectTotem = this.sgTotem.add(new BoolSetting.Builder()
+            .name("Detect Totem")
+            .description("Only drain if the target is actually holding a totem")
+            .defaultValue(true)
+            .visible(this.bypassTotem::get)
+            .build());
+        this.drainMode = this.sgTotem.add(new EnumSetting.Builder<DrainMode>()
+            .name("Drain Mode")
+            .description("List: use custom height list | Incremental: base + step per hit")
+            .defaultValue(DrainMode.LIST)
+            .visible(this.bypassTotem::get)
+            .build());
+        this.drainHeights = this.sgTotem.add(new StringListSetting.Builder()
+            .name("Drain Heights")
+            .description("Heights used to drain totems before the kill")
+            .defaultValue("4", "8", "12", "16")
+            .visible(() -> this.bypassTotem.get() && this.drainMode.get() == DrainMode.LIST)
+            .build());
+        this.baseDrainHeight = this.sgTotem.add(new IntSetting.Builder()
+            .name("Base Drain Height")
+            .description("Starting height for incremental drain attacks")
+            .defaultValue(4)
+            .min(1)
+            .max(50)
+            .sliderMax(50)
+            .visible(() -> this.bypassTotem.get() && this.drainMode.get() == DrainMode.INCREMENTAL)
+            .build());
+        this.heightIncrement = this.sgTotem.add(new IntSetting.Builder()
+            .name("Height Increment")
+            .description("Added height per drain attack")
+            .defaultValue(4)
+            .min(1)
+            .max(20)
+            .sliderMax(20)
+            .visible(() -> this.bypassTotem.get() && this.drainMode.get() == DrainMode.INCREMENTAL)
             .build());
         this.totemAttacks = this.sgTotem.add(new IntSetting.Builder()
             .name("Totem Attacks")
-            .description("Low-height attacks used to drain totems")
-            .defaultValue(3)
-            .range(1, 10)
-            .sliderMax(10)
-            .visible(this.bypassTotem::get)
-            .build());
-        this.totemHeight = this.sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attack Height")
-            .description("Fall height used while draining totems")
+            .description("Number of drain attacks before the kill")
             .defaultValue(4)
-            .range(1, 20)
-            .sliderMax(20)
+            .range(1, 15)
+            .sliderMax(15)
             .visible(this.bypassTotem::get)
             .build());
 
@@ -309,7 +343,7 @@ public class MaceKillModule extends Module {
     private void executeAttack() {
         boolean draining = isDrainingTotem();
         List<String> heights = draining
-            ? List.of(String.valueOf(this.totemHeight.get()))
+            ? getDrainHeights()
             : this.killHeights.get();
         Config config = new Config(
             this.moveDistance.get(),
@@ -333,7 +367,26 @@ public class MaceKillModule extends Module {
         if (!this.bypassTotem.get() || !(this.target instanceof PlayerEntity)) {
             return false;
         }
+        if (this.detectTotem.get() && !targetHasTotem((PlayerEntity) this.target)) {
+            return false;
+        }
         return this.totemHits < this.totemAttacks.get();
+    }
+
+    private boolean targetHasTotem(PlayerEntity player) {
+        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
+            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+    }
+
+    private List<String> getDrainHeights() {
+        if (this.drainMode.get() == DrainMode.INCREMENTAL) {
+            List<String> list = new ArrayList<>();
+            for (int i = 0; i < this.totemAttacks.get(); i++) {
+                list.add(String.valueOf(this.baseDrainHeight.get() + i * this.heightIncrement.get()));
+            }
+            return list;
+        }
+        return this.drainHeights.get();
     }
 
     private void doReturn() {
@@ -346,7 +399,7 @@ public class MaceKillModule extends Module {
     @Override
     public String getInfoString() {
         if (this.bypassTotem.get() && this.totemHits > 0) {
-            return "Totem " + this.totemHits + "/" + this.totemAttacks.get();
+            return "Drain " + this.totemHits + "/" + this.totemAttacks.get();
         }
         int count = Combat.parseHeights(this.killHeights.get()).size();
         if (count == 0) return "Not configured";
@@ -362,5 +415,10 @@ public class MaceKillModule extends Module {
         IDLE,
         START_DELAY,
         RETURN_DELAY
+    }
+
+    private enum DrainMode {
+        LIST,
+        INCREMENTAL
     }
 }

@@ -125,17 +125,35 @@ public class MaceMissLite extends Module {
             .defaultValue("30", "60").visible(destroyArmor::get).build());
 
     private final Setting<Boolean> bypassTotem = sgTotem.add(new BoolSetting.Builder()
-            .name("Totem Bypass").description("Drain totems with low-height hits, then kill at full height")
+            .name("Totem Bypass").description("Drain totems with multi-height hits, then kill at full height")
             .defaultValue(false).build());
 
-    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attacks").description("Low-height attacks used to drain totems")
-            .defaultValue(3).min(1).max(10).sliderMax(10)
-            .visible(bypassTotem::get).build());
+    private final Setting<Boolean> detectTotem = sgTotem.add(new BoolSetting.Builder()
+            .name("Detect Totem").description("Only drain if the target is actually holding a totem")
+            .defaultValue(true).visible(bypassTotem::get).build());
 
-    private final Setting<Integer> totemHeight = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attack Height").description("Fall height used while draining totems")
+    private final Setting<DrainMode> drainMode = sgTotem.add(new EnumSetting.Builder<DrainMode>()
+            .name("Drain Mode").description("List: use custom height list | Incremental: base + step per hit")
+            .defaultValue(DrainMode.LIST).visible(bypassTotem::get).build());
+
+    private final Setting<List<String>> drainHeights = sgTotem.add(new StringListSetting.Builder()
+            .name("Drain Heights").description("Heights used to drain totems before the kill")
+            .defaultValue("4", "8", "12", "16")
+            .visible(() -> bypassTotem.get() && drainMode.get() == DrainMode.LIST).build());
+
+    private final Setting<Integer> baseDrainHeight = sgTotem.add(new IntSetting.Builder()
+            .name("Base Drain Height").description("Starting height for incremental drain attacks")
+            .defaultValue(4).min(1).max(50).sliderMax(50)
+            .visible(() -> bypassTotem.get() && drainMode.get() == DrainMode.INCREMENTAL).build());
+
+    private final Setting<Integer> heightIncrement = sgTotem.add(new IntSetting.Builder()
+            .name("Height Increment").description("Added height per drain attack")
             .defaultValue(4).min(1).max(20).sliderMax(20)
+            .visible(() -> bypassTotem.get() && drainMode.get() == DrainMode.INCREMENTAL).build());
+
+    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attacks").description("Number of drain attacks before the kill")
+            .defaultValue(4).min(1).max(15).sliderMax(15)
             .visible(bypassTotem::get).build());
 
     // 渲染
@@ -254,12 +272,14 @@ public class MaceMissLite extends Module {
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity) {
+            PlayerEntity p = (PlayerEntity) currentTarget;
             if (currentTarget != drainTarget) {
                 drainTarget = currentTarget;
                 totemHits = 0;
             }
-            if (totemHits < totemAttacks.get()) {
-                doTpAura(List.of(String.valueOf(totemHeight.get())));
+            if (totemHits < totemAttacks.get()
+                    && (!detectTotem.get() || targetHasTotem(p))) {
+                doTpAura(List.of(getDrainHeight(totemHits)));
                 totemHits++;
                 return;
             }
@@ -330,6 +350,20 @@ public class MaceMissLite extends Module {
         // 所以 !needsArmorDestroy = 护甲 <= ignoreValue = 已经破甲 → isNaked
     }
 
+    private boolean targetHasTotem(PlayerEntity player) {
+        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
+            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+    }
+
+    private String getDrainHeight(int index) {
+        if (drainMode.get() == DrainMode.INCREMENTAL) {
+            return String.valueOf(baseDrainHeight.get() + index * heightIncrement.get());
+        }
+        List<String> list = drainHeights.get();
+        if (index < list.size()) return list.get(index);
+        return String.valueOf(baseDrainHeight.get());
+    }
+
     // ========== 渲染 ==========
 
     @EventHandler
@@ -343,11 +377,16 @@ public class MaceMissLite extends Module {
     public String getInfoString() {
         if (currentTarget == null) return "No target";
         if (phase == Phase.DELAY && bypassTotem.get() && totemHits > 0) {
-            return "Totem " + totemHits + "/" + totemAttacks.get();
+            return "Drain " + totemHits + "/" + totemAttacks.get();
         }
         if (phase == Phase.DELAY) return "CD " + delayTicks;
         String name = currentTarget instanceof PlayerEntity p ? p.getName().getString()
                 : currentTarget.getType().getName().getString();
         return name;
+    }
+
+    private enum DrainMode {
+        LIST,
+        INCREMENTAL
     }
 }

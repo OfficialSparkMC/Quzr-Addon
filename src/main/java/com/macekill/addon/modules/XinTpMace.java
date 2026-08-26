@@ -13,6 +13,7 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Items;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
 
@@ -55,17 +56,35 @@ public class XinTpMace extends Module {
             .name("Players Only").description("Only attack players").defaultValue(true).build());
 
     private final Setting<Boolean> bypassTotem = sgTotem.add(new BoolSetting.Builder()
-            .name("Totem Bypass").description("Drain totems with low-height hits, then kill at full height")
+            .name("Totem Bypass").description("Drain totems with multi-height hits, then kill at full height")
             .defaultValue(false).build());
 
-    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attacks").description("Low-height attacks used to drain totems")
-            .defaultValue(3).min(1).max(10).sliderMax(10)
-            .visible(bypassTotem::get).build());
+    private final Setting<Boolean> detectTotem = sgTotem.add(new BoolSetting.Builder()
+            .name("Detect Totem").description("Only drain if the target is actually holding a totem")
+            .defaultValue(true).visible(bypassTotem::get).build());
 
-    private final Setting<Integer> totemHeight = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attack Height").description("Fall height used while draining totems")
+    private final Setting<DrainMode> drainMode = sgTotem.add(new EnumSetting.Builder<DrainMode>()
+            .name("Drain Mode").description("List: use custom height list | Incremental: base + step per hit")
+            .defaultValue(DrainMode.LIST).visible(bypassTotem::get).build());
+
+    private final Setting<List<String>> drainHeights = sgTotem.add(new StringListSetting.Builder()
+            .name("Drain Heights").description("Heights used to drain totems before the kill")
+            .defaultValue("4", "8", "12", "16")
+            .visible(() -> bypassTotem.get() && drainMode.get() == DrainMode.LIST).build());
+
+    private final Setting<Integer> baseDrainHeight = sgTotem.add(new IntSetting.Builder()
+            .name("Base Drain Height").description("Starting height for incremental drain attacks")
+            .defaultValue(4).min(1).max(50).sliderMax(50)
+            .visible(() -> bypassTotem.get() && drainMode.get() == DrainMode.INCREMENTAL).build());
+
+    private final Setting<Integer> heightIncrement = sgTotem.add(new IntSetting.Builder()
+            .name("Height Increment").description("Added height per drain attack")
             .defaultValue(4).min(1).max(20).sliderMax(20)
+            .visible(() -> bypassTotem.get() && drainMode.get() == DrainMode.INCREMENTAL).build());
+
+    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attacks").description("Number of drain attacks before the kill")
+            .defaultValue(4).min(1).max(15).sliderMax(15)
             .visible(bypassTotem::get).build());
 
     // 状态
@@ -99,14 +118,15 @@ public class XinTpMace extends Module {
 
         boolean draining = false;
         List<String> rawHeights = heights.get();
-        if (bypassTotem.get() && target instanceof PlayerEntity) {
+        if (bypassTotem.get() && target instanceof PlayerEntity p) {
             if (target != drainTarget) {
                 drainTarget = target;
                 totemHits = 0;
             }
-            if (totemHits < totemAttacks.get()) {
+            if (totemHits < totemAttacks.get()
+                    && (!detectTotem.get() || targetHasTotem(p))) {
                 draining = true;
-                rawHeights = List.of(String.valueOf(totemHeight.get()));
+                rawHeights = List.of(getDrainHeight(totemHits));
             } else {
                 totemHits = 0;
             }
@@ -176,9 +196,28 @@ public class XinTpMace extends Module {
     @Override
     public String getInfoString() {
         if (cooldownTicks > 0 && bypassTotem.get() && totemHits > 0) {
-            return "Totem " + totemHits + "/" + totemAttacks.get();
+            return "Drain " + totemHits + "/" + totemAttacks.get();
         }
         if (cooldownTicks > 0) return "CD " + cooldownTicks;
         return "Ready";
+    }
+
+    private boolean targetHasTotem(PlayerEntity player) {
+        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
+            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+    }
+
+    private String getDrainHeight(int index) {
+        if (drainMode.get() == DrainMode.INCREMENTAL) {
+            return String.valueOf(baseDrainHeight.get() + index * heightIncrement.get());
+        }
+        List<String> list = drainHeights.get();
+        if (index < list.size()) return list.get(index);
+        return String.valueOf(baseDrainHeight.get());
+    }
+
+    private enum DrainMode {
+        LIST,
+        INCREMENTAL
     }
 }
