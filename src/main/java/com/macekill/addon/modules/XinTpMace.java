@@ -120,8 +120,10 @@ public class XinTpMace extends Module {
             draining = true;
             rawHeights = new ArrayList<>();
             rawHeights.addAll(getDrainHeights());
-            rawHeights.add("170");
-            rawHeights.add("170");
+            int totems = countTotems(p);
+            for (int i = 0; i < totems + 1; i++) {
+                rawHeights.add("170");
+            }
         }
 
         int oldSlot = Inventory.switchToMace(mc);
@@ -191,8 +193,14 @@ public class XinTpMace extends Module {
     }
 
     private boolean targetHasTotem(PlayerEntity player) {
-        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
-            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+        return countTotems(player) > 0;
+    }
+
+    private int countTotems(PlayerEntity player) {
+        int n = 0;
+        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        return n;
     }
 
     private List<String> getDrainHeights() {

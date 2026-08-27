@@ -208,13 +208,14 @@ public class TpMace extends Module {
 
         if (totemBypass.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            // 图腾绕过：1 tick 内完成全部消耗高度 + 双最大高度击杀
+            int totems = countTotems(p);
             for (String hStr : getDrainHeights()) {
                 int h = parseHeight(hStr);
                 if (h > 0) attackOnce(target, h);
             }
-            attackOnce(target, 170);
-            attackOnce(target, 170);
+            for (int i = 0; i < totems + 1; i++) {
+                attackOnce(target, 170);
+            }
             finishAttack();
             return;
         }
@@ -501,8 +502,14 @@ public class TpMace extends Module {
     }
 
     private boolean targetHasTotem(PlayerEntity player) {
-        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
-            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+        return countTotems(player) > 0;
+    }
+
+    private int countTotems(PlayerEntity player) {
+        int n = 0;
+        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        return n;
     }
 
     private List<String> getDrainHeights() {

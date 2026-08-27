@@ -342,10 +342,12 @@ public class MaceKillModule extends Module {
 
     private void executeAttack() {
         if (isBypassingTotem()) {
+            int totems = countTotems((PlayerEntity) this.target);
             List<String> allHeights = new ArrayList<>();
             allHeights.addAll(getDrainHeights());
-            allHeights.add("170");
-            allHeights.add("170");
+            for (int i = 0; i < totems + 1; i++) {
+                allHeights.add("170");
+            }
             Config config = new Config(
                 this.moveDistance.get(),
                 this.swingHand.get(),
@@ -385,8 +387,14 @@ public class MaceKillModule extends Module {
     }
 
     private boolean targetHasTotem(PlayerEntity player) {
-        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
-            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+        return countTotems(player) > 0;
+    }
+
+    private int countTotems(PlayerEntity player) {
+        int n = 0;
+        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        return n;
     }
 
     private List<String> getDrainHeights() {

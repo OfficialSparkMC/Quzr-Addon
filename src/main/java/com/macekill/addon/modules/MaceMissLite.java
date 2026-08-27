@@ -274,9 +274,11 @@ public class MaceMissLite extends Module {
 
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
+            int totems = countTotems(p);
             List<String> all = new ArrayList<>(getDrainHeights());
-            all.add("170");
-            all.add("170");
+            for (int i = 0; i < totems + 1; i++) {
+                all.add("170");
+            }
             doTpAura(all);
             return;
         }
@@ -346,8 +348,14 @@ public class MaceMissLite extends Module {
     }
 
     private boolean targetHasTotem(PlayerEntity player) {
-        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
-            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+        return countTotems(player) > 0;
+    }
+
+    private int countTotems(PlayerEntity player) {
+        int n = 0;
+        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        return n;
     }
 
     private List<String> getDrainHeights() {
