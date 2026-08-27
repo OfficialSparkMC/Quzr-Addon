@@ -96,19 +96,41 @@ public class TpMace extends Module {
 
     // ---- 图腾绕过 ----
     private final Setting<Boolean> totemBypass = sgTotem.add(new BoolSetting.Builder()
-            .name("Totem Bypass").description("Drain totems with low-height hits, then kill at full height")
+            .name("Totem Bypass").description("Drain totems with multi-height hits, then kill at full height (instant, 1 tick)")
             .defaultValue(false).build()
     );
 
-    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attacks").description("Low-height attacks used to drain totems")
-            .defaultValue(3).min(1).max(10).sliderMax(10)
-            .visible(totemBypass::get).build()
+    private final Setting<Boolean> detectTotem = sgTotem.add(new BoolSetting.Builder()
+            .name("Detect Totem").description("Only drain if the target is actually holding a totem")
+            .defaultValue(true).visible(totemBypass::get).build()
     );
 
-    private final Setting<Integer> totemHeight = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attack Height").description("Fall height used while draining totems")
+    private final Setting<DrainMode> drainMode = sgTotem.add(new EnumSetting.Builder<DrainMode>()
+            .name("Drain Mode").description("List: use custom height list | Incremental: base + step per hit")
+            .defaultValue(DrainMode.LIST).visible(totemBypass::get).build()
+    );
+
+    private final Setting<List<String>> drainHeights = sgTotem.add(new StringListSetting.Builder()
+            .name("Drain Heights").description("Heights used to drain totems before the kill")
+            .defaultValue("4", "8", "12", "16")
+            .visible(() -> totemBypass.get() && drainMode.get() == DrainMode.LIST).build()
+    );
+
+    private final Setting<Integer> baseDrainHeight = sgTotem.add(new IntSetting.Builder()
+            .name("Base Drain Height").description("Starting height for incremental drain attacks")
+            .defaultValue(4).min(1).max(50).sliderMax(50)
+            .visible(() -> totemBypass.get() && drainMode.get() == DrainMode.INCREMENTAL).build()
+    );
+
+    private final Setting<Integer> heightIncrement = sgTotem.add(new IntSetting.Builder()
+            .name("Height Increment").description("Added height per drain attack")
             .defaultValue(4).min(1).max(20).sliderMax(20)
+            .visible(() -> totemBypass.get() && drainMode.get() == DrainMode.INCREMENTAL).build()
+    );
+
+    private final Setting<Integer> totemAttacks = sgTotem.add(new IntSetting.Builder()
+            .name("Totem Attacks").description("Number of drain attacks before the kill")
+            .defaultValue(4).min(1).max(15).sliderMax(15)
             .visible(totemBypass::get).build()
     );
 
@@ -184,30 +206,21 @@ public class TpMace extends Module {
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         attackCount = 0;
 
-        if (totemBypass.get() && target instanceof PlayerEntity) {
-            // 图腾绕过模式：先小高度攻击消耗图腾
-            doAttack(target, totemHeight.get(), false);
-        } else {
-            doAttack(target, getAttackHeight(), true);
+        if (totemBypass.get() && target instanceof PlayerEntity p
+                && (!detectTotem.get() || targetHasTotem(p))) {
+            // 图腾绕过：1 tick 内完成全部消耗高度 + 击杀
+            for (String hStr : getDrainHeights()) {
+                int h = parseHeight(hStr);
+                if (h > 0) attackOnce(target, h);
+            }
         }
+        doAttack(target, getAttackHeight(), true);
     }
 
     private void tickDelay() {
         delayTicks++;
         if (delayTicks < 3) return;
-
-        if (totemBypass.get() && target instanceof PlayerEntity) {
-            attackCount++;
-            if (attackCount >= totemAttacks.get()) {
-                // 图腾消耗完毕，执行完整攻击
-                doAttack(target, getAttackHeight(), true);
-            } else {
-                // 继续消耗图腾
-                doAttack(target, totemHeight.get(), false);
-            }
-        } else {
-            finishAttack();
-        }
+        finishAttack();
     }
 
     private void tickReturnDelay() {
@@ -220,6 +233,16 @@ public class TpMace extends Module {
     // ==================== 攻击核心 ====================
 
     private void doAttack(LivingEntity target, int height, boolean isFinal) {
+        attackOnce(target, height);
+        if (isFinal) {
+            finishAttack();
+        } else {
+            delayTicks = 0;
+            phase = Phase.DELAY;
+        }
+    }
+
+    private void attackOnce(LivingEntity target, int height) {
         if (mc.player == null) return;
 
         Vec3d tpPos = new Vec3d(target.getX(), target.getY() + height, target.getZ());
@@ -239,13 +262,6 @@ public class TpMace extends Module {
 
         // 攻击
         sendAttack(target);
-
-        if (isFinal) {
-            finishAttack();
-        } else {
-            delayTicks = 0;
-            phase = Phase.DELAY;
-        }
     }
 
     private void sendVClipPackets(Vec3d from, Vec3d to) {
@@ -480,8 +496,38 @@ public class TpMace extends Module {
         setSelectedSlot(mc.player.getInventory(), slot);
     }
 
+    private boolean targetHasTotem(PlayerEntity player) {
+        return player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)
+            || player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING);
+    }
+
+    private List<String> getDrainHeights() {
+        if (drainMode.get() == DrainMode.INCREMENTAL) {
+            List<String> list = new ArrayList<>();
+            for (int i = 0; i < totemAttacks.get(); i++) {
+                list.add(String.valueOf(baseDrainHeight.get() + i * heightIncrement.get()));
+            }
+            return list;
+        }
+        return drainHeights.get();
+    }
+
+    private int parseHeight(String s) {
+        try {
+            return (int) Double.parseDouble(s.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private enum DrainMode {
+        LIST,
+        INCREMENTAL
+    }
+
     @Override
     public String getInfoString() {
+        if (totemBypass.get() && target instanceof PlayerEntity) return "Totem Bypass";
         return target != null ? target.getName().getString() : "No target";
     }
 }

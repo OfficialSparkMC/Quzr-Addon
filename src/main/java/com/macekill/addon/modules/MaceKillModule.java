@@ -58,7 +58,6 @@ public class MaceKillModule extends Module {
     private final Setting<Boolean> targetHostiles;
     private final Setting<Boolean> targetAnimals;
     private final Setting<Boolean> targetOthers;
-    private final Setting<Boolean> autoAttackEntity;
     private final Setting<SortPriority> sortPriority;
 
     private Phase phase;
@@ -171,11 +170,6 @@ public class MaceKillModule extends Module {
             .description("Target other entities")
             .defaultValue(false)
             .build());
-        this.autoAttackEntity = this.sgTarget.add(new BoolSetting.Builder()
-            .name("Auto Attack Entities")
-            .description("Attack any living entity, ignoring the target filters above")
-            .defaultValue(false)
-            .build());
         this.sortPriority = this.sgTarget.add(new EnumSetting.Builder<SortPriority>()
             .name("Priority")
             .description("Nearest / crosshair angle / lowest health")
@@ -277,14 +271,12 @@ public class MaceKillModule extends Module {
     }
 
     private void tickIdle() {
-        TargetFilter filter = this.autoAttackEntity.get()
-            ? new TargetFilter(true, true, true, true)
-            : new TargetFilter(
-                this.targetPlayers.get(),
-                this.targetHostiles.get(),
-                this.targetAnimals.get(),
-                this.targetOthers.get()
-            );
+        TargetFilter filter = new TargetFilter(
+            this.targetPlayers.get(),
+            this.targetHostiles.get(),
+            this.targetAnimals.get(),
+            this.targetOthers.get()
+        );
         this.target = Targeting.findBestTarget(
             this.mc, this.range.get(), filter, this.sortPriority.get());
         if (this.target == null) {
