@@ -343,11 +343,7 @@ public class MaceKillModule extends Module {
     private void executeAttack() {
         if (isBypassingTotem()) {
             int totems = countTotems((PlayerEntity) this.target);
-            List<String> allHeights = new ArrayList<>();
-            allHeights.addAll(getDrainHeights());
-            for (int i = 0; i < totems + 1; i++) {
-                allHeights.add("170");
-            }
+            List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
             Config config = new Config(
                 this.moveDistance.get(),
                 this.swingHand.get(),

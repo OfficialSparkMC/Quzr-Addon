@@ -275,10 +275,7 @@ public class MaceMissLite extends Module {
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             int totems = countTotems(p);
-            List<String> all = new ArrayList<>(getDrainHeights());
-            for (int i = 0; i < totems + 1; i++) {
-                all.add("170");
-            }
+            List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
             doTpAura(all);
             return;
         }

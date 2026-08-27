@@ -1,6 +1,7 @@
 package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
+import com.macekill.addon.modules.macekill.Combat;
 import com.macekill.addon.modules.macekill.Inventory;
 import com.macekill.addon.modules.macekill.Movement;
 import com.macekill.addon.modules.macekill.Targeting;
@@ -118,12 +119,7 @@ public class XinTpMace extends Module {
         if (bypassTotem.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             draining = true;
-            rawHeights = new ArrayList<>();
-            rawHeights.addAll(getDrainHeights());
-            int totems = countTotems(p);
-            for (int i = 0; i < totems + 1; i++) {
-                rawHeights.add("170");
-            }
+            rawHeights = Combat.totemBypassHeights(getDrainHeights(), countTotems(p), 170, 3);
         }
 
         int oldSlot = Inventory.switchToMace(mc);

@@ -1,6 +1,7 @@
 package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
+import com.macekill.addon.modules.macekill.Combat;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -210,12 +211,9 @@ public class TpMace extends Module {
         if (totemBypass.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             int totems = countTotems(p);
-            for (String hStr : getDrainHeights()) {
+            for (String hStr : Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3)) {
                 int h = parseHeight(hStr);
                 if (h > 0) attackOnce(target, h);
-            }
-            for (int i = 0; i < totems + 1; i++) {
-                attackOnce(target, 170);
             }
             finishAttack();
             return;

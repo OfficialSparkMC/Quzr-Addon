@@ -119,4 +119,26 @@ public final class Combat {
         }
         return list;
     }
+
+    // Builds the totem-bypass height list: drain heights first, then (totemCount + 1)
+    // kill hits at STRICTLY INCREASING heights. Each successive mace hit deals strictly
+    // more damage, which bypasses the server's hurtResistantTime invulnerability check
+    // (amount <= lastDamage is ignored), letting every held totem pop in a single tick.
+    public static List<String> totemBypassHeights(List<String> drainHeights, int totemCount, int baseHeight, int step) {
+        List<String> all = new ArrayList<>(drainHeights);
+        int maxDrain = 0;
+        for (String s : drainHeights) {
+            try {
+                int v = Integer.parseInt(s.trim());
+                if (v > maxDrain) maxDrain = v;
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        int start = Math.max(baseHeight, maxDrain + step);
+        int kills = totemCount + 1;
+        for (int i = 0; i < kills; i++) {
+            all.add(String.valueOf(start + i * step));
+        }
+        return all;
+    }
 }
