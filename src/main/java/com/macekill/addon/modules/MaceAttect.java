@@ -2,6 +2,7 @@ package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
 import com.macekill.addon.modules.macekill.Combat;
+import meteordevelopment.meteorclient.events.entity.player.AttackEntityEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -37,6 +38,7 @@ public class MaceAttect extends Module {
     private static Field pktEntityIdField;
     private static Field pktTypeField;
     private static Object pktAttackType;
+    private static Field attackEventEntityField;
 
     // ==================== 设置组 ====================
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -207,6 +209,17 @@ public class MaceAttect extends Module {
         }
     }
 
+    // Manual hit: Meteor posts AttackEntityEvent whenever the player attacks an entity.
+    @EventHandler
+    private void onAttackEntity(AttackEntityEvent event) {
+        if (phase != Phase.IDLE) return;
+        LivingEntity le = getAttackEventEntity(event);
+        if (le == null) return;
+        if (!hitCheck(le)) return;
+        pendingTarget = le;
+    }
+
+    // Injection: any module that sends an attack packet on an entity triggers the smash too.
     @EventHandler
     private void onPacketSend(PacketEvent.Send event) {
         if (phase != Phase.IDLE) return;
@@ -249,6 +262,20 @@ public class MaceAttect extends Module {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    // AttackEntityEvent.entity is typed via a different mapping than this addon uses, so read
+    // it reflectively to avoid a compile-time type mismatch.
+    private LivingEntity getAttackEventEntity(AttackEntityEvent event) {
+        try {
+            if (attackEventEntityField == null) {
+                attackEventEntityField = AttackEntityEvent.class.getField("entity");
+            }
+            Object e = attackEventEntityField.get(event);
+            if (e instanceof LivingEntity le) return le;
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     @EventHandler
