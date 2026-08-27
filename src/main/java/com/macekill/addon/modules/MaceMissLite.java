@@ -166,10 +166,14 @@ public class MaceMissLite extends Module {
             .defaultValue(24).min(1).max(198).sliderMax(198)
             .visible(bypassTotem::get).build());
 
+    private final Setting<Boolean> singleTick = sgTotem.add(new BoolSetting.Builder()
+            .name("Single Tick").description("Fire every escalating hit in one tick (one mace smash). Turn OFF to spread across ticks if your server only lets 1 totem pop per tick")
+            .defaultValue(true).visible(bypassTotem::get).build());
+
     private final Setting<Integer> bypassHitsPerTick = sgTotem.add(new IntSetting.Builder()
-            .name("Hits Per Tick").description("Bypass hits fired each tick. 1 = safest (1 totem/tick). Raise it if your server lets multiple mace hits land per tick for an instant kill")
+            .name("Hits Per Tick").description("Bypass hits fired each tick when Single Tick is OFF. 1 = 1 totem/tick. Raise it if your server lets multiple mace hits land per tick")
             .defaultValue(1).min(1).max(20).sliderMax(20)
-            .visible(bypassTotem::get).build());
+            .visible(() -> bypassTotem.get() && !singleTick.get()).build());
 
     // 渲染
     private final Setting<Boolean> renderBox = sgMain.add(new BoolSetting.Builder()
@@ -287,11 +291,16 @@ public class MaceMissLite extends Module {
 
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
+            int totems = totemsToPop.get();
+            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+            if (singleTick.get()) {
+                // One mace smash: every escalating hit in a single tick.
+                doTpAura(all);
+                return;
+            }
             if (bypassRunner == null) {
-                int totems = totemsToPop.get();
-                if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
-                totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
-                List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
                 bypassRunner = new Combat.BypassRunner(Combat.parseHeights(all));
             }
             List<String> slice = new ArrayList<>();
