@@ -10,6 +10,7 @@ import com.macekill.addon.modules.NearestPlayerHUD;
 import com.macekill.addon.modules.Rise;
 import com.macekill.addon.modules.SpeedModule;
 import com.macekill.addon.modules.AutoShulkerBox;
+import com.macekill.addon.modules.AutoTpaReject;
 import com.macekill.addon.modules.SpearKill;
 import com.macekill.addon.modules.TpMace;
 import com.macekill.addon.modules.XinTpMace;
@@ -63,6 +64,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new AutoFuckModule());
         Modules.get().add(new CustomPotionModule());
         Modules.get().add(new NearestPlayerHUD());
+        Modules.get().add(new AutoTpaReject());
 
         LOG.info("Qazr Addons initialized successfully! ({} modules)", Modules.get().getGroup(CATEGORY).size());
     }
