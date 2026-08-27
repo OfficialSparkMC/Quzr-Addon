@@ -13,6 +13,7 @@ import com.macekill.addon.modules.AutoShulkerBox;
 import com.macekill.addon.modules.AutoTpaReject;
 import com.macekill.addon.modules.SpearKill;
 import com.macekill.addon.modules.TpMace;
+import com.macekill.addon.modules.MaceAttect;
 import com.macekill.addon.modules.XinTpMace;
 import com.macekill.addon.modules.AutoGGModule;
 import com.macekill.addon.modules.AutoMineModule;
@@ -41,6 +42,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new MaceMissLite());
         Modules.get().add(new XinTpMace());
         Modules.get().add(new TpMace());
+        Modules.get().add(new MaceAttect());
         Modules.get().add(new MaceBreakerPro());
         Modules.get().add(new MaceDMG());
         Modules.get().add(new AntiAirMiss());
