@@ -2,6 +2,9 @@ package com.macekill.addon.modules.macekill;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.LeavesBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -86,12 +89,23 @@ public final class Combat {
 
         for (int cy = targetY; cy >= by; cy--) {
             mutable.set(bx, cy, bz);
-            if (!Targeting.isSafeBlock(mc, mutable)) continue;
+            if (!vclipSafe(mc, mutable)) continue;
             mutable.set(bx, cy + 1, bz);
-            if (!Targeting.isSafeBlock(mc, mutable)) continue;
+            if (!vclipSafe(mc, mutable)) continue;
             return new BlockPos(bx, cy, bz);
         }
         return base;
+    }
+
+    // A vclip destination must be an air block (or leaves: we can teleport straight
+    // through foliage to reach clear sky above a tree canopy), with no fluid/cobweb.
+    private static boolean vclipSafe(MinecraftClient mc, BlockPos pos) {
+        if (mc.world == null) return false;
+        BlockState state = mc.world.getBlockState(pos);
+        if (state.isAir() && state.getFluidState().isEmpty() && !state.isOf(Blocks.COBWEB)) {
+            return true;
+        }
+        return state.getBlock() instanceof LeavesBlock;
     }
 
     public static boolean needsArmorDestroy(LivingEntity entity, int ignoreArmorValue) {

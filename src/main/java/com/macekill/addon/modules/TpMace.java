@@ -18,6 +18,7 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -338,7 +339,7 @@ public class TpMace extends Module {
 
     private void resetState() {
         if (maceSwapBackSlot >= 0) {
-            InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
+            swapMace(maceSwapBackSlot, originalSlot);
             maceSwapBackSlot = -1;
         }
         phase = Phase.IDLE;
@@ -370,14 +371,22 @@ public class TpMace extends Module {
             return true;
         }
 
-        // Mace in the main inventory / offhand -> move it into the selected hotbar slot.
-        InvUtils.move().from(slot).to(originalSlot);
+        // Mace in the main inventory / offhand -> swap it into the selected hotbar slot.
+        swapMace(slot, originalSlot);
         maceSlot = originalSlot;
         maceSwapBackSlot = slot;
-        if (!silentSwap.get()) {
-            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
-        }
         return true;
+    }
+
+    // Swap the mace (any inventory slot) into the selected hotbar slot using a real
+    // click-slot SWAP, which works even when the mace is not in the hotbar.
+    private void swapMace(int invSlot, int hotbarSlot) {
+        if (mc.player == null) return;
+        int screenSlot = invSlot;
+        if (invSlot >= 36 && invSlot <= 39) screenSlot = invSlot - 31; // armor -> 5..8
+        else if (invSlot == 40) screenSlot = 45; // offhand
+        mc.interactionManager.clickSlot(
+            mc.player.playerScreenHandler.syncId, screenSlot, hotbarSlot, SlotActionType.SWAP, mc.player);
     }
 
     // ==================== 目标查找 ====================
