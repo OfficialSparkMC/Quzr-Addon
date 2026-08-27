@@ -344,7 +344,8 @@ public class MaceKillModule extends Module {
         if (isBypassingTotem()) {
             List<String> allHeights = new ArrayList<>();
             allHeights.addAll(getDrainHeights());
-            allHeights.addAll(this.killHeights.get());
+            allHeights.add("170");
+            allHeights.add("170");
             Config config = new Config(
                 this.moveDistance.get(),
                 this.swingHand.get(),

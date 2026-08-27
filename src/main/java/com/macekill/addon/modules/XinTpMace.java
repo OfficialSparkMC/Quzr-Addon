@@ -120,7 +120,8 @@ public class XinTpMace extends Module {
             draining = true;
             rawHeights = new ArrayList<>();
             rawHeights.addAll(getDrainHeights());
-            rawHeights.addAll(heights.get());
+            rawHeights.add("170");
+            rawHeights.add("170");
         }
 
         int oldSlot = Inventory.switchToMace(mc);

@@ -275,7 +275,8 @@ public class MaceMissLite extends Module {
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             List<String> all = new ArrayList<>(getDrainHeights());
-            all.addAll(killHeights.get());
+            all.add("170");
+            all.add("170");
             doTpAura(all);
             return;
         }

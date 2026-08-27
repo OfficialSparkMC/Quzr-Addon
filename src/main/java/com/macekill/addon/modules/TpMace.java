@@ -208,11 +208,15 @@ public class TpMace extends Module {
 
         if (totemBypass.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            // 图腾绕过：1 tick 内完成全部消耗高度 + 击杀
+            // 图腾绕过：1 tick 内完成全部消耗高度 + 双最大高度击杀
             for (String hStr : getDrainHeights()) {
                 int h = parseHeight(hStr);
                 if (h > 0) attackOnce(target, h);
             }
+            attackOnce(target, 170);
+            attackOnce(target, 170);
+            finishAttack();
+            return;
         }
         doAttack(target, getAttackHeight(), true);
     }
