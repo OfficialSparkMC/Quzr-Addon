@@ -167,6 +167,7 @@ public class TpMace extends Module {
     private LivingEntity target;
     private int originalSlot = -1;
     private int maceSlot = -1;
+    private int maceSwapBackSlot = -1;
 
     public TpMace() {
         super(MaceKillAddon.CATEGORY, "TpMace", "Long-range mace - TP teleport+totem bypass+silent swap");
@@ -179,6 +180,7 @@ public class TpMace extends Module {
         originalPos = null;
         originalSlot = -1;
         maceSlot = -1;
+        maceSwapBackSlot = -1;
         attackCount = 0;
     }
 
@@ -335,6 +337,10 @@ public class TpMace extends Module {
     }
 
     private void resetState() {
+        if (maceSwapBackSlot >= 0) {
+            InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
+            maceSwapBackSlot = -1;
+        }
         phase = Phase.IDLE;
         delayTicks = 0;
         attackCount = 0;
@@ -346,20 +352,31 @@ public class TpMace extends Module {
 
     private boolean checkAndSwapWeapon() {
         originalSlot = getSelectedSlot();
+        maceSwapBackSlot = -1;
 
         if (!autoSwitch.get()) return true;
 
-        FindItemResult mace = InvUtils.findInHotbar(Items.MACE);
+        FindItemResult mace = InvUtils.find(Items.MACE);
         if (!mace.found()) return false;
 
-        maceSlot = mace.slot();
-        if (maceSlot == originalSlot) return true;
-
-        if (!silentSwap.get()) {
-            setSelectedSlot(mc.player.getInventory(), maceSlot);
-            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+        int slot = mace.slot();
+        if (slot >= 0 && slot <= 8) {
+            // Mace already in the hotbar -> select it.
+            maceSlot = slot;
+            if (maceSlot != originalSlot && !silentSwap.get()) {
+                setSelectedSlot(mc.player.getInventory(), maceSlot);
+                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
+            }
+            return true;
         }
 
+        // Mace in the main inventory / offhand -> move it into the selected hotbar slot.
+        InvUtils.move().from(slot).to(originalSlot);
+        maceSlot = originalSlot;
+        maceSwapBackSlot = slot;
+        if (!silentSwap.get()) {
+            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
+        }
         return true;
     }
 

@@ -5,6 +5,8 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.FindItemResult;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -36,6 +38,7 @@ import java.util.*;
  */
 public class MaceAura extends Module {
     private static Field selectedSlotField;
+    private int maceSwapBackSlot = -1;
 
     /* ========== 设置 ========== */
     private final SettingGroup sgMain = settings.getDefaultGroup();
@@ -301,20 +304,34 @@ public class MaceAura extends Module {
     private int switchToMace() {
         if (mc.player == null) return -1;
         PlayerInventory inv = mc.player.getInventory();
+        int cur = getSelectedSlot();
+        maceSwapBackSlot = -1;
+        if (inv.getStack(cur).getItem() == Items.MACE) return cur;
         for (int i = 0; i < 9; i++) {
             if (inv.getStack(i).getItem() != Items.MACE) continue;
-            int cur = getSelectedSlot();
             if (i != cur) {
                 setSelectedSlot(i);
                 mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
             }
             return cur;
         }
-        return -1;
+        // Mace in the main inventory / offhand -> move it into the selected hotbar slot.
+        FindItemResult mace = InvUtils.find(Items.MACE);
+        if (mace.found()) {
+            int src = mace.slot();
+            InvUtils.move().from(src).to(cur);
+            maceSwapBackSlot = src;
+        }
+        return cur;
     }
 
     private void switchBack(int slot) {
         if (slot < 0 || slot >= 9) return;
+        if (maceSwapBackSlot >= 0) {
+            InvUtils.move().from(slot).to(maceSwapBackSlot);
+            maceSwapBackSlot = -1;
+            return;
+        }
         setSelectedSlot(slot);
         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(slot));
     }

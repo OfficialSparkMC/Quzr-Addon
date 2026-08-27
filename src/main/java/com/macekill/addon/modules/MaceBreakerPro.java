@@ -89,8 +89,19 @@ public class MaceBreakerPro extends Module {
 
         // 如果有重锤：切换重锤 → 攻击
         if (mace.found()) {
-            switchTo(mace.slot());
+            int mslot = mace.slot();
+            int src = -1;
+            if (mslot > 8) {
+                // Mace not in hotbar -> move it into the selected slot.
+                InvUtils.move().from(mslot).to(originalSlot);
+                src = mslot;
+                mslot = originalSlot;
+            }
+            switchTo(mslot);
             sendAttackPacket(target);
+            if (src >= 0) {
+                InvUtils.move().from(mslot).to(src);
+            }
         }
 
         // 恢复原位
@@ -111,7 +122,7 @@ public class MaceBreakerPro extends Module {
     }
 
     private FindItemResult findMace() {
-        return InvUtils.findInHotbar(Items.MACE);
+        return InvUtils.find(Items.MACE);
     }
 
     private void switchTo(int slot) {
