@@ -161,7 +161,7 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, originalPos, maxStep.get(), false);
         }
 
-        cooldownTicks = cooldown.get();
+        cooldownTicks = this.bypassTotem.get() ? 0 : cooldown.get();
     }
 
     private LivingEntity findTarget() {

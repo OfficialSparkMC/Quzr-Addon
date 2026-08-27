@@ -259,7 +259,7 @@ public class MaceKillModule extends Module {
         }
         switch (this.phase) {
             case IDLE -> {
-                if (this.requireFullCooldown.get()
+                if (this.requireFullCooldown.get() && !this.bypassTotem.get()
                         && this.mc.player.getAttackCooldownProgress(0.0f) < 1.0f) {
                     return;
                 }
@@ -293,7 +293,7 @@ public class MaceKillModule extends Module {
             Movement.sendRotations(this.mc, 4);
         }
         Movement.doTpTo(this.mc, this.targetPos, this.moveDistance.get(), this.syncClientPos.get());
-        int delay = this.teleportDelay.get();
+        int delay = this.bypassTotem.get() ? 0 : this.teleportDelay.get();
         if (delay > 0) {
             this.phase = Phase.START_DELAY;
             this.delayTicks = delay;
@@ -330,7 +330,7 @@ public class MaceKillModule extends Module {
     private void executeAndReturn() {
         this.executeAttack();
         this.doReturn();
-        int delay = this.teleportDelay.get();
+        int delay = this.bypassTotem.get() ? 0 : this.teleportDelay.get();
         if (delay > 0) {
             this.phase = Phase.RETURN_DELAY;
             this.delayTicks = delay;

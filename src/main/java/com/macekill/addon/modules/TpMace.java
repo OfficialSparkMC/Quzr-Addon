@@ -196,7 +196,8 @@ public class TpMace extends Module {
 
     private void tickIdle() {
         delayTicks++;
-        if (delayTicks < attackDelay.get()) return;
+        int tickDelay = totemBypass.get() ? 0 : attackDelay.get();
+        if (delayTicks < tickDelay) return;
         delayTicks = 0;
 
         target = findTarget();

@@ -219,7 +219,7 @@ public class MaceMissLite extends Module {
             return;
         }
         doAura();
-        delayTicks = attackDelay.get();
+        delayTicks = this.bypassTotem.get() ? 0 : attackDelay.get();
         phase = Phase.DELAY;
     }
 
