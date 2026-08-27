@@ -162,8 +162,13 @@ public class MaceMissLite extends Module {
             .visible(bypassTotem::get).build());
 
     private final Setting<Integer> totemsToPop = sgTotem.add(new IntSetting.Builder()
-            .name("Totems To Pop").description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .name("Totems To Pop").description("How many totems to pop (1-198). Hits are fired across ticks so every totem pops reliably")
             .defaultValue(24).min(1).max(198).sliderMax(198)
+            .visible(bypassTotem::get).build());
+
+    private final Setting<Integer> bypassHitsPerTick = sgTotem.add(new IntSetting.Builder()
+            .name("Hits Per Tick").description("Bypass hits fired each tick. 1 = safest (1 totem/tick). Raise it if your server lets multiple mace hits land per tick for an instant kill")
+            .defaultValue(1).min(1).max(20).sliderMax(20)
             .visible(bypassTotem::get).build());
 
     // 渲染
@@ -181,6 +186,7 @@ public class MaceMissLite extends Module {
     private int delayTicks;
     private Phase phase = Phase.IDLE;
     private Vec3d originalPos;
+    private Combat.BypassRunner bypassRunner;
 
     private enum Phase { IDLE, DELAY }
 
@@ -194,6 +200,7 @@ public class MaceMissLite extends Module {
         attackIndex = 0;
         delayTicks = 0;
         phase = Phase.IDLE;
+        bypassRunner = null;
     }
 
     /* ========== Tick ========== */
@@ -280,11 +287,17 @@ public class MaceMissLite extends Module {
 
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            int totems = totemsToPop.get();
-            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
-            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
-            List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
-            doTpAura(all);
+            if (bypassRunner == null) {
+                int totems = totemsToPop.get();
+                if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+                totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+                List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+                bypassRunner = new Combat.BypassRunner(Combat.parseHeights(all));
+            }
+            List<String> slice = new ArrayList<>();
+            for (double d : bypassRunner.next(bypassHitsPerTick.get())) slice.add(String.valueOf(d));
+            doTpAura(slice);
+            if (!bypassRunner.hasMore()) bypassRunner = null;
             return;
         }
 

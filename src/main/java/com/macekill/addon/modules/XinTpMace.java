@@ -91,13 +91,20 @@ public class XinTpMace extends Module {
             .visible(bypassTotem::get).build());
 
     private final Setting<Integer> totemsToPop = sgTotem.add(new IntSetting.Builder()
-            .name("Totems To Pop").description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .name("Totems To Pop").description("How many totems to pop (1-198). Hits are fired across ticks so every totem pops reliably")
             .defaultValue(24).min(1).max(198).sliderMax(198)
+            .visible(bypassTotem::get).build());
+
+    private final Setting<Integer> bypassHitsPerTick = sgTotem.add(new IntSetting.Builder()
+            .name("Hits Per Tick").description("Bypass hits fired each tick. 1 = safest (1 totem/tick). Raise it if your server lets multiple mace hits land per tick for an instant kill")
+            .defaultValue(1).min(1).max(20).sliderMax(20)
             .visible(bypassTotem::get).build());
 
     // 状态
     private int cooldownTicks;
     private Vec3d originalPos;
+    private Combat.BypassRunner bypassRunner;
+    private LivingEntity bypassTarget;
 
     public XinTpMace() {
         super(MaceKillAddon.CATEGORY, "xintpmace", "New TP mace - predicted teleport+multi-height VClip attack");
@@ -106,6 +113,8 @@ public class XinTpMace extends Module {
     @Override
     public void onDeactivate() {
         cooldownTicks = 0;
+        bypassRunner = null;
+        bypassTarget = null;
     }
 
     @EventHandler
@@ -125,10 +134,18 @@ public class XinTpMace extends Module {
         if (bypassTotem.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             draining = true;
-            int totems = totemsToPop.get();
-            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
-            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
-            rawHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+            if (bypassRunner == null || this.bypassTarget != target) {
+                int totems = totemsToPop.get();
+                if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+                totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+                List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+                bypassRunner = new Combat.BypassRunner(Combat.parseHeights(all));
+                this.bypassTarget = target;
+            }
+            rawHeights = new ArrayList<>();
+            for (double d : bypassRunner.next(bypassHitsPerTick.get())) {
+                rawHeights.add(String.valueOf(d));
+            }
         }
 
         int oldSlot = Inventory.switchToMace(mc);
@@ -166,7 +183,13 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, originalPos, maxStep.get(), false);
         }
 
-        cooldownTicks = this.bypassTotem.get() ? 0 : cooldown.get();
+        if (bypassTotem.get() && bypassRunner != null && bypassRunner.hasMore()) {
+            cooldownTicks = 0; // keep popping totems next tick
+        } else {
+            bypassRunner = null;
+            bypassTarget = null;
+            cooldownTicks = this.bypassTotem.get() ? 0 : cooldown.get();
+        }
     }
 
     private LivingEntity findTarget() {

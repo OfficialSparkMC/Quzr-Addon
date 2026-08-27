@@ -156,4 +156,33 @@ public final class Combat {
         }
         return all;
     }
+
+    // Drives the totem bypass across multiple ticks. Each tick we hand out a small
+    // slice of the (strictly increasing) height list; the server recomputes the mace
+    // fall distance once per tick, so spacing the hits out lets every totem pop.
+    public static final class BypassRunner {
+        private final List<Double> heights;
+        private int idx;
+
+        public BypassRunner(List<Double> heights) {
+            this.heights = heights;
+            this.idx = 0;
+        }
+
+        public boolean hasMore() {
+            return idx < heights.size();
+        }
+
+        public int remaining() {
+            return heights.size() - idx;
+        }
+
+        public List<Double> next(int count) {
+            List<Double> out = new ArrayList<>();
+            while (idx < heights.size() && out.size() < count) {
+                out.add(heights.get(idx++));
+            }
+            return out;
+        }
+    }
 }

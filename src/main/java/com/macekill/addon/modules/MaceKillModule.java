@@ -55,6 +55,7 @@ public class MaceKillModule extends Module {
     private final Setting<Integer> heightIncrement;
     private final Setting<Integer> totemAttacks;
     private final Setting<Integer> totemsToPop;
+    private final Setting<Integer> bypassHitsPerTick;
 
     private final Setting<Boolean> targetPlayers;
     private final Setting<Boolean> targetHostiles;
@@ -69,6 +70,7 @@ public class MaceKillModule extends Module {
     private LivingEntity target;
     private LivingEntity drainTarget;
     private int totemHits;
+    private Combat.BypassRunner bypassRunner;
 
     public MaceKillModule() {
         super(MaceKillAddon.CATEGORY, "macemiss", "Teleport next to target and VClip jump attack");
@@ -239,10 +241,18 @@ public class MaceKillModule extends Module {
             .build());
         this.totemsToPop = this.sgTotem.add(new IntSetting.Builder()
             .name("Totems To Pop")
-            .description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .description("How many totems to pop (1-198). Hits are fired across ticks so every totem pops reliably")
             .defaultValue(24)
             .range(1, 198)
             .sliderMax(198)
+            .visible(this.bypassTotem::get)
+            .build());
+        this.bypassHitsPerTick = this.sgTotem.add(new IntSetting.Builder()
+            .name("Hits Per Tick")
+            .description("Bypass hits fired each tick. 1 = safest (1 totem/tick). Raise it if your server lets multiple mace hits land per tick for an instant kill")
+            .defaultValue(1)
+            .range(1, 20)
+            .sliderMax(20)
             .visible(this.bypassTotem::get)
             .build());
 
@@ -256,6 +266,7 @@ public class MaceKillModule extends Module {
         this.target = null;
         this.drainTarget = null;
         this.totemHits = 0;
+        this.bypassRunner = null;
     }
 
     @EventHandler
@@ -339,6 +350,13 @@ public class MaceKillModule extends Module {
 
     private void executeAndReturn() {
         this.executeAttack();
+        if (this.isBypassingTotem() && this.bypassRunner != null && this.bypassRunner.hasMore()) {
+            // More totems to pop: keep attacking next tick (re-teleport + next slice).
+            this.phase = Phase.START_DELAY;
+            this.delayTicks = 0;
+            return;
+        }
+        this.bypassRunner = null;
         this.doReturn();
         int delay = this.bypassTotem.get() ? 0 : this.teleportDelay.get();
         if (delay > 0) {
@@ -352,10 +370,15 @@ public class MaceKillModule extends Module {
 
     private void executeAttack() {
         if (isBypassingTotem()) {
-            int totems = this.totemsToPop.get();
-            if (this.detectTotem.get()) totems = Math.min(totems, countTotems((PlayerEntity) this.target));
-            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
-            List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+            if (this.bypassRunner == null) {
+                int totems = this.totemsToPop.get();
+                if (this.detectTotem.get()) totems = Math.min(totems, countTotems((PlayerEntity) this.target));
+                totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+                List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+                this.bypassRunner = new Combat.BypassRunner(Combat.parseHeights(allHeights));
+            }
+            List<String> slice = new ArrayList<>();
+            for (double d : this.bypassRunner.next(this.bypassHitsPerTick.get())) slice.add(String.valueOf(d));
             Config config = new Config(
                 this.moveDistance.get(),
                 this.swingHand.get(),
@@ -364,7 +387,7 @@ public class MaceKillModule extends Module {
                 false,
                 this.ignoreArmorValue.get(),
                 this.destroyHeights.get(),
-                allHeights
+                slice
             );
             Combat.executeAttack(this.mc, config, this.target, this.targetPos);
             this.totemHits = 0;

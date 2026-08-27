@@ -135,8 +135,14 @@ public class TpMace extends Module {
     );
 
     private final Setting<Integer> totemsToPop = sgTotem.add(new IntSetting.Builder()
-            .name("Totems To Pop").description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .name("Totems To Pop").description("How many totems to pop (1-198). Hits are fired across ticks so every totem pops reliably")
             .defaultValue(24).min(1).max(198).sliderMax(198)
+            .visible(totemBypass::get).build()
+    );
+
+    private final Setting<Integer> bypassHitsPerTick = sgTotem.add(new IntSetting.Builder()
+            .name("Hits Per Tick").description("Bypass hits fired each tick. 1 = safest (1 totem/tick). Raise it if your server lets multiple mace hits land per tick for an instant kill")
+            .defaultValue(1).min(1).max(20).sliderMax(20)
             .visible(totemBypass::get).build()
     );
 
@@ -173,6 +179,8 @@ public class TpMace extends Module {
     private int originalSlot = -1;
     private int maceSlot = -1;
     private int maceSwapBackSlot = -1;
+    private List<String> bypassHeights;
+    private int bypassIdx;
 
     public TpMace() {
         super(MaceKillAddon.CATEGORY, "TpMace", "Long-range mace - TP teleport+totem bypass+silent swap");
@@ -187,6 +195,8 @@ public class TpMace extends Module {
         maceSlot = -1;
         maceSwapBackSlot = -1;
         attackCount = 0;
+        bypassHeights = null;
+        bypassIdx = 0;
     }
 
     // ==================== Tick ====================
@@ -217,14 +227,24 @@ public class TpMace extends Module {
 
         if (totemBypass.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            int totems = totemsToPop.get();
-            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
-            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
-            for (String hStr : Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3)) {
-                int h = parseHeight(hStr);
-                if (h > 0) attackOnce(target, h);
+            if (bypassHeights == null) {
+                int totems = totemsToPop.get();
+                if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+                totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+                bypassHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+                bypassIdx = 0;
             }
-            finishAttack();
+            int fired = 0;
+            while (bypassIdx < bypassHeights.size() && fired < bypassHitsPerTick.get()) {
+                int h = parseHeight(bypassHeights.get(bypassIdx));
+                if (h > 0) attackOnce(target, h);
+                bypassIdx++;
+                fired++;
+            }
+            if (bypassIdx >= bypassHeights.size()) {
+                bypassHeights = null;
+                finishAttack();
+            }
             return;
         }
         doAttack(target, getAttackHeight(), true);
@@ -353,6 +373,8 @@ public class TpMace extends Module {
         attackCount = 0;
         target = null;
         originalPos = null;
+        bypassHeights = null;
+        bypassIdx = 0;
     }
 
     // ==================== 武器切换 ====================
