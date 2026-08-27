@@ -141,14 +141,14 @@ public class TpMace extends Module {
     );
 
     private final Setting<Boolean> singleTick = sgTotem.add(new BoolSetting.Builder()
-            .name("Single Tick").description("Fire every escalating hit in one tick (one mace smash). Turn OFF to spread across ticks if your server only lets 1 totem pop per tick")
-            .defaultValue(true).visible(totemBypass::get).build()
+            .name("Single Tick").description("Totem bypass always fires the whole hit list in one mace smash (required to beat AutoTotem, which re-equips between ticks)")
+            .defaultValue(true).visible(() -> false).build()
     );
 
     private final Setting<Integer> bypassHitsPerTick = sgTotem.add(new IntSetting.Builder()
-            .name("Hits Per Tick").description("Bypass hits fired each tick when Single Tick is OFF. 1 = 1 totem/tick. Raise it if your server lets multiple mace hits land per tick")
+            .name("Hits Per Tick").description("Unused - totem bypass is always a single smash")
             .defaultValue(1).min(1).max(20).sliderMax(20)
-            .visible(() -> totemBypass.get() && !singleTick.get()).build()
+            .visible(() -> false).build()
     );
 
     // ---- 目标 ----
@@ -236,31 +236,12 @@ public class TpMace extends Module {
             int totems = totemsToPop.get();
             if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
             totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
+            // MUST land in a single tick (one mace smash) or the target always survives.
             List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
-            if (singleTick.get()) {
-                // One mace smash: every escalating hit in a single tick.
-                for (String hStr : all) {
-                    int h = parseHeight(hStr);
-                    if (h > 0) attackOnce(target, h);
-                }
-            } else {
-                if (bypassHeights == null) {
-                    bypassHeights = all;
-                    bypassIdx = 0;
-                }
-                int fired = 0;
-                while (bypassIdx < bypassHeights.size() && fired < bypassHitsPerTick.get()) {
-                    int h = parseHeight(bypassHeights.get(bypassIdx));
-                    if (h > 0) attackOnce(target, h);
-                    bypassIdx++;
-                    fired++;
-                }
-                if (bypassIdx >= bypassHeights.size()) {
-                    bypassHeights = null;
-                    finishAttack();
-                    return;
-                }
-                return;
+            for (String hStr : all) {
+                int h = parseHeight(hStr);
+                if (h > 0) attackOnce(target, h);
             }
             finishAttack();
             return;

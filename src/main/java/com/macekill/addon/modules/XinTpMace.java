@@ -96,13 +96,13 @@ public class XinTpMace extends Module {
             .visible(bypassTotem::get).build());
 
     private final Setting<Boolean> singleTick = sgTotem.add(new BoolSetting.Builder()
-            .name("Single Tick").description("Fire every escalating hit in one tick (one mace smash). Turn OFF to spread across ticks if your server only lets 1 totem pop per tick")
-            .defaultValue(true).visible(bypassTotem::get).build());
+            .name("Single Tick").description("Totem bypass always fires the whole hit list in one mace smash (required to beat AutoTotem)")
+            .defaultValue(true).visible(() -> false).build());
 
     private final Setting<Integer> bypassHitsPerTick = sgTotem.add(new IntSetting.Builder()
-            .name("Hits Per Tick").description("Bypass hits fired each tick when Single Tick is OFF. 1 = 1 totem/tick. Raise it if your server lets multiple mace hits land per tick")
+            .name("Hits Per Tick").description("Unused - totem bypass is always a single smash")
             .defaultValue(1).min(1).max(20).sliderMax(20)
-            .visible(() -> bypassTotem.get() && !singleTick.get()).build());
+            .visible(() -> false).build());
 
     // 状态
     private int cooldownTicks;
@@ -141,20 +141,10 @@ public class XinTpMace extends Module {
             int totems = totemsToPop.get();
             if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
             totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
+            // MUST land in a single tick (one mace smash) or the target always survives.
             List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
-            if (singleTick.get()) {
-                // One mace smash: every escalating hit in a single tick.
-                rawHeights = all;
-            } else {
-                if (bypassRunner == null || this.bypassTarget != target) {
-                    bypassRunner = new Combat.BypassRunner(Combat.parseHeights(all));
-                    this.bypassTarget = target;
-                }
-                rawHeights = new ArrayList<>();
-                for (double d : bypassRunner.next(bypassHitsPerTick.get())) {
-                    rawHeights.add(String.valueOf(d));
-                }
-            }
+            rawHeights = all;
         }
 
         int oldSlot = Inventory.switchToMace(mc);
@@ -192,13 +182,9 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, originalPos, maxStep.get(), false);
         }
 
-        if (!singleTick.get() && bypassTotem.get() && bypassRunner != null && bypassRunner.hasMore()) {
-            cooldownTicks = 0; // keep popping totems next tick
-        } else {
-            bypassRunner = null;
-            bypassTarget = null;
-            cooldownTicks = this.bypassTotem.get() ? 0 : cooldown.get();
-        }
+        bypassRunner = null;
+        bypassTarget = null;
+        cooldownTicks = this.bypassTotem.get() ? 0 : cooldown.get();
     }
 
     private LivingEntity findTarget() {

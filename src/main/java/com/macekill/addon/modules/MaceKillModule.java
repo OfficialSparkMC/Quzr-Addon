@@ -250,17 +250,17 @@ public class MaceKillModule extends Module {
             .build());
         this.singleTick = this.sgTotem.add(new BoolSetting.Builder()
             .name("Single Tick")
-            .description("Fire every escalating hit in one tick (one mace smash). Turn OFF to spread across ticks if your server only lets 1 totem pop per tick")
+            .description("Totem bypass always fires the whole hit list in one mace smash (required to beat AutoTotem)")
             .defaultValue(true)
-            .visible(this.bypassTotem::get)
+            .visible(() -> false)
             .build());
         this.bypassHitsPerTick = this.sgTotem.add(new IntSetting.Builder()
             .name("Hits Per Tick")
-            .description("Bypass hits fired each tick when Single Tick is OFF. 1 = 1 totem/tick. Raise it if your server lets multiple mace hits land per tick")
+            .description("Unused - totem bypass is always a single smash")
             .defaultValue(1)
             .range(1, 20)
             .sliderMax(20)
-            .visible(() -> this.bypassTotem.get() && !this.singleTick.get())
+            .visible(() -> false)
             .build());
 
         this.phase = Phase.IDLE;
@@ -357,12 +357,6 @@ public class MaceKillModule extends Module {
 
     private void executeAndReturn() {
         this.executeAttack();
-        if (!this.singleTick.get() && this.isBypassingTotem() && this.bypassRunner != null && this.bypassRunner.hasMore()) {
-            // More totems to pop: keep attacking next tick (re-teleport + next slice).
-            this.phase = Phase.START_DELAY;
-            this.delayTicks = 0;
-            return;
-        }
         this.bypassRunner = null;
         this.doReturn();
         int delay = this.bypassTotem.get() ? 0 : this.teleportDelay.get();
@@ -380,28 +374,9 @@ public class MaceKillModule extends Module {
             int totems = this.totemsToPop.get();
             if (this.detectTotem.get()) totems = Math.min(totems, countTotems((PlayerEntity) this.target));
             totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
+            // MUST land in a single tick (one mace smash) or the target always survives.
             List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
-            if (this.singleTick.get()) {
-                // One mace smash: fire every escalating hit in a single tick.
-                Config config = new Config(
-                    this.moveDistance.get(),
-                    this.swingHand.get(),
-                    this.autoTotem.get(),
-                    this.syncClientPos.get(),
-                    false,
-                    this.ignoreArmorValue.get(),
-                    this.destroyHeights.get(),
-                    allHeights
-                );
-                Combat.executeAttack(this.mc, config, this.target, this.targetPos);
-                this.totemHits = 0;
-                return;
-            }
-            if (this.bypassRunner == null) {
-                this.bypassRunner = new Combat.BypassRunner(Combat.parseHeights(allHeights));
-            }
-            List<String> slice = new ArrayList<>();
-            for (double d : this.bypassRunner.next(this.bypassHitsPerTick.get())) slice.add(String.valueOf(d));
             Config config = new Config(
                 this.moveDistance.get(),
                 this.swingHand.get(),
@@ -410,7 +385,7 @@ public class MaceKillModule extends Module {
                 false,
                 this.ignoreArmorValue.get(),
                 this.destroyHeights.get(),
-                slice
+                allHeights
             );
             Combat.executeAttack(this.mc, config, this.target, this.targetPos);
             this.totemHits = 0;

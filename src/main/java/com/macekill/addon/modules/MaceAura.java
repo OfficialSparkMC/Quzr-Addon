@@ -81,15 +81,15 @@ public class MaceAura extends Module {
             .visible(useOffset::get).build());
 
     private final Setting<Boolean> bypassTotem = sgTotem.add(new BoolSetting.Builder()
-            .name("Totem Bypass").description("Drain totems with low-height hits first").defaultValue(false).build());
+            .name("Totem Bypass").description("Drain totems with escalating-height hits and kill - all hits fire in ONE smash (required to beat AutoTotem)").defaultValue(false).build());
 
     private final Setting<Integer> attackCount = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attacks").description("How many totems to pop (attacks used to drain them)")
+            .name("Totem Attacks").description("How many escalating hits to fire in the single smash (use >= 2 to oneshot AutoTotem)")
             .defaultValue(3).min(1).max(198).sliderMax(198)
             .visible(bypassTotem::get).build());
 
     private final Setting<Integer> heightIncrement = sgTotem.add(new IntSetting.Builder()
-            .name("Height Increment").description("Height added per totem attack")
+            .name("Height Increment").description("Height added per hit (must be > 0 so each hit deals strictly more damage, bypassing invulnerability)")
             .defaultValue(2).min(1).max(50).sliderMax(50)
             .visible(bypassTotem::get).build());
 
@@ -184,18 +184,14 @@ public class MaceAura extends Module {
         int increment = heightIncrement.get();
         int baseHeight = fallHeight.get();
 
-        for (int i = totemAttackIndex; i < count; i++) {
+        // AutoTotem re-equips between ticks, so every strictly-escalating hit MUST land in a
+        // single smash (one executeAttack call). Sending all hits here guarantees the target
+        // has no chance to re-equip and gets oneshot.
+        for (int i = 0; i < count; i++) {
             int h = baseHeight + i * increment;
-            if (!doSingleAttack(target, originalPos, h)) continue;
-
-            totemAttackIndex++;
-            if (totemAttackIndex >= count) {
-                totemAttackIndex = 0;
-                return true; // 图腾消耗完毕，返回true继续下一轮完整击杀
-            }
-            return false;
+            doSingleAttack(target, originalPos, h);
         }
-        return false;
+        return true;
     }
 
     private boolean executeKill(LivingEntity target, Vec3d originalPos, int height) {
