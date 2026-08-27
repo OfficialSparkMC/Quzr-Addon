@@ -15,6 +15,7 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.Vec3d;
@@ -119,7 +120,7 @@ public class XinTpMace extends Module {
         if (bypassTotem.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             draining = true;
-            rawHeights = Combat.totemBypassHeights(getDrainHeights(), countTotems(p), 170, 3);
+            rawHeights = Combat.totemBypassHeights(getDrainHeights(), Math.min(countTotems(p), Combat.MAX_TOTEM_HITS), 170, 3);
         }
 
         int oldSlot = Inventory.switchToMace(mc);
@@ -194,8 +195,10 @@ public class XinTpMace extends Module {
 
     private int countTotems(PlayerEntity player) {
         int n = 0;
-        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
-        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
+        }
         return n;
     }
 

@@ -210,7 +210,7 @@ public class TpMace extends Module {
 
         if (totemBypass.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            int totems = countTotems(p);
+            int totems = Math.min(countTotems(p), Combat.MAX_TOTEM_HITS);
             for (String hStr : Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3)) {
                 int h = parseHeight(hStr);
                 if (h > 0) attackOnce(target, h);
@@ -506,8 +506,10 @@ public class TpMace extends Module {
 
     private int countTotems(PlayerEntity player) {
         int n = 0;
-        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
-        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
+        }
         return n;
     }
 

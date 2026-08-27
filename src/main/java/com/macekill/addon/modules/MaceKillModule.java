@@ -22,6 +22,7 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 import net.minecraft.util.math.Vec3d;
 
@@ -342,7 +343,7 @@ public class MaceKillModule extends Module {
 
     private void executeAttack() {
         if (isBypassingTotem()) {
-            int totems = countTotems((PlayerEntity) this.target);
+            int totems = Math.min(countTotems((PlayerEntity) this.target), Combat.MAX_TOTEM_HITS);
             List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
             Config config = new Config(
                 this.moveDistance.get(),
@@ -388,8 +389,10 @@ public class MaceKillModule extends Module {
 
     private int countTotems(PlayerEntity player) {
         int n = 0;
-        if (player.getOffHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
-        if (player.getMainHandStack().isOf(Items.TOTEM_OF_UNDYING)) n++;
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
+        }
         return n;
     }
 

@@ -124,6 +124,7 @@ public final class Combat {
     // kill hits at STRICTLY INCREASING heights. Each successive mace hit deals strictly
     // more damage, which bypasses the server's hurtResistantTime invulnerability check
     // (amount <= lastDamage is ignored), letting every held totem pop in a single tick.
+    public static final int MAX_TOTEM_HITS = 24;
     public static List<String> totemBypassHeights(List<String> drainHeights, int totemCount, int baseHeight, int step) {
         List<String> all = new ArrayList<>(drainHeights);
         int maxDrain = 0;
