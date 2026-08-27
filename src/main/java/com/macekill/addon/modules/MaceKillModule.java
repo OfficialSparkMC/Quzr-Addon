@@ -373,7 +373,7 @@ public class MaceKillModule extends Module {
         if (isBypassingTotem()) {
             int totems = this.totemsToPop.get();
             if (this.detectTotem.get()) totems = Math.min(totems, countTotems((PlayerEntity) this.target));
-            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
             List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);

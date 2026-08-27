@@ -235,7 +235,7 @@ public class TpMace extends Module {
                 && (!detectTotem.get() || targetHasTotem(p))) {
             int totems = totemsToPop.get();
             if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
-            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
             List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
