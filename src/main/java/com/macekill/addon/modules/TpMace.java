@@ -7,8 +7,6 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.meteorclient.utils.player.FindItemResult;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -82,8 +80,8 @@ public class TpMace extends Module {
     );
 
     private final Setting<Integer> fallHeight = sgExploit.add(new IntSetting.Builder()
-            .name("Attack Height").description("Fall height used for the attack")
-            .defaultValue(30).min(1).max(170).sliderRange(1, 170)
+            .name("Attack Height").description("Fall height (mace damage) used for the attack. Used directly when Max Damage is off; used as the search cap when Max Damage is on")
+            .defaultValue(170).min(1).max(170).sliderRange(1, 170)
             .visible(() -> !maxPower.get()).build()
     );
 
@@ -357,24 +355,44 @@ public class TpMace extends Module {
 
         if (!autoSwitch.get()) return true;
 
-        FindItemResult mace = InvUtils.find(Items.MACE);
-        if (!mace.found()) return false;
+        PlayerInventory inv = mc.player.getInventory();
 
-        int slot = mace.slot();
-        if (slot >= 0 && slot <= 8) {
-            // Mace already in the hotbar -> select it.
-            maceSlot = slot;
-            if (maceSlot != originalSlot && !silentSwap.get()) {
-                setSelectedSlot(mc.player.getInventory(), maceSlot);
-                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(maceSlot));
-            }
+        // 1) Already holding the mace in the selected hotbar slot.
+        if (inv.getStack(originalSlot).isOf(Items.MACE)) {
+            maceSlot = originalSlot;
             return true;
         }
 
-        // Mace in the main inventory / offhand -> swap it into the selected hotbar slot.
-        swapMace(slot, originalSlot);
+        // 2) Mace already in the hotbar -> select it.
+        for (int i = 0; i < 9; i++) {
+            if (inv.getStack(i).isOf(Items.MACE)) {
+                maceSlot = i;
+                if (i != originalSlot) {
+                    setSelectedSlot(inv, i);
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
+                }
+                return true;
+            }
+        }
+
+        // 3) Mace anywhere else (main inventory / offhand / armor) -> SWAP into the selected slot.
+        int src = -1;
+        for (int i = 9; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.MACE)) {
+                src = i;
+                break;
+            }
+        }
+        if (src == -1) {
+            error("No mace found in inventory, attack cancelled.");
+            return false;
+        }
+
+        swapMace(src, originalSlot);
         maceSlot = originalSlot;
-        maceSwapBackSlot = slot;
+        maceSwapBackSlot = src;
+        // Make sure the server selects the slot that now holds the mace.
+        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
         return true;
     }
 
@@ -465,7 +483,7 @@ public class TpMace extends Module {
      */
     private int getMaxHeightAbovePlayer(LivingEntity target) {
         BlockPos targetPos = target.getBlockPos();
-        int maxH = maxPower.get() ? 20 : fallHeight.get();
+        int maxH = maxPower.get() ? 170 : fallHeight.get();
 
         for (int yOffset = maxH; yOffset > 0; yOffset--) {
             BlockPos pos = new BlockPos(targetPos.getX(), targetPos.getY() + yOffset, targetPos.getZ());
