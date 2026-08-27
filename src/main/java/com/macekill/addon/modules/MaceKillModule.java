@@ -54,6 +54,7 @@ public class MaceKillModule extends Module {
     private final Setting<Integer> baseDrainHeight;
     private final Setting<Integer> heightIncrement;
     private final Setting<Integer> totemAttacks;
+    private final Setting<Integer> totemsToPop;
 
     private final Setting<Boolean> targetPlayers;
     private final Setting<Boolean> targetHostiles;
@@ -236,6 +237,14 @@ public class MaceKillModule extends Module {
             .sliderMax(15)
             .visible(this.bypassTotem::get)
             .build());
+        this.totemsToPop = this.sgTotem.add(new IntSetting.Builder()
+            .name("Totems To Pop")
+            .description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .defaultValue(24)
+            .range(1, 198)
+            .sliderMax(198)
+            .visible(this.bypassTotem::get)
+            .build());
 
         this.phase = Phase.IDLE;
     }
@@ -343,7 +352,9 @@ public class MaceKillModule extends Module {
 
     private void executeAttack() {
         if (isBypassingTotem()) {
-            int totems = Math.min(countTotems((PlayerEntity) this.target), Combat.MAX_TOTEM_HITS);
+            int totems = this.totemsToPop.get();
+            if (this.detectTotem.get()) totems = Math.min(totems, countTotems((PlayerEntity) this.target));
+            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
             List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
             Config config = new Config(
                 this.moveDistance.get(),

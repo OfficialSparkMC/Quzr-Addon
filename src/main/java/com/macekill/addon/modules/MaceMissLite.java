@@ -161,6 +161,11 @@ public class MaceMissLite extends Module {
             .defaultValue(4).min(1).max(15).sliderMax(15)
             .visible(bypassTotem::get).build());
 
+    private final Setting<Integer> totemsToPop = sgTotem.add(new IntSetting.Builder()
+            .name("Totems To Pop").description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .defaultValue(24).min(1).max(198).sliderMax(198)
+            .visible(bypassTotem::get).build());
+
     // 渲染
     private final Setting<Boolean> renderBox = sgMain.add(new BoolSetting.Builder()
             .name("Render Box").description("Render box around the target").defaultValue(true).build());
@@ -275,7 +280,9 @@ public class MaceMissLite extends Module {
 
         if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            int totems = Math.min(countTotems(p), Combat.MAX_TOTEM_HITS);
+            int totems = totemsToPop.get();
+            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
             List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
             doTpAura(all);
             return;

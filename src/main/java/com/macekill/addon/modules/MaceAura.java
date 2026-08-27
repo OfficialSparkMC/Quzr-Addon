@@ -84,13 +84,13 @@ public class MaceAura extends Module {
             .name("Totem Bypass").description("Drain totems with low-height hits first").defaultValue(false).build());
 
     private final Setting<Integer> attackCount = sgTotem.add(new IntSetting.Builder()
-            .name("Totem Attacks").description("Attacks used to drain the totem")
-            .defaultValue(3).min(1).max(10).sliderMax(10)
+            .name("Totem Attacks").description("How many totems to pop (attacks used to drain them)")
+            .defaultValue(3).min(1).max(198).sliderMax(198)
             .visible(bypassTotem::get).build());
 
     private final Setting<Integer> heightIncrement = sgTotem.add(new IntSetting.Builder()
             .name("Height Increment").description("Height added per totem attack")
-            .defaultValue(2).min(1).max(10).sliderMax(10)
+            .defaultValue(2).min(1).max(50).sliderMax(50)
             .visible(bypassTotem::get).build());
 
     /* ========== 状态 ========== */

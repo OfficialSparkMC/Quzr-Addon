@@ -134,6 +134,12 @@ public class TpMace extends Module {
             .visible(totemBypass::get).build()
     );
 
+    private final Setting<Integer> totemsToPop = sgTotem.add(new IntSetting.Builder()
+            .name("Totems To Pop").description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .defaultValue(24).min(1).max(198).sliderMax(198)
+            .visible(totemBypass::get).build()
+    );
+
     // ---- 目标 ----
     private enum ListMode { Off, Whitelist, Blacklist }
 
@@ -211,7 +217,9 @@ public class TpMace extends Module {
 
         if (totemBypass.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
-            int totems = Math.min(countTotems(p), Combat.MAX_TOTEM_HITS);
+            int totems = totemsToPop.get();
+            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
             for (String hStr : Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3)) {
                 int h = parseHeight(hStr);
                 if (h > 0) attackOnce(target, h);

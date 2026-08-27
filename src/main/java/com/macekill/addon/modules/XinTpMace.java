@@ -90,6 +90,11 @@ public class XinTpMace extends Module {
             .defaultValue(4).min(1).max(15).sliderMax(15)
             .visible(bypassTotem::get).build());
 
+    private final Setting<Integer> totemsToPop = sgTotem.add(new IntSetting.Builder()
+            .name("Totems To Pop").description("How many totems to pop in a single hit (1-198). More totems = more packets sent at once")
+            .defaultValue(24).min(1).max(198).sliderMax(198)
+            .visible(bypassTotem::get).build());
+
     // 状态
     private int cooldownTicks;
     private Vec3d originalPos;
@@ -120,7 +125,10 @@ public class XinTpMace extends Module {
         if (bypassTotem.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             draining = true;
-            rawHeights = Combat.totemBypassHeights(getDrainHeights(), Math.min(countTotems(p), Combat.MAX_TOTEM_HITS), 170, 3);
+            int totems = totemsToPop.get();
+            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+            totems = Math.min(totems, Combat.MAX_TOTEM_HITS);
+            rawHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
         }
 
         int oldSlot = Inventory.switchToMace(mc);
