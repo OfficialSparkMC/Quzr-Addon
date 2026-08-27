@@ -212,6 +212,9 @@ public class MaceAura extends Module {
 
         // 计算安全起跳高度
         int safeHeight = getMaxHeightAbovePlayer(targetPos, height);
+        if (safeHeight < 2) {
+            return false; // 头顶是实心屋顶、没有起跳空间 -> 不攻击，避免卡在天上
+        }
         Vec3d jumpPos = new Vec3d(targetPos.x, targetPos.y + safeHeight, targetPos.z);
 
         // 升空 + 发垃圾包
@@ -241,29 +244,32 @@ public class MaceAura extends Module {
                 pos.z + Math.sin(angle) * hOff);
     }
 
-    /** 计算目标上方最大安全高度 */
+    /** 计算目标上方最大安全高度（从目标向上扫描，遇到实心屋顶即停，绝不穿顶到屋外天空） */
     private int getMaxHeightAbovePlayer(Vec3d targetPos, int maxHeight) {
         int bx = (int) Math.floor(targetPos.x);
         int bz = (int) Math.floor(targetPos.z);
         int by = (int) Math.floor(targetPos.y);
+        int top = by + maxHeight;
+        top = Math.min(top, 319);
 
-        for (int h = maxHeight; h >= 1; h--) {
-            int cy = by + h;
+        for (int cy = by + 1; cy <= top; cy++) {
             mutablePos.set(bx, cy, bz);
-            if (isSafePosition(mutablePos)) {
-                mutablePos.set(bx, cy + 1, bz);
-                if (isSafePosition(mutablePos)) {
-                    return h;
-                }
+            if (!isSafePosition(mutablePos)) {
+                // 屋顶：取屋顶下方连通的空气（需要 2 格空气）
+                if (cy - 1 <= by) return 0;
+                mutablePos.set(bx, cy - 1, bz);
+                if (!isSafePosition(mutablePos)) return 0;
+                return cy - 1 - by;
             }
         }
-        return maxHeight; // 兜底
+        return top - by;
     }
 
     private boolean isSafePosition(BlockPos pos) {
         return positionCache.computeIfAbsent(pos.toImmutable(), p -> {
             BlockState state = mc.world.getBlockState(p);
-            return state.isAir()
+            // 空气或树叶（可穿过树叶升到树冠上方的天空）才视为安全；液体/蛛网/实心方块不安全
+            return (state.isAir() || state.getBlock() instanceof net.minecraft.block.LeavesBlock)
                     && state.getFluidState().isEmpty()
                     && !state.isOf(Blocks.COBWEB);
         });

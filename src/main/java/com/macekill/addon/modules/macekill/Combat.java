@@ -84,17 +84,24 @@ public final class Combat {
         int bx = base.getX();
         int by = base.getY();
         int bz = base.getZ();
-        int targetY = by + (int) vclip;
-        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        int top = by + (int) vclip;
+        top = Math.min(top, 319);
 
-        for (int cy = targetY; cy >= by; cy--) {
+        // Scan UP from the player. The first non-safe block (a solid roof) is the ceiling.
+        // We must never teleport through it into the disconnected sky above, or the fall back
+        // down through the roof gets rejected by the server and the player is stranded in the sky.
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
+        for (int cy = by + 1; cy <= top; cy++) {
             mutable.set(bx, cy, bz);
-            if (!vclipSafe(mc, mutable)) continue;
-            mutable.set(bx, cy + 1, bz);
-            if (!vclipSafe(mc, mutable)) continue;
-            return new BlockPos(bx, cy, bz);
+            if (!vclipSafe(mc, mutable)) {
+                // Ceiling hit: highest connected safe air is just below it (need a 2-air column).
+                if (cy - 1 <= by) return base;
+                mutable.set(bx, cy - 1, bz);
+                if (!vclipSafe(mc, mutable)) return base;
+                return new BlockPos(bx, cy - 1, bz);
+            }
         }
-        return base;
+        return new BlockPos(bx, top, bz);
     }
 
     // A vclip destination must be an air block (or leaves: we can teleport straight

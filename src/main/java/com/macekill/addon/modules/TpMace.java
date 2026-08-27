@@ -184,6 +184,7 @@ public class TpMace extends Module {
     private int originalSlot = -1;
     private int maceSlot = -1;
     private int maceSwapBackSlot = -1;
+    private boolean noMaceWarned = false;
     private List<String> bypassHeights;
     private int bypassIdx;
 
@@ -295,7 +296,15 @@ public class TpMace extends Module {
     private void attackOnce(LivingEntity target, int height) {
         if (mc.player == null) return;
 
-        Vec3d tpPos = new Vec3d(target.getX(), target.getY() + height, target.getZ());
+        // Never teleport through a solid roof into the disconnected sky above (that strands
+        // the player up there when the fall-back is rejected). Cap the teleport at the highest
+        // air that is still connected to the target. Under a real roof this yields the clearance
+        // inside the room; in open sky it yields the full height.
+        BlockPos hole = Combat.findVclipHole(mc, target.getX(), target.getY(), target.getZ(), height);
+        if (hole.getY() <= (int) target.getY() + 1) {
+            return; // no clearance under the roof -> don't attack, avoid getting stuck
+        }
+        Vec3d tpPos = new Vec3d(target.getX(), hole.getY(), target.getZ());
 
         if (rotate.get()) {
             float yaw = getYawTo(target);
@@ -407,6 +416,7 @@ public class TpMace extends Module {
         // 1) Already holding the mace in the selected hotbar slot.
         if (inv.getStack(originalSlot).isOf(Items.MACE)) {
             maceSlot = originalSlot;
+            noMaceWarned = false;
             return true;
         }
 
@@ -414,6 +424,7 @@ public class TpMace extends Module {
         for (int i = 0; i < 9; i++) {
             if (inv.getStack(i).isOf(Items.MACE)) {
                 maceSlot = i;
+                noMaceWarned = false;
                 if (i != originalSlot) {
                     setSelectedSlot(inv, i);
                     mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
@@ -431,7 +442,10 @@ public class TpMace extends Module {
             }
         }
         if (src == -1) {
-            error("No mace found in inventory, attack cancelled.");
+            if (!noMaceWarned) {
+                error("No mace found in inventory, attack cancelled.");
+                noMaceWarned = true;
+            }
             return false;
         }
 
@@ -440,6 +454,7 @@ public class TpMace extends Module {
         maceSwapBackSlot = src;
         // Make sure the server selects the slot that now holds the mace.
         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
+        noMaceWarned = false;
         return true;
     }
 
