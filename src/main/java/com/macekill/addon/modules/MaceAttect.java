@@ -418,7 +418,7 @@ public class MaceAttect extends Module {
     private void sendExploitPackets(Vec3d from) {
         double step = moveDistance.get();
         double startY = from.y;
-        double targetY = target.getY() + 1.1;
+        double targetY = target.getY() + 0.5;
 
         for (double y = startY; y > targetY + step; y -= step) {
             mc.getNetworkHandler().sendPacket(

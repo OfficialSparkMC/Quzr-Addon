@@ -160,7 +160,8 @@ public final class Combat {
     public static List<String> totemBypassHeights(int totemCount, int maxHeight) {
         List<String> all = new ArrayList<>();
         int avail = Math.max(0, maxHeight);
-        int minLethal = 5; // ~22 mace damage - lethal for a 20 HP target
+        int minLethal = 6; // ~24 mace damage - safely lethal for a 20 HP target (attack lands
+                           // ~0.5 blocks above the target, so effective fall is a touch less)
         if (avail < minLethal) return all; // no headroom for even one lethal hit
 
         int kills = totemCount + 1;
