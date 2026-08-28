@@ -180,6 +180,7 @@ public class MaceAttect extends Module {
     private int delayTicks;
     private int attackCount;
     private Vec3d originalPos;
+    private double lastSentY;
     private LivingEntity target;
     private LivingEntity pendingTarget;
     private int originalSlot = -1;
@@ -202,6 +203,7 @@ public class MaceAttect extends Module {
         originalSlot = -1;
         maceSlot = -1;
         maceSwapBackSlot = -1;
+        lastSentY = 0;
         attackCount = 0;
         bypassHeights = null;
         bypassIdx = 0;
@@ -321,13 +323,22 @@ public class MaceAttect extends Module {
                     pendingTarget = null;
                     if (checkAndSwapWeapon()) {
                         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                        lastSentY = originalPos.y;
                         attackCount = 0;
                         target = t;
                         phase = Phase.SMASH;
                     }
                 }
             }
-            case SMASH -> runSmash();
+            case SMASH -> {
+                try {
+                    runSmash();
+                } catch (Exception e) {
+                    boolean stuckUp = originalPos != null && lastSentY > originalPos.y + 3;
+                    if (originalPos != null && (returnPos.get() || stuckUp)) returnToStart();
+                    else resetState();
+                }
+            }
             case RETURN_DELAY -> tickReturnDelay();
         }
     }
@@ -412,6 +423,7 @@ public class MaceAttect extends Module {
             double y = from.y + stepY * i;
             mc.getNetworkHandler().sendPacket(
                     new PlayerMoveC2SPacket.PositionAndOnGround(from.x, y, from.z, false, false));
+            lastSentY = y;
         }
     }
 
@@ -423,10 +435,12 @@ public class MaceAttect extends Module {
         for (double y = startY; y > targetY + step; y -= step) {
             mc.getNetworkHandler().sendPacket(
                     new PlayerMoveC2SPacket.PositionAndOnGround(from.x, y, from.z, false, false));
+            lastSentY = y;
         }
 
         mc.getNetworkHandler().sendPacket(
                 new PlayerMoveC2SPacket.PositionAndOnGround(from.x, targetY, from.z, false, false));
+        lastSentY = targetY;
     }
 
     private void sendAttack(LivingEntity target) {
@@ -446,10 +460,10 @@ public class MaceAttect extends Module {
     }
 
     private void finishAttack() {
-        if (returnPos.get() && originalPos != null) {
-            mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z,
-                            mc.player.isOnGround(), false));
+        // Force a return if "Return to Start" is on, OR if the smash left us up in the sky
+        // (e.g. the target was elevated and the hit didn't land) so we never get stranded.
+        boolean stuckUp = originalPos != null && lastSentY > originalPos.y + 3;
+        if (originalPos != null && (returnPos.get() || stuckUp)) {
             delayTicks = 0;
             phase = Phase.RETURN_DELAY;
             return;
@@ -457,15 +471,40 @@ public class MaceAttect extends Module {
         resetState();
     }
 
+    // Return to the original position by descending in stepped packets (a single huge vertical
+    // jump is often ignored by the server, which leaves the player stranded up in the sky).
+    private void returnToStart() {
+        if (originalPos == null) {
+            resetState();
+            return;
+        }
+
+        double fromY = lastSentY;
+        double step = moveDistance.get();
+        double total = originalPos.y - fromY;
+        int steps = (int) Math.ceil(Math.abs(total) / step);
+        if (steps < 1) steps = 1;
+
+        for (int i = 1; i <= steps; i++) {
+            double y = fromY + total * i / steps;
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, y, originalPos.z, false, false));
+        }
+
+        mc.getNetworkHandler().sendPacket(
+                new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z, true, false));
+
+        if (mc.player != null) {
+            mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
+        }
+
+        resetState();
+    }
+
     private void tickReturnDelay() {
         delayTicks++;
         if (delayTicks >= 2) {
-            if (originalPos != null) {
-                mc.getNetworkHandler().sendPacket(
-                        new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y + 0.5, originalPos.z,
-                                true, false));
-            }
-            resetState();
+            returnToStart();
         }
     }
 
@@ -479,6 +518,7 @@ public class MaceAttect extends Module {
         attackCount = 0;
         target = null;
         originalPos = null;
+        lastSentY = 0;
         bypassHeights = null;
         bypassIdx = 0;
     }
@@ -574,6 +614,11 @@ public class MaceAttect extends Module {
     // ==================== 高度计算 ====================
 
     private int getAttackHeight() {
+        // Mobs (sheep, cow, creeper, ...) are never totem-bypassed: always smash them with the
+        // full available headroom so they die in a single hit, even in a cave.
+        if (!(target instanceof PlayerEntity)) {
+            return Math.max(1, Combat.getVclipClearance(mc, target));
+        }
         if (maxPower.get()) return 170;
         return Math.min(fallHeight.get(), 170);
     }
