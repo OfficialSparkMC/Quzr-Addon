@@ -183,6 +183,8 @@ public class MaceAttect extends Module {
     private double lastSentY;
     private LivingEntity target;
     private LivingEntity pendingTarget;
+    private float preHealth;
+    private int freeCooldown = 0;
     private int originalSlot = -1;
     private int maceSlot = -1;
     private int maceSwapBackSlot = -1;
@@ -204,6 +206,8 @@ public class MaceAttect extends Module {
         maceSlot = -1;
         maceSwapBackSlot = -1;
         lastSentY = 0;
+        preHealth = 0;
+        freeCooldown = 0;
         attackCount = 0;
         bypassHeights = null;
         bypassIdx = 0;
@@ -318,6 +322,11 @@ public class MaceAttect extends Module {
 
         switch (phase) {
             case IDLE -> {
+                // After an unhittable attempt we pause briefly so the player can move freely.
+                if (freeCooldown > 0) {
+                    freeCooldown--;
+                    return;
+                }
                 if (pendingTarget != null) {
                     LivingEntity t = pendingTarget;
                     pendingTarget = null;
@@ -325,6 +334,7 @@ public class MaceAttect extends Module {
                         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
                         lastSentY = originalPos.y;
                         attackCount = 0;
+                        preHealth = t.getHealth() + t.getAbsorptionAmount();
                         target = t;
                         phase = Phase.SMASH;
                     }
@@ -355,14 +365,13 @@ public class MaceAttect extends Module {
             totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
-            // Spread the hits across the real headroom above the target so each hit deals a
-            // strictly different mace damage (critical in caves / under a roof).
-            int clearance = Combat.getVclipClearance(mc, target);
-            List<String> all = Combat.totemBypassHeights(totems, clearance);
+            // We pierce any roof, so headroom is not a limit: spread the hits across the full
+            // allowed height so each hit deals a strictly different mace damage.
+            List<String> all = Combat.totemBypassHeights(totems, Combat.MAX_TOTEM_HITS);
             if (all.isEmpty()) {
-                error("Not enough headroom above target for a mace smash (need open space / taller cave)");
+                error("Failed to build totem-bypass hit list.");
             } else if (all.size() < totems + 1) {
-                error("Limited headroom - can only pop ~%d totems here", all.size() - 1);
+                error("Can only pop ~%d totems here", all.size() - 1);
             }
             for (String hStr : all) {
                 int h = parseHeight(hStr);
@@ -386,15 +395,14 @@ public class MaceAttect extends Module {
     }
 
     private void attackOnce(LivingEntity target, int height) {
-        if (mc.player == null) return;
+        if (mc.player == null || height < 1) return;
 
-        // Cap the teleport at the highest air that is still connected to the target. Never
-        // teleport through a solid roof into the disconnected sky (that strands the player up there).
-        BlockPos hole = Combat.findVclipHole(mc, target.getX(), target.getY(), target.getZ(), height);
-        if (hole.getY() <= (int) target.getY() + 1) {
-            return; // no clearance under the roof -> don't attack, avoid getting stuck
-        }
-        Vec3d tpPos = new Vec3d(target.getX(), hole.getY(), target.getZ());
+        // Pierce straight up through any roof. Position packets are not collision-checked by the
+        // server, so the player teleports through solid blocks - giving the mace a full fall
+        // distance even under a cave ceiling. The player ends just above the target, so the
+        // return path never strands them.
+        double tpY = Math.min(target.getY() + height, 318);
+        Vec3d tpPos = new Vec3d(target.getX(), tpY, target.getZ());
 
         if (rotate.get()) {
             float yaw = getYawTo(target);
@@ -460,15 +468,14 @@ public class MaceAttect extends Module {
     }
 
     private void finishAttack() {
-        // Force a return if "Return to Start" is on, OR if the smash left us up in the sky
-        // (e.g. the target was elevated and the hit didn't land) so we never get stranded.
-        boolean stuckUp = originalPos != null && lastSentY > originalPos.y + 3;
-        if (originalPos != null && (returnPos.get() || stuckUp)) {
-            delayTicks = 0;
-            phase = Phase.RETURN_DELAY;
+        if (originalPos == null) {
+            resetState();
             return;
         }
-        resetState();
+        // Always pass through the return phase so we can check whether the hit actually landed.
+        // If it didn't (unhittable target) we force a return and let the player move freely.
+        delayTicks = 0;
+        phase = Phase.RETURN_DELAY;
     }
 
     // Return to the original position by descending in stepped packets (a single huge vertical
@@ -479,23 +486,38 @@ public class MaceAttect extends Module {
             return;
         }
 
-        double fromY = lastSentY;
-        double step = moveDistance.get();
-        double total = originalPos.y - fromY;
-        int steps = (int) Math.ceil(Math.abs(total) / step);
-        if (steps < 1) steps = 1;
-
-        for (int i = 1; i <= steps; i++) {
-            double y = fromY + total * i / steps;
-            mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, y, originalPos.z, false, false));
+        // Did the smash actually deal damage? If not, the target was unhittable - get back to the
+        // start and pause briefly so the player can move freely instead of being yanked again.
+        boolean damaged = false;
+        if (target != null) {
+            float cur = target.getHealth() + target.getAbsorptionAmount();
+            damaged = !target.isAlive() || cur < preHealth - 0.5f;
+        }
+        boolean doReturn = originalPos != null && (!damaged || returnPos.get());
+        if (!damaged) {
+            doReturn = originalPos != null;
+            freeCooldown = 40; // ~2s of free movement after an unhittable attempt
         }
 
-        mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z, true, false));
+        if (doReturn) {
+            double fromY = lastSentY;
+            double step = moveDistance.get();
+            double total = originalPos.y - fromY;
+            int steps = (int) Math.ceil(Math.abs(total) / step);
+            if (steps < 1) steps = 1;
 
-        if (mc.player != null) {
-            mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
+            for (int i = 1; i <= steps; i++) {
+                double y = fromY + total * i / steps;
+                mc.getNetworkHandler().sendPacket(
+                        new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, y, originalPos.z, false, false));
+            }
+
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z, true, false));
+
+            if (mc.player != null) {
+                mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
+            }
         }
 
         resetState();
@@ -503,7 +525,7 @@ public class MaceAttect extends Module {
 
     private void tickReturnDelay() {
         delayTicks++;
-        if (delayTicks >= 2) {
+        if (delayTicks >= 3) {
             returnToStart();
         }
     }
@@ -614,10 +636,10 @@ public class MaceAttect extends Module {
     // ==================== 高度计算 ====================
 
     private int getAttackHeight() {
-        // Mobs (sheep, cow, creeper, ...) are never totem-bypassed: always smash them with the
-        // full available headroom so they die in a single hit, even in a cave.
+        // Mobs (sheep, cow, creeper, ...) are never totem-bypassed: pierce any roof and use the
+        // full configured height so they die in a single hit, even in a cave.
         if (!(target instanceof PlayerEntity)) {
-            return Math.max(1, Combat.getVclipClearance(mc, target));
+            return maxPower.get() ? 170 : Math.min(fallHeight.get(), 170);
         }
         if (maxPower.get()) return 170;
         return Math.min(fallHeight.get(), 170);
