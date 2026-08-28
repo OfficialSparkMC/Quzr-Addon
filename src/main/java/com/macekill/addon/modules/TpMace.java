@@ -561,8 +561,12 @@ public class TpMace extends Module {
 
     private int getAttackHeight() {
         // Mobs (sheep, cow, creeper, ...) are never totem-bypassed: always smash them with the
-        // maximum available height so they die in a single hit regardless of the Attack Height setting.
-        if (maxPower.get() || !(target instanceof PlayerEntity)) {
+        // maximum available headroom so they die in a single hit. In a cave this means using the
+        // full clearance above the target (the ceiling caps the fall, so we take every block we can).
+        if (!(target instanceof PlayerEntity)) {
+            return Math.max(1, Combat.getVclipClearance(mc, target));
+        }
+        if (maxPower.get()) {
             return getMaxHeightAbovePlayer(target);
         }
         return fallHeight.get();
