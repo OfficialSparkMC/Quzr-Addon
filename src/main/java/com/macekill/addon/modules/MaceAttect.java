@@ -35,10 +35,18 @@ import java.util.List;
  */
 public class MaceAttect extends Module {
     private static Field selectedSlotField;
-    private static Field pktEntityIdField;
-    private static Field pktTypeField;
-    private static Object pktAttackType;
+    private static Field cachedTypeField;
+    private static Object cachedAttackType;
+    private static Field cachedEntityIdField;
     private static Field attackEventEntityField;
+
+    // The addon is remapped to intermediary at runtime, so string-based reflection must
+    // try BOTH the yarn name and the intermediary name. The packet's type field is
+    // "type"/"field_12871", the ATTACK constant is "ATTACK"/"field_29170", and entityId is
+    // "entityId"/"field_12870".
+    private static final String[] TYPE_FIELD_CANDIDATES = { "field_12871", "type" };
+    private static final String[] ATTACK_FIELD_CANDIDATES = { "field_29170", "ATTACK" };
+    private static final String[] ENTITY_ID_FIELD_CANDIDATES = { "field_12870", "entityId" };
 
     // ==================== 设置组 ====================
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -233,19 +241,36 @@ public class MaceAttect extends Module {
 
     // PlayerInteractEntityC2SPacket has no public type/getter on the client, so detect the
     // ATTACK variant via reflection on the private fields. Covers both your manual hit and
-    // any attack packet another module sends (injection).
-    private boolean isAttackPacket(PlayerInteractEntityC2SPacket pkt) {
+    // any attack packet another module sends (injection). Field names are remapped at runtime,
+    // so we try both yarn and intermediary names.
+    private boolean resolveAttackType() {
+        if (cachedAttackType != null && cachedTypeField != null) return true;
         try {
-            if (pktTypeField == null) {
-                pktTypeField = PlayerInteractEntityC2SPacket.class.getDeclaredField("type");
-                pktTypeField.setAccessible(true);
+            Class<?> cls = PlayerInteractEntityC2SPacket.class;
+            for (String n : ATTACK_FIELD_CANDIDATES) {
+                try {
+                    Field f = cls.getDeclaredField(n);
+                    f.setAccessible(true);
+                    Object v = f.get(null);
+                    if (v != null) { cachedAttackType = v; break; }
+                } catch (Exception ignored) {}
             }
-            if (pktAttackType == null) {
-                Field atk = PlayerInteractEntityC2SPacket.class.getDeclaredField("ATTACK");
-                atk.setAccessible(true);
-                pktAttackType = atk.get(null);
+            for (String n : TYPE_FIELD_CANDIDATES) {
+                try {
+                    Field f = cls.getDeclaredField(n);
+                    f.setAccessible(true);
+                    cachedTypeField = f;
+                    break;
+                } catch (Exception ignored) {}
             }
-            return pktAttackType != null && pktTypeField.get(pkt) == pktAttackType;
+        } catch (Exception ignored) {}
+        return cachedAttackType != null && cachedTypeField != null;
+    }
+
+    private boolean isAttackPacket(PlayerInteractEntityC2SPacket pkt) {
+        if (!resolveAttackType()) return false;
+        try {
+            return cachedAttackType.equals(cachedTypeField.get(pkt));
         } catch (Exception e) {
             return false;
         }
@@ -253,11 +278,18 @@ public class MaceAttect extends Module {
 
     private Entity getPacketEntity(PlayerInteractEntityC2SPacket pkt) {
         try {
-            if (pktEntityIdField == null) {
-                pktEntityIdField = PlayerInteractEntityC2SPacket.class.getDeclaredField("entityId");
-                pktEntityIdField.setAccessible(true);
+            if (cachedEntityIdField == null) {
+                for (String n : ENTITY_ID_FIELD_CANDIDATES) {
+                    try {
+                        Field f = PlayerInteractEntityC2SPacket.class.getDeclaredField(n);
+                        f.setAccessible(true);
+                        cachedEntityIdField = f;
+                        break;
+                    } catch (Exception ignored) {}
+                }
             }
-            int id = (int) pktEntityIdField.get(pkt);
+            if (cachedEntityIdField == null) return null;
+            int id = (int) cachedEntityIdField.get(pkt);
             return mc.world.getEntityById(id);
         } catch (Exception e) {
             return null;
