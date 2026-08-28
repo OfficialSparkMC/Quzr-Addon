@@ -233,30 +233,39 @@ public class TpMace extends Module {
         lastSentY = originalPos.y;
         attackCount = 0;
 
-        if (totemBypass.get() && target instanceof PlayerEntity p
-                && (!detectTotem.get() || targetHasTotem(p))) {
-            int totems = totemsToPop.get();
-            if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
-            totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
-            // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
-            // MUST land in a single tick (one mace smash) or the target always survives.
-            // Spread the hits across the real headroom above the target so each hit deals a
-            // strictly different mace damage (critical in caves / under a roof).
-            int clearance = Combat.getVclipClearance(mc, target);
-            List<String> all = Combat.totemBypassHeights(totems, clearance);
-            if (all.isEmpty()) {
-                error("Not enough headroom above target for a mace smash (need open space / taller cave)");
-            } else if (all.size() < totems + 1) {
-                error("Limited headroom - can only pop ~%d totems here", all.size() - 1);
+        try {
+            if (totemBypass.get() && target instanceof PlayerEntity p
+                    && (!detectTotem.get() || targetHasTotem(p))) {
+                int totems = totemsToPop.get();
+                if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
+                totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
+                // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
+                // MUST land in a single tick (one mace smash) or the target always survives.
+                // Spread the hits across the real headroom above the target so each hit deals a
+                // strictly different mace damage (critical in caves / under a roof).
+                int clearance = Combat.getVclipClearance(mc, target);
+                List<String> all = Combat.totemBypassHeights(totems, clearance);
+                if (all.isEmpty()) {
+                    error("Not enough headroom above target for a mace smash (need open space / taller cave)");
+                } else if (all.size() < totems + 1) {
+                    error("Limited headroom - can only pop ~%d totems here", all.size() - 1);
+                }
+                for (String hStr : all) {
+                    int h = parseHeight(hStr);
+                    if (h > 0) attackOnce(target, h);
+                }
+                finishAttack();
+                return;
             }
-            for (String hStr : all) {
-                int h = parseHeight(hStr);
-                if (h > 0) attackOnce(target, h);
+            doAttack(target, getAttackHeight(), true);
+        } catch (Exception e) {
+            // Never leave the player stranded up in the sky if something goes wrong mid-attack.
+            if (originalPos != null && (returnPos.get() || lastSentY > originalPos.y + 3)) {
+                returnToStart();
+            } else {
+                resetState();
             }
-            finishAttack();
-            return;
         }
-        doAttack(target, getAttackHeight(), true);
     }
 
     private void tickDelay() {
@@ -362,7 +371,10 @@ public class TpMace extends Module {
     }
 
     private void finishAttack() {
-        if (returnPos.get() && originalPos != null) {
+        // Force a return if "Return to Start" is on, OR if the attack left us up in the sky
+        // (e.g. the target was elevated and the hit didn't land) so we never get stranded.
+        boolean stuckUp = originalPos != null && lastSentY > originalPos.y + 3;
+        if (originalPos != null && (returnPos.get() || stuckUp)) {
             delayTicks = 0;
             phase = Phase.RETURN_DELAY;
             return;
