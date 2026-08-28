@@ -180,6 +180,7 @@ public class TpMace extends Module {
     private int delayTicks;
     private int attackCount;
     private Vec3d originalPos;
+    private double lastSentY;
     private LivingEntity target;
     private int originalSlot = -1;
     private int maceSlot = -1;
@@ -229,6 +230,7 @@ public class TpMace extends Module {
 
         if (!checkAndSwapWeapon()) return;
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        lastSentY = originalPos.y;
         attackCount = 0;
 
         if (totemBypass.get() && target instanceof PlayerEntity p
@@ -266,7 +268,7 @@ public class TpMace extends Module {
     private void tickReturnDelay() {
         delayTicks++;
         if (delayTicks >= 2) {
-            finishReturn();
+            returnToStart();
         }
     }
 
@@ -322,6 +324,7 @@ public class TpMace extends Module {
             double y = from.y + stepY * i;
             mc.getNetworkHandler().sendPacket(
                     new PlayerMoveC2SPacket.PositionAndOnGround(from.x, y, from.z, false, false));
+            lastSentY = y;
         }
     }
 
@@ -333,11 +336,13 @@ public class TpMace extends Module {
         for (double y = startY; y > targetY + step; y -= step) {
             mc.getNetworkHandler().sendPacket(
                     new PlayerMoveC2SPacket.PositionAndOnGround(from.x, y, from.z, false, false));
+            lastSentY = y;
         }
 
         // 最终位置
         mc.getNetworkHandler().sendPacket(
                 new PlayerMoveC2SPacket.PositionAndOnGround(from.x, targetY, from.z, false, false));
+        lastSentY = targetY;
     }
 
     private void sendAttack(LivingEntity target) {
@@ -358,9 +363,6 @@ public class TpMace extends Module {
 
     private void finishAttack() {
         if (returnPos.get() && originalPos != null) {
-            mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z,
-                            mc.player.isOnGround(), false));
             delayTicks = 0;
             phase = Phase.RETURN_DELAY;
             return;
@@ -368,13 +370,35 @@ public class TpMace extends Module {
         resetState();
     }
 
-    private void finishReturn() {
-        // 返回原位的最后一步
-        if (originalPos != null) {
-            mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y + 0.5, originalPos.z,
-                            true, false));
+    // Return to the original position by descending in stepped packets (a single huge vertical
+    // jump is often ignored by the server, which leaves the player stranded up in the sky).
+    private void returnToStart() {
+        if (originalPos == null) {
+            resetState();
+            return;
         }
+
+        double fromY = lastSentY;
+        double step = moveDistance.get();
+        double total = originalPos.y - fromY;
+        int steps = (int) Math.ceil(Math.abs(total) / step);
+        if (steps < 1) steps = 1;
+
+        for (int i = 1; i <= steps; i++) {
+            double y = fromY + total * i / steps;
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, y, originalPos.z, false, false));
+        }
+
+        // Final landing packet.
+        mc.getNetworkHandler().sendPacket(
+                new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z, true, false));
+
+        // Snap the local client back as well, in case the server forced a teleport during the attack.
+        if (mc.player != null) {
+            mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
+        }
+
         resetState();
     }
 
@@ -386,6 +410,7 @@ public class TpMace extends Module {
         phase = Phase.IDLE;
         delayTicks = 0;
         attackCount = 0;
+        lastSentY = 0;
         target = null;
         originalPos = null;
         bypassHeights = null;

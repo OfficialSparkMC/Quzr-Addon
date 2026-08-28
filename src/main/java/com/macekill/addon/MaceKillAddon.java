@@ -23,6 +23,8 @@ import com.macekill.addon.modules.MaceDMG;
 import com.macekill.addon.modules.MaceKillModule;
 import com.macekill.addon.modules.AntiAirMiss;
 import com.macekill.addon.modules.FreecamTp;
+import com.macekill.addon.modules.Hitback;
+import com.macekill.addon.modules.MassTpa;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
@@ -48,6 +50,8 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new MaceDMG());
         Modules.get().add(new AntiAirMiss());
         Modules.get().add(new FreecamTp());
+        Modules.get().add(new Hitback());
+        Modules.get().add(new MassTpa());
 
         // ---- 长矛战斗 ----
         Modules.get().add(new SpearKill());
