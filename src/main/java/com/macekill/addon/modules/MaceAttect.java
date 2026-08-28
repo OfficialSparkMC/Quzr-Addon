@@ -93,6 +93,11 @@ public class MaceAttect extends Module {
             .name("Silent Swap").description("Swap to mace without sending a slot packet").defaultValue(false).build()
     );
 
+    private final Setting<Integer> fallPackets = sgExploit.add(new IntSetting.Builder()
+            .name("Fall Packets").description("Rotation-only packets (onGround=false) sent before each hit to prime the fake fall distance. Required to fake large falls on vanilla/strict servers; harmless on Paper. 0 = off.")
+            .defaultValue(4).min(0).max(17).sliderMax(17).build()
+    );
+
     // ---- 图腾绕过 ----
     private final Setting<Boolean> totemBypass = sgTotem.add(new BoolSetting.Builder()
             .name("Totem Bypass").description("Drain totems with multi-height hits, then kill at full height")
@@ -365,9 +370,13 @@ public class MaceAttect extends Module {
             totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
-            // We pierce any roof, so headroom is not a limit: spread the hits across the full
-            // allowed height so each hit deals a strictly different mace damage.
-            List<String> all = Combat.totemBypassHeights(totems, Combat.MAX_TOTEM_HITS);
+            // We pierce any roof, so the only real limit is the world top. Cap the heights to the
+            // headroom above the target (worldTop - targetY) so the fall never collapses onto the
+            // 318 cap and every hit stays strictly greater than the last (even inside a cave, where
+            // we simply go up through the ceiling).
+            int maxH = (int) Math.min(Combat.MAX_TOTEM_HITS, 317 - target.getY());
+            if (maxH < 8) maxH = 8;
+            List<String> all = Combat.totemBypassHeights(totems, maxH);
             if (all.isEmpty()) {
                 error("Failed to build totem-bypass hit list.");
             } else if (all.size() < totems + 1) {
@@ -397,58 +406,55 @@ public class MaceAttect extends Module {
     private void attackOnce(LivingEntity target, int height) {
         if (mc.player == null || height < 1) return;
 
-        // Pierce straight up through any roof. Position packets are not collision-checked by the
-        // server, so the player teleports through solid blocks - giving the mace a full fall
-        // distance even under a cave ceiling. The player ends just above the target, so the
-        // return path never strands them.
-        double tpY = Math.min(target.getY() + height, 318);
-        Vec3d tpPos = new Vec3d(target.getX(), tpY, target.getZ());
+        // Pierce straight up through any roof. Position packets are NOT collision-checked, so the
+        // player teleports through solid blocks - this is what makes the smash work under a cave
+        // ceiling (we simply go up through it). Every move stays in the TARGET's column (see stepMove)
+        // so there is no giant horizontal jump mid-arc for the server to reject.
+        double tx = target.getX(), ty = target.getY(), tz = target.getZ();
+        double tpY = Math.min(ty + height, 318);
+        double targetY = ty + 1.1;
 
         if (rotate.get()) {
             float yaw = getYawTo(target);
             float pitch = getPitchTo(target);
             mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, mc.player.isOnGround(), false));
+                    new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, false, false));
         }
 
-        // VClip：模拟升空（从玩家当前位置到目标正上方）
-        sendVClipPackets(new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ()), tpPos);
+        // Prime the fake fall: report onGround=false (rotation-only, same position). Sending it with
+        // onGround=true (e.g. while standing) would RESET the fall and the smash would deal no bonus.
+        for (int i = 0; i < fallPackets.get(); i++) {
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(), false, false));
+        }
 
-        // 模拟掉落
-        sendExploitPackets(tpPos);
+        // Up, then drop onto the target. Both legs are interpolated on EVERY axis in <= moveDistance
+        // steps so each packet stays inside the server's anti-teleport cap (a single big jump gets
+        // rejected, which is what broke the old code under caves).
+        Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        stepMove(start, new Vec3d(tx, tpY, tz));
+        stepMove(new Vec3d(tx, tpY, tz), new Vec3d(tx, targetY, tz));
 
-        // 攻击
         sendAttack(target);
     }
 
-    private void sendVClipPackets(Vec3d from, Vec3d to) {
+    // Interpolate a move from->to in steps no larger than moveDistance on any axis. Used for both the
+    // vertical VClip and the horizontal teleport to the target, so no single packet exceeds the
+    // server's per-packet move cap.
+    private void stepMove(Vec3d from, Vec3d to) {
         double step = moveDistance.get();
-        double totalDist = to.y - from.y;
-        int steps = (int) Math.ceil(Math.abs(totalDist) / step);
-        double stepY = totalDist / steps;
-
+        double dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
+        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        int steps = Math.max(1, (int) Math.ceil(dist / step));
         for (int i = 1; i <= steps; i++) {
-            double y = from.y + stepY * i;
+            double t = (double) i / steps;
+            double x = from.x + dx * t;
+            double y = from.y + dy * t;
+            double z = from.z + dz * t;
             mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.PositionAndOnGround(from.x, y, from.z, false, false));
+                    new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
             lastSentY = y;
         }
-    }
-
-    private void sendExploitPackets(Vec3d from) {
-        double step = moveDistance.get();
-        double startY = from.y;
-        double targetY = target.getY() + 0.5;
-
-        for (double y = startY; y > targetY + step; y -= step) {
-            mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.PositionAndOnGround(from.x, y, from.z, false, false));
-            lastSentY = y;
-        }
-
-        mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(from.x, targetY, from.z, false, false));
-        lastSentY = targetY;
     }
 
     private void sendAttack(LivingEntity target) {
