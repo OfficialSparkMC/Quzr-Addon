@@ -317,12 +317,15 @@ public class TpMace extends Module {
         if (mc.player == null || height < 1) return;
 
         // Pierce straight up through any roof. Position packets are NOT collision-checked, so the
-        // player teleports through solid blocks - this is exactly what makes the smash work under a
-        // cave ceiling (we just go up through it). Crucially, every move stays in the TARGET's
-        // column (see stepMove) so there is no giant horizontal jump mid-arc for the server to reject.
-        double tx = target.getX(), ty = target.getY(), tz = target.getZ();
+        // player teleports through solid blocks. Crucially, the up/down must run in a column with
+        // CLEAR headroom - if the player intersects a block mid-arc (e.g. dropping onto the target
+        // under a 1-block roof puts the head inside the roof), the server resets fall distance and
+        // the smash deals no bonus. So we drop in the nearest clear column within attack reach.
+        double ty = target.getY();
         double tpY = Math.min(ty + height, 318);
         double targetY = ty + 1.1;
+        Vec3d drop = findDropColumn(target, height);
+        double tx = drop.x, tz = drop.z;
 
         if (rotate.get()) {
             float yaw = getYawTo(target);
@@ -366,6 +369,36 @@ public class TpMace extends Module {
                     new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
             lastSentY = y;
         }
+    }
+
+    // Find a column near the target with clear vertical space (no roof) so the fake-fall teleport
+    // never intersects a block. The player intersecting a block mid-arc makes the server reset the
+    // fall distance, which is exactly why the smash fails when the target is under a low roof. We
+    // prefer the target's own column; otherwise we step outward up to 2 blocks (still within attack
+    // reach) to find open air. Falls back to the target's column if nothing clear is found.
+    private Vec3d findDropColumn(LivingEntity target, int height) {
+        double ty = target.getY();
+        int topY = (int) Math.floor(Math.min(ty + height, 318));
+        int botY = (int) Math.floor(ty + 1);
+        int cx = (int) Math.floor(target.getX());
+        int cz = (int) Math.floor(target.getZ());
+
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                if (dx == 0 && dz == 0) continue;        // target column checked as fallback
+                if (Math.hypot(dx, dz) > 2.0) continue;  // keep within attack reach
+                int x = cx + dx, z = cz + dz;
+                boolean clear = true;
+                for (int y = botY; y <= topY; y++) {
+                    if (!mc.world.getBlockState(new BlockPos(x, y, z)).isAir()) {
+                        clear = false;
+                        break;
+                    }
+                }
+                if (clear) return new Vec3d(x + 0.5, ty, z + 0.5);
+            }
+        }
+        return new Vec3d(target.getX(), ty, target.getZ());
     }
 
     private void sendAttack(LivingEntity target) {
