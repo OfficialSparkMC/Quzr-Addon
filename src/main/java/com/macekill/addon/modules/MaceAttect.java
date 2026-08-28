@@ -342,10 +342,17 @@ public class MaceAttect extends Module {
             int totems = totemsToPop.get();
             if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
             totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
-            int base = maxPower.get() ? 170 : fallHeight.get();
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
-            List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, base, 3);
+            // Spread the hits across the real headroom above the target so each hit deals a
+            // strictly different mace damage (critical in caves / under a roof).
+            int clearance = Combat.getVclipClearance(mc, target);
+            List<String> all = Combat.totemBypassHeights(totems, clearance);
+            if (all.isEmpty()) {
+                error("Not enough headroom above target for a mace smash (need open space / taller cave)");
+            } else if (all.size() < totems + 1) {
+                error("Limited headroom - can only pop ~%d totems here", all.size() - 1);
+            }
             for (String hStr : all) {
                 int h = parseHeight(hStr);
                 if (h > 0) attackOnce(target, h);

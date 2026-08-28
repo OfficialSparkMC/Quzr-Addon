@@ -143,7 +143,12 @@ public class XinTpMace extends Module {
             totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
-            List<String> all = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+            // Spread the hits across the real headroom above the target (so each hit deals a
+            // strictly different mace damage AND we never teleport into the cave roof).
+            int clearance = Combat.getVclipClearance(mc, target);
+            List<String> all = Combat.totemBypassHeights(totems, clearance);
+            if (all.isEmpty()) error("Not enough headroom above target for a mace smash (need open space / taller cave)");
+            else if (all.size() < totems + 1) error("Limited headroom - can only pop ~%d totems here", all.size() - 1);
             rawHeights = all;
         }
 
@@ -155,11 +160,15 @@ public class XinTpMace extends Module {
             Movement.doTpTo(mc, predicted, maxStep.get(), false);
 
             // 多高度VClip攻击
+            int clearance = Combat.getVclipClearance(mc, target);
             for (String hStr : rawHeights) {
                 double h;
                 try { h = Double.parseDouble(hStr.trim()); }
                 catch (NumberFormatException e) { continue; }
                 if (h <= 0) continue;
+                // Never teleport into the cave roof - clamp to the real headroom above the target.
+                if (h > clearance) h = clearance;
+                if (h < 5) continue;
 
                 // VClip 起跳
                 Vec3d current = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());

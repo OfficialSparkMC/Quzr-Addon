@@ -1,6 +1,7 @@
 package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
+import com.macekill.addon.modules.macekill.Combat;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
@@ -181,15 +182,24 @@ public class MaceAura extends Module {
 
     private boolean executeTotemBypass(LivingEntity target, Vec3d originalPos) {
         int count = attackCount.get();
-        int increment = heightIncrement.get();
-        int baseHeight = fallHeight.get();
 
         // AutoTotem re-equips between ticks, so every strictly-escalating hit MUST land in a
-        // single smash (one executeAttack call). Sending all hits here guarantees the target
-        // has no chance to re-equip and gets oneshot.
-        for (int i = 0; i < count; i++) {
-            int h = baseHeight + i * increment;
-            doSingleAttack(target, originalPos, h);
+        // single smash (one executeTotemBypass call). Spread the heights across the REAL
+        // headroom above the target so each hit deals strictly more damage (critical in caves
+        // / under a roof - otherwise they all collapse onto the ceiling and only pop one totem).
+        int clearance = getMaxHeightAbovePlayer(new Vec3d(target.getX(), target.getY(), target.getZ()), 319);
+        List<String> all = Combat.totemBypassHeights(count - 1, clearance);
+        if (all.isEmpty()) {
+            error("Not enough headroom above target for a mace smash (need open space / taller cave)");
+            return false;
+        } else if (all.size() < count) {
+            error("Limited headroom - can only pop ~%d totems here", all.size() - 1);
+        }
+        for (String s : all) {
+            try {
+                int h = Integer.parseInt(s.trim());
+                doSingleAttack(target, originalPos, h);
+            } catch (NumberFormatException ignored) {}
         }
         return true;
     }

@@ -141,25 +141,40 @@ public final class Combat {
         return list;
     }
 
-    // Builds the totem-bypass height list: drain heights first, then (totemCount + 1)
-    // kill hits at STRICTLY INCREASING heights. Each successive mace hit deals strictly
-    // more damage, which bypasses the server's hurtResistantTime invulnerability check
-    // (amount <= lastDamage is ignored), letting every held totem pop in a single tick.
+    // Available vertical headroom (in blocks) directly above the target before a solid
+    // roof is hit. In a cave this is small; in open sky it is large.
+    public static int getVclipClearance(MinecraftClient mc, LivingEntity target) {
+        BlockPos hole = findVclipHole(mc, target.getX(), target.getY(), target.getZ(), 319);
+        return hole.getY() - (int) target.getY();
+    }
+
+    // Builds the totem-bypass height list: (totemCount + 1) hits at STRICTLY INCREASING
+    // heights, all within the available headroom above the target. Each successive mace
+    // hit deals strictly more damage, which bypasses the server's hurtResistantTime
+    // invulnerability check (amount <= lastDamage is ignored), popping every held totem.
+    //
+    // Crucially the heights are spread across the REAL clearance (not a fixed 170), so
+    // under a roof / in a cave the hits stay distinct instead of all collapsing onto the
+    // ceiling height (which would make them deal identical damage and only pop one totem).
     public static final int MAX_TOTEM_HITS = 198;
-    public static List<String> totemBypassHeights(List<String> drainHeights, int totemCount, int baseHeight, int step) {
-        List<String> all = new ArrayList<>(drainHeights);
-        int maxDrain = 0;
-        for (String s : drainHeights) {
-            try {
-                int v = Integer.parseInt(s.trim());
-                if (v > maxDrain) maxDrain = v;
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        int start = Math.max(baseHeight, maxDrain + step);
+    public static List<String> totemBypassHeights(int totemCount, int maxHeight) {
+        List<String> all = new ArrayList<>();
+        int avail = Math.max(0, maxHeight);
+        int minLethal = 5; // ~22 mace damage - lethal for a 20 HP target
+        if (avail < minLethal) return all; // no headroom for even one lethal hit
+
         int kills = totemCount + 1;
+        int span = avail - minLethal;
+        int maxKills = span + 1;        // distinct integer heights available in [minLethal, avail]
+        kills = Math.min(kills, maxKills);
+
+        if (kills < 1) return all;
+        int denom = Math.max(1, kills - 1);
         for (int i = 0; i < kills; i++) {
-            all.add(String.valueOf(start + i * step));
+            int off = minLethal + (int) Math.round((double) i * span / denom);
+            if (off > avail) off = avail;
+            if (off < minLethal) off = minLethal;
+            all.add(String.valueOf(off));
         }
         return all;
     }

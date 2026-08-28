@@ -376,7 +376,12 @@ public class MaceKillModule extends Module {
             totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
-            List<String> allHeights = Combat.totemBypassHeights(getDrainHeights(), totems, 170, 3);
+            // Spread the hits across the real headroom above the player/target so each hit
+            // deals a strictly different mace damage (critical in caves / under a roof).
+            int clearance = Combat.getVclipClearance(this.mc, this.mc.player);
+            List<String> allHeights = Combat.totemBypassHeights(totems, clearance);
+            if (allHeights.isEmpty()) this.error("Not enough headroom above target for a mace smash (need open space / taller cave)");
+            else if (allHeights.size() < totems + 1) this.error("Limited headroom - can only pop ~%d totems here", allHeights.size() - 1);
             Config config = new Config(
                 this.moveDistance.get(),
                 this.swingHand.get(),
