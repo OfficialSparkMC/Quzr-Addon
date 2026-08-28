@@ -270,9 +270,13 @@ public class TpMace extends Module {
                 } else if (all.size() < totems + 1) {
                     error("Can only pop ~%d totems here", all.size() - 1);
                 }
+                boolean first = true;
                 for (String hStr : all) {
                     int h = parseHeight(hStr);
-                    if (h > 0) attackOnce(target, h);
+                    if (h > 0) {
+                        attackOnce(target, h, first);
+                        first = false;
+                    }
                 }
                 finishAttack();
                 return;
@@ -314,6 +318,13 @@ public class TpMace extends Module {
     }
 
     private void attackOnce(LivingEntity target, int height) {
+        attackOnce(target, height, true);
+    }
+
+    // primeFall: when true, send the rotation-only "stay" packets that seed the fake fall distance.
+    // Only the FIRST hit of a totem-bypass burst needs this - re-sending it on every hit wastes the
+    // per-tick move-packet budget and causes later hits to be dropped (so only the first totem pops).
+    private void attackOnce(LivingEntity target, int height, boolean primeFall) {
         if (mc.player == null || height < 1) return;
 
         // Pierce straight up through any roof. Position packets are NOT collision-checked, so the
@@ -336,10 +347,13 @@ public class TpMace extends Module {
 
         // Prime the fake fall: report onGround=false (rotation-only, same position). This is what
         // makes the server accumulate fall distance - sending it with onGround=true (e.g. while
-        // standing) would RESET the fall and the smash would deal no bonus damage.
-        for (int i = 0; i < fallPackets.get(); i++) {
-            mc.getNetworkHandler().sendPacket(
-                    new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(), false, false));
+        // standing) would RESET the fall and the smash would deal no bonus damage. Only done when
+        // primeFall is set (first hit of a burst) to save packets.
+        if (primeFall) {
+            for (int i = 0; i < fallPackets.get(); i++) {
+                mc.getNetworkHandler().sendPacket(
+                        new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(), false, false));
+            }
         }
 
         // Up, then drop onto the target. Both legs are interpolated on EVERY axis in <= moveDistance
@@ -383,10 +397,10 @@ public class TpMace extends Module {
         int cx = (int) Math.floor(target.getX());
         int cz = (int) Math.floor(target.getZ());
 
-        for (int dx = -2; dx <= 2; dx++) {
-            for (int dz = -2; dz <= 2; dz++) {
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
                 if (dx == 0 && dz == 0) continue;        // target column checked as fallback
-                if (Math.hypot(dx, dz) > 2.0) continue;  // keep within attack reach
+                if (Math.hypot(dx, dz) > 2.5) continue;  // keep within attack reach
                 int x = cx + dx, z = cz + dz;
                 boolean clear = true;
                 for (int y = botY; y <= topY; y++) {
