@@ -560,7 +560,9 @@ public class TpMace extends Module {
     // ==================== 高度计算 ====================
 
     private int getAttackHeight() {
-        if (maxPower.get()) {
+        // Mobs (sheep, cow, creeper, ...) are never totem-bypassed: always smash them with the
+        // maximum available height so they die in a single hit regardless of the Attack Height setting.
+        if (maxPower.get() || !(target instanceof PlayerEntity)) {
             return getMaxHeightAbovePlayer(target);
         }
         return fallHeight.get();
