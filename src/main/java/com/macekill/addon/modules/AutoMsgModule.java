@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-public class AutoFuckModule extends Module {
+public class AutoMsgModule extends Module {
     private final Random random = new Random();
 
     // ==================== Settings Groups ====================
@@ -181,7 +181,7 @@ public class AutoFuckModule extends Module {
     private final Setting<String> customCommand = sgPlayer.add(
         new StringSetting.Builder()
             .name("custom-command")
-            .description("Leave empty for public chat. Use {player} for the target and {fuck} for the generated message.")
+            .description("Leave empty for public chat. Use {player} for the target and {msg} for the generated message.")
             .defaultValue("")
             .build()
     );
@@ -279,10 +279,10 @@ public class AutoFuckModule extends Module {
     private int burstDelayTicks;
     private final Set<String> toldPlayers = new HashSet<>();
 
-    public AutoFuckModule() {
+    public AutoMsgModule() {
         super(
             MaceKillAddon.CATEGORY,
-            "auto-fuck",
+            "auto-msg",
             "Automatically sends configured messages toward selected players."
         );
     }
@@ -475,10 +475,10 @@ public class AutoFuckModule extends Module {
         if (!command.isEmpty()) {
             message = command
                 .replace("{player}", targetName)
-                .replace("{fuck}", message);
+                .replace("{msg}", message);
         }
 
-        // slash-prefixed messages (e.g. from custom-command "/msg {player} {fuck}") must be run as
+        // slash-prefixed messages (e.g. from custom-command "/msg {player} {msg}") must be run as
         // commands; ClientPlayNetworkHandler.sendChatMessage only sends plain chat and would dump the
         // literal "/tell ..." into public chat. sendChatCommand runs it (without the leading slash).
         if (message.startsWith("/")) {

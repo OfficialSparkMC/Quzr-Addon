@@ -1,6 +1,6 @@
 package com.macekill.addon;
 
-import com.macekill.addon.modules.AutoFuckModule;
+import com.macekill.addon.modules.AutoMsgModule;
 import com.macekill.addon.modules.AutoRise;
 import com.macekill.addon.modules.AutoTotemToHotbar;
 import com.macekill.addon.modules.MaceAura;
@@ -69,7 +69,7 @@ public class MaceKillAddon extends MeteorAddon {
 
         // ---- 聊天/信息 ----
         Modules.get().add(new AutoGGModule());
-        Modules.get().add(new AutoFuckModule());
+        Modules.get().add(new AutoMsgModule());
         Modules.get().add(new CustomPotionModule());
         Modules.get().add(new NearestPlayerHUD());
         Modules.get().add(new AutoTpaReject());
