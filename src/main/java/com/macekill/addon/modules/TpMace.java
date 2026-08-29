@@ -197,9 +197,17 @@ public class TpMace extends Module {
     private int bypassIdx;
     private float preHealth;
     private int freeCooldown = 0;
+    private boolean firstAttack = true;
 
     public TpMace() {
         super(MaceKillAddon.CATEGORY, "TpMace", "Long-range mace - TP teleport+totem bypass+silent swap");
+    }
+
+    @Override
+    public void onActivate() {
+        // Skip the initial attackDelay on the very first target so the smash fires immediately
+        // after enabling, instead of waiting ~0.5s.
+        firstAttack = true;
     }
 
     @Override
@@ -244,10 +252,13 @@ public class TpMace extends Module {
     }
 
     private void tickIdle() {
-        delayTicks++;
         int tickDelay = totemBypass.get() ? 0 : attackDelay.get();
-        if (delayTicks < tickDelay) return;
+        if (!firstAttack) {
+            delayTicks++;
+            if (delayTicks < tickDelay) return;
+        }
         delayTicks = 0;
+        firstAttack = false;
 
         // After an unhittable attempt we pause briefly so the player can move freely.
         if (freeCooldown > 0) {
