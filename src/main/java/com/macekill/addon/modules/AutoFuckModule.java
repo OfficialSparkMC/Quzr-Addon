@@ -435,7 +435,17 @@ public class AutoFuckModule extends Module {
                 .replace("{fuck}", message);
         }
 
-        mc.getNetworkHandler().sendChatMessage(message);
+        // slash-prefixed messages (e.g. from custom-command "/msg {player} {fuck}") must be run as
+        // commands; ClientPlayNetworkHandler.sendChatMessage only sends plain chat and would dump the
+        // literal "/tell ..." into public chat. sendChatCommand runs it (without the leading slash).
+        if (message.startsWith("/")) {
+            String cmd = message.substring(1);
+            if (!cmd.isEmpty()) {
+                mc.getNetworkHandler().sendChatCommand(cmd);
+            }
+        } else {
+            mc.getNetworkHandler().sendChatMessage(message);
+        }
     }
 
     // ==================== Message Collection ====================
