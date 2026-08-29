@@ -19,6 +19,7 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
@@ -693,13 +694,15 @@ public class MaceAttect extends Module {
         return true;
     }
 
-    // Move the mace (any inventory slot) into the selected hotbar slot using InvUtils, which performs
-    // normal pickup/place clicks. This is far more reliable than a raw SlotActionType.SWAP (some
-    // anti-cheats silently drop SWAP clicks from the player's own inventory, so the mace never
-    // actually reaches the hand and the smash lands with the wrong item).
+    // Swap the mace (any inventory slot) into the selected hotbar slot using a real click-slot SWAP,
+    // which works even when the mace is not in the hotbar.
     private void swapMace(int invSlot, int hotbarSlot) {
         if (mc.player == null) return;
-        InvUtils.move().from(invSlot).to(hotbarSlot);
+        int screenSlot = invSlot;
+        if (invSlot >= 36 && invSlot <= 39) screenSlot = invSlot - 31; // armor -> 5..8
+        else if (invSlot == 40) screenSlot = 45; // offhand
+        mc.interactionManager.clickSlot(
+                mc.player.playerScreenHandler.syncId, screenSlot, hotbarSlot, SlotActionType.SWAP, mc.player);
     }
 
     // ==================== 目标过滤 ====================
