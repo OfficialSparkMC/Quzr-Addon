@@ -459,22 +459,20 @@ public class MaceAttect extends Module {
             }
         }
 
-        // Up, then drop onto the target. Both legs are interpolated on EVERY axis in <= moveDistance
-        // steps so each packet stays inside the server's anti-teleport cap (a single big jump gets
-        // rejected, which is what broke the old code under caves).
-        Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         // Up, then drop onto the target.
         // - The ASCENT is interpolated in <= moveDistance steps so it stays inside the server's
         //   anti-teleport cap and because fall distance is 0 while rising (block intersection on the
         //   way up does not matter).
-        // - The DESCENT is a SINGLE packet. This is the critical cave/roof fix: stepping the drop would
-        //   place the player *inside* the ceiling block at intermediate packets, which resets fall
-        //   distance on the server (smash deals no bonus). One packet from above the roof down to the
-        //   target means no sampled position is ever inside a block, preserving the full fall height
-        //   even under a solid ceiling.
+        // - The DESCENT is stepped down in <= moveDistance increments. This is the critical cave/roof
+        //   fix: a single huge down jump exceeds the server's per-packet move cap and gets rubberbanded
+        //   (player stranded up top), while naively stepping the drop would place the player *inside*
+        //   the ceiling block at intermediate packets, which resets fall distance. So we step, and
+        //   whenever a step would land inside a block we jump straight past it to the first clear Y
+        //   below (a thin skip, well under the move cap). No sampled position is ever inside a block
+        //   and no single packet exceeds the cap, so the full fall height is preserved under any roof.
+        Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         stepMove(start, new Vec3d(tx, tpY, tz));
-        mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(tx, targetY, tz, false, false));
+        stepMoveDown(tx, tpY, targetY, tz);
         lastSentX = tx;
         lastSentY = targetY;
         lastSentZ = tz;
@@ -486,7 +484,7 @@ public class MaceAttect extends Module {
     // vertical VClip and the horizontal teleport to the target, so no single packet exceeds the
     // server's per-packet move cap.
     private void stepMove(Vec3d from, Vec3d to) {
-        double step = moveDistance.get();
+        double step = Math.min(moveDistance.get(), 99);
         double dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
         double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         int steps = Math.max(1, (int) Math.ceil(dist / step));
@@ -501,6 +499,62 @@ public class MaceAttect extends Module {
             lastSentY = y;
             lastSentZ = z;
         }
+    }
+
+    // Step DOWN from (x, fromY, z) to (x, toY, z) in <= moveDistance increments. If a step would
+    // land the player's hitbox inside a solid block (e.g. a cave ceiling), jump straight past it to
+    // the first clear Y below (a thin skip). No packet ever lands inside a block and no single move
+    // exceeds the server's per-packet cap, so the fake fall is preserved under any roof.
+    private void stepMoveDown(double x, double fromY, double toY, double z) {
+        double step = Math.min(moveDistance.get(), 99);
+        double y = fromY;
+        int guard = 0;
+        while (y > toY + 1e-6 && guard++ < 10000) {
+            double next = y - step;
+            if (next < toY) next = toY;
+            if (hitboxBlocked(x, next, z)) {
+                double clear = firstClearBelow(x, next, z, toY);
+                if (clear > toY && (y - clear) <= 100) {
+                    y = clear;
+                } else {
+                    y = next;
+                }
+            } else {
+                y = next;
+            }
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
+            lastSentX = x;
+            lastSentY = y;
+            lastSentZ = z;
+            if (Math.abs(y - toY) < 1e-6) break;
+        }
+    }
+
+    private boolean hitboxBlocked(double x, double y, double z) {
+        int bx0 = (int) Math.floor(x - 0.3);
+        int bx1 = (int) Math.floor(x + 0.3);
+        int bz0 = (int) Math.floor(z - 0.3);
+        int bz1 = (int) Math.floor(z + 0.3);
+        int by0 = (int) Math.floor(y);
+        int by1 = (int) Math.floor(y + 1.8);
+        for (int bx = bx0; bx <= bx1; bx++) {
+            for (int by = by0; by <= by1; by++) {
+                for (int bz = bz0; bz <= bz1; bz++) {
+                    if (!mc.world.getBlockState(new BlockPos(bx, by, bz)).isAir()) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private double firstClearBelow(double x, double y, double z, double floorY) {
+        double yy = y;
+        while (yy > floorY) {
+            if (!hitboxBlocked(x, yy, z)) return yy;
+            yy -= 0.5;
+        }
+        return floorY;
     }
 
     // Find a column near the target with clear vertical space (no roof) so the fake-fall teleport
