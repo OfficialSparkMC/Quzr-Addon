@@ -190,6 +190,7 @@ public class TpMace extends Module {
     private int originalSlot = -1;
     private int maceSlot = -1;
     private int maceSwapBackSlot = -1;
+    private int silentRevertSlot = -1;
     private boolean noMaceWarned = false;
     private List<String> bypassHeights;
     private int bypassIdx;
@@ -207,11 +208,17 @@ public class TpMace extends Module {
             InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
             maceSwapBackSlot = -1;
         }
+        // Revert a pending silent-swap server selection so the slot stays in sync.
+        if (silentRevertSlot >= 0 && originalSlot >= 0) {
+            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
+            silentRevertSlot = -1;
+        }
         phase = Phase.IDLE;
         target = null;
         originalPos = null;
         originalSlot = -1;
         maceSlot = -1;
+        silentRevertSlot = -1;
         attackCount = 0;
         lastSentX = 0;
         lastSentY = 0;
@@ -434,18 +441,12 @@ public class TpMace extends Module {
     }
 
     private void sendAttack(LivingEntity target) {
-        if (silentSwap.get() && maceSlot != -1) {
-            setSlotClient(maceSlot);
-        }
-
+        // The mace selection (client vs server) is handled in checkAndSwapWeapon; the attack always
+        // uses whatever the SERVER currently has selected, so we just send the hit here.
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
 
         if (swingHand.get()) {
             mc.player.swingHand(Hand.MAIN_HAND);
-        }
-
-        if (silentSwap.get()) {
-            setSlotClient(originalSlot);
         }
     }
 
@@ -514,6 +515,11 @@ public class TpMace extends Module {
     }
 
     private void resetState() {
+        if (silentRevertSlot >= 0) {
+            // Revert the server-side slot selection done for a silent swap so the swap is invisible.
+            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
+            silentRevertSlot = -1;
+        }
         if (maceSwapBackSlot >= 0) {
             swapMace(maceSwapBackSlot, originalSlot);
             maceSwapBackSlot = -1;
@@ -526,6 +532,7 @@ public class TpMace extends Module {
         lastSentZ = 0;
         target = null;
         originalPos = null;
+        silentRevertSlot = -1;
         bypassHeights = null;
         bypassIdx = 0;
     }
@@ -553,8 +560,16 @@ public class TpMace extends Module {
                 maceSlot = i;
                 noMaceWarned = false;
                 if (i != originalSlot) {
-                    setSelectedSlot(inv, i);
+                    // Always tell the SERVER to select the mace so the smash actually uses it.
                     mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
+                    if (silentSwap.get()) {
+                        // Silent: keep the CLIENT view on the original slot, and remember to revert
+                        // the server selection afterwards so the swap is never visible (and the player's
+                        // real selected item stays in sync, so block break/place keeps working).
+                        silentRevertSlot = originalSlot;
+                    } else {
+                        setSelectedSlot(inv, i);
+                    }
                 }
                 return true;
             }
