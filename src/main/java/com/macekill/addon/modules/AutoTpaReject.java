@@ -2,10 +2,8 @@ package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
 import meteordevelopment.meteorclient.events.game.ReceiveMessageEvent;
-import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
-import meteordevelopment.meteorclient.settings.StringListSetting;
 import meteordevelopment.meteorclient.settings.StringSetting;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
@@ -13,22 +11,12 @@ import meteordevelopment.orbit.EventHandler;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 
-import java.util.List;
-
 public class AutoTpaReject extends Module {
+    // The ONLY phrase that triggers a deny: the message must END with this, preceded by the
+    // requester name. Nothing else (no other keywords, no reject-all) will ever match.
+    private static final String KEYWORD = "wants to be teleported to you";
+
     private final SettingGroup sg = settings.getDefaultGroup();
-
-    private final Setting<List<String>> keywords = sg.add(new StringListSetting.Builder()
-        .name("keywords")
-        .description("Reject a request only if its message ENDS with one of these exact phrases, preceded by the requester name. Matching is strict (no hidden tpa/teleport check and no trailing text allowed), e.g. 'wants to be teleported to you' matches 'Steve wants to be teleported to you' but NOT 'Steve wants to be teleported to you to them'.")
-        .defaultValue("wants to be teleported to you")
-        .build());
-
-    private final Setting<Boolean> rejectAll = sg.add(new BoolSetting.Builder()
-        .name("reject-all")
-        .description("Reject every TPA request, ignoring the keyword list")
-        .defaultValue(false)
-        .build());
 
     private final Setting<String> denyCommand = sg.add(new StringSetting.Builder()
         .name("deny-command")
@@ -39,7 +27,7 @@ public class AutoTpaReject extends Module {
     private long lastDeny = 0;
 
     public AutoTpaReject() {
-        super(MaceKillAddon.CATEGORY, "auto-tpa-reject", "Auto-rejects TPA requests matching keywords");
+        super(MaceKillAddon.CATEGORY, "auto-tpa-reject", "Auto-rejects TPA requests that exactly end with '" + KEYWORD + "'");
     }
 
     @EventHandler
@@ -51,36 +39,20 @@ public class AutoTpaReject extends Module {
         String text = stripped.toLowerCase();
         if (text.isEmpty()) return;
 
-        // Matching depends ONLY on the keyword list (or reject-all). There is no hidden
-        // "contains tpa/teleport" gate. The match is STRICT: the keyword must be at the very
-        // end of the message with the requester name as the only prefix - so a message like
-        // "{player} wants to be teleported to you to them" does NOT match.
-        boolean match = rejectAll.get();
-        String matchedKw = "";
-        int prefixLen = -1;
-        if (!match) {
-            for (String kw : keywords.get()) {
-                String lowerKw = kw.toLowerCase();
-                if (!lowerKw.isEmpty() && text.endsWith(lowerKw)) {
-                    int idx = text.length() - lowerKw.length();
-                    if (idx > 0) {
-                        match = true;
-                        matchedKw = kw;
-                        prefixLen = idx;
-                        break;
-                    }
-                }
-            }
-        }
-        if (!match) return;
+        // Strict, single-phrase match: the message must END with KEYWORD, with the requester name
+        // as the only prefix - so "{player} wants to be teleported to you to them" does NOT match,
+        // and no other phrase will ever trigger a deny.
+        String lowerKw = KEYWORD.toLowerCase();
+        int prefixLen = text.endsWith(lowerKw) ? text.length() - lowerKw.length() : -1;
+        if (prefixLen <= 0) return;
 
         // Cooldown so the server's deny-confirmation message can't re-trigger us.
         long now = System.currentTimeMillis();
         if (now - lastDeny < 1500) return;
         lastDeny = now;
 
-        // Extract the requester name (text before the matched keyword) for {player} substitution.
-        String player = prefixLen > 0 ? stripped.substring(0, prefixLen).trim() : "";
+        // Extract the requester name (text before the keyword) for {player} substitution.
+        String player = stripped.substring(0, prefixLen).trim();
 
         String cmd = denyCommand.get();
         cmd = cmd.replace("{player}", player);
