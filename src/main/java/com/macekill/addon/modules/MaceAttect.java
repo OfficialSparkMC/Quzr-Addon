@@ -185,7 +185,7 @@ public class MaceAttect extends Module {
     private int delayTicks;
     private int attackCount;
     private Vec3d originalPos;
-    private double lastSentY;
+    private double lastSentX, lastSentY, lastSentZ;
     private LivingEntity target;
     private LivingEntity pendingTarget;
     private float preHealth;
@@ -214,7 +214,9 @@ public class MaceAttect extends Module {
         originalPos = null;
         originalSlot = -1;
         maceSlot = -1;
+        lastSentX = 0;
         lastSentY = 0;
+        lastSentZ = 0;
         preHealth = 0;
         freeCooldown = 0;
         attackCount = 0;
@@ -453,8 +455,21 @@ public class MaceAttect extends Module {
         // steps so each packet stays inside the server's anti-teleport cap (a single big jump gets
         // rejected, which is what broke the old code under caves).
         Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        // Up, then drop onto the target.
+        // - The ASCENT is interpolated in <= moveDistance steps so it stays inside the server's
+        //   anti-teleport cap and because fall distance is 0 while rising (block intersection on the
+        //   way up does not matter).
+        // - The DESCENT is a SINGLE packet. This is the critical cave/roof fix: stepping the drop would
+        //   place the player *inside* the ceiling block at intermediate packets, which resets fall
+        //   distance on the server (smash deals no bonus). One packet from above the roof down to the
+        //   target means no sampled position is ever inside a block, preserving the full fall height
+        //   even under a solid ceiling.
         stepMove(start, new Vec3d(tx, tpY, tz));
-        stepMove(new Vec3d(tx, tpY, tz), new Vec3d(tx, targetY, tz));
+        mc.getNetworkHandler().sendPacket(
+                new PlayerMoveC2SPacket.PositionAndOnGround(tx, targetY, tz, false, false));
+        lastSentX = tx;
+        lastSentY = targetY;
+        lastSentZ = tz;
 
         sendAttack(target);
     }
@@ -474,7 +489,9 @@ public class MaceAttect extends Module {
             double z = from.z + dz * t;
             mc.getNetworkHandler().sendPacket(
                     new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
+            lastSentX = x;
             lastSentY = y;
+            lastSentZ = z;
         }
     }
 
@@ -575,6 +592,12 @@ public class MaceAttect extends Module {
             if (mc.player != null) {
                 mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
             }
+        } else if (mc.player != null) {
+            // We did not return (e.g. a successful hit with Return-to-Start off). The position packets
+            // moved the SERVER to the smash spot but the client was never updated, so client and server
+            // disagree - which makes block break/place (and every interaction) fail. Snap the client to
+            // the server's final position so they stay in sync.
+            mc.player.setPosition(lastSentX, lastSentY, lastSentZ);
         }
 
         resetState();
@@ -597,7 +620,9 @@ public class MaceAttect extends Module {
         attackCount = 0;
         target = null;
         originalPos = null;
+        lastSentX = 0;
         lastSentY = 0;
+        lastSentZ = 0;
         bypassHeights = null;
         bypassIdx = 0;
     }

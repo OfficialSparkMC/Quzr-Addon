@@ -185,7 +185,7 @@ public class TpMace extends Module {
     private int delayTicks;
     private int attackCount;
     private Vec3d originalPos;
-    private double lastSentY;
+    private double lastSentX, lastSentY, lastSentZ;
     private LivingEntity target;
     private int originalSlot = -1;
     private int maceSlot = -1;
@@ -213,7 +213,9 @@ public class TpMace extends Module {
         originalSlot = -1;
         maceSlot = -1;
         attackCount = 0;
+        lastSentX = 0;
         lastSentY = 0;
+        lastSentZ = 0;
         preHealth = 0;
         freeCooldown = 0;
         bypassHeights = null;
@@ -360,12 +362,22 @@ public class TpMace extends Module {
             }
         }
 
-        // Up, then drop onto the target. Both legs are interpolated on EVERY axis in <= moveDistance
-        // steps so each packet stays inside the server's anti-teleport cap (a single big jump gets
-        // rejected, which is what broke the old code under caves).
+        // Up, then drop onto the target.
+        // - The ASCENT is interpolated in <= moveDistance steps so it stays inside the server's
+        //   anti-teleport cap (a single big jump can be rejected) and because fall distance is 0
+        //   while rising, intersecting a block on the way up does not matter.
+        // - The DESCENT is a SINGLE packet. This is the critical cave/roof fix: if we stepped the
+        //   drop, intermediate packets would place the player *inside* the ceiling block, which makes
+        //   the server reset fall distance (so the smash deals no bonus). One packet from above the
+        //   roof straight down to the target means no sampled position is ever inside a block, so the
+        //   full fall height is preserved even under a solid ceiling.
         Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         stepMove(start, new Vec3d(tx, tpY, tz));
-        stepMove(new Vec3d(tx, tpY, tz), new Vec3d(tx, targetY, tz));
+        mc.getNetworkHandler().sendPacket(
+                new PlayerMoveC2SPacket.PositionAndOnGround(tx, targetY, tz, false, false));
+        lastSentX = tx;
+        lastSentY = targetY;
+        lastSentZ = tz;
 
         sendAttack(target);
     }
@@ -385,7 +397,9 @@ public class TpMace extends Module {
             double z = from.z + dz * t;
             mc.getNetworkHandler().sendPacket(
                     new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
+            lastSentX = x;
             lastSentY = y;
+            lastSentZ = z;
         }
     }
 
@@ -488,6 +502,12 @@ public class TpMace extends Module {
             if (mc.player != null) {
                 mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
             }
+        } else if (mc.player != null) {
+            // We did not return (e.g. a successful hit with Return-to-Start off). The position packets
+            // moved the SERVER to the smash spot but the client was never updated, so client and server
+            // disagree - which makes block break/place (and every interaction) fail. Snap the client to
+            // the server's final position so they stay in sync.
+            mc.player.setPosition(lastSentX, lastSentY, lastSentZ);
         }
 
         resetState();
@@ -501,7 +521,9 @@ public class TpMace extends Module {
         phase = Phase.IDLE;
         delayTicks = 0;
         attackCount = 0;
+        lastSentX = 0;
         lastSentY = 0;
+        lastSentZ = 0;
         target = null;
         originalPos = null;
         bypassHeights = null;
