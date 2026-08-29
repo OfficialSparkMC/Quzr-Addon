@@ -7,6 +7,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -16,7 +17,6 @@ import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
@@ -202,12 +202,16 @@ public class TpMace extends Module {
 
     @Override
     public void onDeactivate() {
+        // Restore a swapped-in mace before clearing state, otherwise the inventory is left rearranged.
+        if (maceSwapBackSlot >= 0 && originalSlot >= 0) {
+            InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
+            maceSwapBackSlot = -1;
+        }
         phase = Phase.IDLE;
         target = null;
         originalPos = null;
         originalSlot = -1;
         maceSlot = -1;
-        maceSwapBackSlot = -1;
         attackCount = 0;
         lastSentY = 0;
         preHealth = 0;
@@ -559,15 +563,13 @@ public class TpMace extends Module {
         return true;
     }
 
-    // Swap the mace (any inventory slot) into the selected hotbar slot using a real
-    // click-slot SWAP, which works even when the mace is not in the hotbar.
+    // Move the mace (any inventory slot) into the selected hotbar slot using InvUtils, which performs
+    // normal pickup/place clicks. This is far more reliable than a raw SlotActionType.SWAP (some
+    // anti-cheats silently drop SWAP clicks from the player's own inventory, so the mace never
+    // actually reaches the hand and the smash lands with the wrong item).
     private void swapMace(int invSlot, int hotbarSlot) {
         if (mc.player == null) return;
-        int screenSlot = invSlot;
-        if (invSlot >= 36 && invSlot <= 39) screenSlot = invSlot - 31; // armor -> 5..8
-        else if (invSlot == 40) screenSlot = 45; // offhand
-        mc.interactionManager.clickSlot(
-            mc.player.playerScreenHandler.syncId, screenSlot, hotbarSlot, SlotActionType.SWAP, mc.player);
+        InvUtils.move().from(invSlot).to(hotbarSlot);
     }
 
     // ==================== 目标查找 ====================
