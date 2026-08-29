@@ -20,7 +20,7 @@ public class AutoTpaReject extends Module {
 
     private final Setting<List<String>> keywords = sg.add(new StringListSetting.Builder()
         .name("keywords")
-        .description("Reject a request only if its message contains one of these exact phrases. Matching depends solely on this list (no hidden tpa/teleport check). Use the full phrase your server sends, e.g. 'wants to be teleported to you'.")
+        .description("Reject a request only if its message ENDS with one of these exact phrases, preceded by the requester name. Matching is strict (no hidden tpa/teleport check and no trailing text allowed), e.g. 'wants to be teleported to you' matches 'Steve wants to be teleported to you' but NOT 'Steve wants to be teleported to you to them'.")
         .defaultValue("wants to be teleported to you")
         .build());
 
@@ -52,15 +52,23 @@ public class AutoTpaReject extends Module {
         if (text.isEmpty()) return;
 
         // Matching depends ONLY on the keyword list (or reject-all). There is no hidden
-        // "contains tpa/teleport" gate - a message only triggers if it matches a keyword.
+        // "contains tpa/teleport" gate. The match is STRICT: the keyword must be at the very
+        // end of the message with the requester name as the only prefix - so a message like
+        // "{player} wants to be teleported to you to them" does NOT match.
         boolean match = rejectAll.get();
         String matchedKw = "";
+        int prefixLen = -1;
         if (!match) {
             for (String kw : keywords.get()) {
-                if (!kw.isEmpty() && text.contains(kw.toLowerCase())) {
-                    match = true;
-                    matchedKw = kw;
-                    break;
+                String lowerKw = kw.toLowerCase();
+                if (!lowerKw.isEmpty() && text.endsWith(lowerKw)) {
+                    int idx = text.length() - lowerKw.length();
+                    if (idx > 0) {
+                        match = true;
+                        matchedKw = kw;
+                        prefixLen = idx;
+                        break;
+                    }
                 }
             }
         }
@@ -72,11 +80,7 @@ public class AutoTpaReject extends Module {
         lastDeny = now;
 
         // Extract the requester name (text before the matched keyword) for {player} substitution.
-        String player = "";
-        if (!matchedKw.isEmpty()) {
-            int idx = text.indexOf(matchedKw.toLowerCase());
-            if (idx > 0) player = stripped.substring(0, idx).trim();
-        }
+        String player = prefixLen > 0 ? stripped.substring(0, prefixLen).trim() : "";
 
         String cmd = denyCommand.get();
         cmd = cmd.replace("{player}", player);
