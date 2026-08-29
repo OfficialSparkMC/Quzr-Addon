@@ -10,8 +10,11 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 public class AutoFuckModule extends Module {
     private final Random random = new Random();
@@ -22,6 +25,7 @@ public class AutoFuckModule extends Module {
     private final SettingGroup sgPlayer = settings.createGroup("Target");
     private final SettingGroup sgPhrases = settings.createGroup("Messages");
     private final SettingGroup sgTypo = settings.createGroup("Typos");
+    private final SettingGroup sgOnce = settings.createGroup("Tell Once");
 
     // ==================== Trigger Settings ====================
 
@@ -243,6 +247,28 @@ public class AutoFuckModule extends Module {
             .build()
     );
 
+    // ==================== Tell Once Settings ====================
+
+    private final Setting<Boolean> tellOnce = sgOnce.add(
+        new BoolSetting.Builder()
+            .name("tell-once")
+            .description("Only message each player once. Re-message them after they leave the server or move out of range and return.")
+            .defaultValue(true)
+            .build()
+    );
+
+    private final Setting<Double> tellOnceRange = sgOnce.add(
+        new DoubleSetting.Builder()
+            .name("tell-once-range")
+            .description("A player must move beyond this distance (or leave entirely) before they can be told again.")
+            .defaultValue(64.0)
+            .min(1.0)
+            .max(200.0)
+            .sliderRange(1.0, 200.0)
+            .visible(tellOnce::get)
+            .build()
+    );
+
     // ==================== Runtime State ====================
 
     private int tickCounter;
@@ -251,6 +277,7 @@ public class AutoFuckModule extends Module {
     private int requiredMessageCount;
     private int burstRemaining;
     private int burstDelayTicks;
+    private final Set<String> toldPlayers = new HashSet<>();
 
     public AutoFuckModule() {
         super(
@@ -280,6 +307,7 @@ public class AutoFuckModule extends Module {
         );
         burstRemaining = 0;
         burstDelayTicks = 0;
+        toldPlayers.clear();
     }
 
     // ==================== Tick Handler ====================
@@ -289,6 +317,9 @@ public class AutoFuckModule extends Module {
         if (mc.player == null || mc.world == null) {
             return;
         }
+
+        // Forget players who left or went out of range so they can be told again next time.
+        pruneTold();
 
         // Process burst messages.
         if (burstRemaining > 0) {
@@ -381,6 +412,18 @@ public class AutoFuckModule extends Module {
         List<String> messages = collectMessages();
 
         if (messages.isEmpty()) {
+            return;
+        }
+
+        // Tell-once: skip players we already messaged this appearance, otherwise send a single
+        // message and remember them until they leave / go out of range and come back.
+        if (tellOnce.get()) {
+            if (toldPlayers.contains(targetName)) {
+                return;
+            }
+
+            sendMessage();
+            toldPlayers.add(targetName);
             return;
         }
 
@@ -477,6 +520,37 @@ public class AutoFuckModule extends Module {
             case RANDOM -> getRandomPlayerName();
             case FIXED -> fixedPlayer.get();
         };
+    }
+
+    // Remove players from the told set once they are gone (left the server) or moved out of the
+    // tell-once range, so they get messaged again on their next appearance.
+    private void pruneTold() {
+        if (!tellOnce.get() || mc.world == null || mc.player == null) {
+            return;
+        }
+
+        double rangeSq = tellOnceRange.get() * tellOnceRange.get();
+        Iterator<String> it = toldPlayers.iterator();
+        while (it.hasNext()) {
+            PlayerEntity p = findPlayerByName(it.next());
+            if (p == null || mc.player.squaredDistanceTo(p) > rangeSq) {
+                it.remove();
+            }
+        }
+    }
+
+    private PlayerEntity findPlayerByName(String name) {
+        if (mc.world == null) {
+            return null;
+        }
+
+        for (PlayerEntity player : mc.world.getPlayers()) {
+            if (player.getName().getString().equals(name)) {
+                return player;
+            }
+        }
+
+        return null;
     }
 
     private String getNearestPlayerName() {
