@@ -2,19 +2,15 @@
 build/
 bin/
 classes/
+libs/
+gradle/
+.opencode/
 
 *.class
 
-# IDE
 .idea/
 .vscode/
 *.iml
 
-# OS
 .DS_Store
 Thumbs.db
-.gradle/
-build/
-bin/
-classes/
-*.class
