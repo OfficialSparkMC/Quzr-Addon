@@ -1,4 +1,4 @@
-# Qazr-Meteor-Addon 0.1
+# Qazr-Meteor-Addon 0.1 (*Alpha*)
 
 minecraft meteor addon
 
