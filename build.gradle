@@ -28,7 +28,9 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    modCompileOnly files('libs/MeteorCilent-1.21.11-0.18.6.jar')
+    // Local compile-only Meteor/Orbit jars (see docs/build.md). Filenames use versions from gradle.properties.
+    // TODO: replace with maven.meteordev.org coordinates when network builds are available.
+    modCompileOnly files("libs/MeteorClient-${project.minecraft_version}-${project.meteor_version}.jar")
     compileOnly files('libs/orbit-0.2.4.jar')
 }
 processResources {

@@ -298,7 +298,7 @@ public class MaceMissLite extends Module {
             // MUST land in a single tick (one mace smash) or the target always survives.
             // Spread the hits across the real headroom above the target so each hit deals a
             // strictly different mace damage (critical in caves / under a roof).
-            int clearance = Combat.getVclipClearance(mc, mc.player);
+            int clearance = Combat.getVclipClearance(mc, currentTarget);
             List<String> all = Combat.totemBypassHeights(totems, clearance);
             if (all.isEmpty()) error("Not enough headroom above target for a mace smash (need open space / taller cave)");
             else if (all.size() < totems + 1) error("Limited headroom - can only pop ~%d totems here", all.size() - 1);

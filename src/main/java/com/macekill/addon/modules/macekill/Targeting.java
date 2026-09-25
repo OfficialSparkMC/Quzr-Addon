@@ -92,6 +92,7 @@ public final class Targeting {
     }
 
     public static boolean isSafeBlock(MinecraftClient mc, BlockPos pos) {
+        if (mc == null || mc.world == null || pos == null) return false;
         BlockState state = mc.world.getBlockState(pos);
         return state.isAir()
             && state.getFluidState().isEmpty()

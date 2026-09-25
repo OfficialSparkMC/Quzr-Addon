@@ -377,6 +377,13 @@ public class SpearKill extends Module {
         if (!isBlinking) return;
         if (event.packet instanceof PlayerMoveC2SPacket movePacket) {
             synchronized (packetQueue) {
+                // Cap the queue so a fleeing target can't OOM us or get us kicked for packet spam on flush.
+                if (packetQueue.size() >= 500) {
+                    flushPackets();
+                    resetState();
+                    event.cancel();
+                    return;
+                }
                 packetQueue.add(movePacket);
             }
             event.cancel();

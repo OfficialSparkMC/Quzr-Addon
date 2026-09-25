@@ -20,8 +20,8 @@ public class MaceDMG extends Module {
 
     private final Setting<Double> fakeHeight = sgGeneral.add(new DoubleSetting.Builder()
         .name("Fake Height")
-        .description("Fake high position height sent by MaceDMG (sqrt value, e.g. √500≈22.36)")
-        .defaultValue(22.36)
+        .description("Fake height in blocks sent by MaceDMG before the hit (fall distance for mace damage)")
+        .defaultValue(22.0)
         .min(1.0).max(50.0).sliderMax(35.0)
         .build()
     );
@@ -131,22 +131,24 @@ public class MaceDMG extends Module {
 
     private void performMaceDMG(MinecraftClient mc) {
         PlayerEntity player = mc.player;
+        if (player == null || mc.getNetworkHandler() == null) return;
         double height = fakeHeight.get();
 
         // 5包攻击序列: 4正常(onGround=true) + 1高空(onGround=false) + fallDistance归零
         for (int i = 0; i < normalPackets.get(); i++) {
             sendFakeY(mc, 0);
         }
-        sendFakeY_air(mc, Math.sqrt(height));
+        sendFakeY_air(mc, height);
         mc.player.fallDistance = 0;
 
         if (chatInfo.get()) {
-            info("§bMaceDMG triggered | height=" + String.format("%.1f", Math.sqrt(height)));
+            info("§bMaceDMG triggered | height=" + String.format("%.1f", height));
         }
     }
 
     private void sendFakeY(MinecraftClient mc, double offset) {
-        mc.player.networkHandler.sendPacket(
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        mc.getNetworkHandler().sendPacket(
             new PlayerMoveC2SPacket.PositionAndOnGround(
                 mc.player.getX(), mc.player.getY() + offset, mc.player.getZ(),
                 true, mc.player.horizontalCollision
@@ -156,7 +158,8 @@ public class MaceDMG extends Module {
 
     /** 高空包: onGround=false, 让服务器记录坠落距离用于重锤伤害计算 */
     private void sendFakeY_air(MinecraftClient mc, double offset) {
-        mc.player.networkHandler.sendPacket(
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        mc.getNetworkHandler().sendPacket(
             new PlayerMoveC2SPacket.PositionAndOnGround(
                 mc.player.getX(), mc.player.getY() + offset, mc.player.getZ(),
                 false, mc.player.horizontalCollision

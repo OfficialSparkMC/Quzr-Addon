@@ -206,12 +206,12 @@ public class MaceAttect extends Module {
     @Override
     public void onDeactivate() {
         // Restore a swapped-in mace before clearing state, otherwise the inventory is left rearranged.
-        if (maceSwapBackSlot >= 0 && originalSlot >= 0) {
+        if (maceSwapBackSlot >= 0 && originalSlot >= 0 && mc.player != null) {
             InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
             maceSwapBackSlot = -1;
         }
         // Revert a pending silent-swap server selection so the slot stays in sync.
-        if (silentRevertSlot >= 0 && originalSlot >= 0) {
+        if (silentRevertSlot >= 0 && originalSlot >= 0 && mc.getNetworkHandler() != null) {
             mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
             silentRevertSlot = -1;
         }
@@ -667,12 +667,12 @@ public class MaceAttect extends Module {
     }
 
     private void resetState() {
-        if (silentRevertSlot >= 0) {
+        if (silentRevertSlot >= 0 && mc.getNetworkHandler() != null) {
             // Revert the server-side slot selection done for a silent swap so the swap is invisible.
             mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
             silentRevertSlot = -1;
         }
-        if (maceSwapBackSlot >= 0) {
+        if (maceSwapBackSlot >= 0 && mc.player != null && mc.interactionManager != null) {
             swapMace(maceSwapBackSlot, originalSlot);
             maceSwapBackSlot = -1;
         }

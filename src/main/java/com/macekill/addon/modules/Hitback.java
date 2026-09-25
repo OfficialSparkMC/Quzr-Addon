@@ -68,6 +68,8 @@ public class Hitback extends Module {
         if (attacker == null || attacker == mc.player) return;
         if (onlyPlayers.get() && !(attacker instanceof PlayerEntity)) return;
         if (ignoreFriends.get() && attacker instanceof PlayerEntity p && Friends.get().isFriend(p)) return;
+        // Server drops attacks beyond survival reach; skip instead of flagging anticheat.
+        if (mc.player.squaredDistanceTo(attacker) > 4.5 * 4.5) return;
 
         if (cd > 0) return;
         cd = cooldown.get();
@@ -75,6 +77,7 @@ public class Hitback extends Module {
     }
 
     private void hitBack(Entity attacker) {
+        if (mc.player == null || mc.getNetworkHandler() == null || attacker == null) return;
         Runnable attack = () -> mc.getNetworkHandler().sendPacket(
             PlayerInteractEntityC2SPacket.attack(attacker, mc.player.isSneaking())
         );

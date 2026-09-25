@@ -36,15 +36,16 @@ public class FreecamTp extends Module {
     @Override
     public void onActivate() {
         Freecam freecam = Modules.get().get(Freecam.class);
+        if (freecam == null) return;
         freecamWasEnabled = freecam.isActive();
         if (!freecamWasEnabled) freecam.toggle();
     }
 
     @Override
     public void onDeactivate() {
-        if (!freecamWasEnabled) {
+        if (!freecamWasEnabled && mc.player != null) {
             Freecam freecam = Modules.get().get(Freecam.class);
-            if (freecam.isActive()) freecam.toggle();
+            if (freecam != null && freecam.isActive()) freecam.toggle();
         }
     }
 

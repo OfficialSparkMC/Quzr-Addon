@@ -40,8 +40,6 @@ public class Rise extends Module {
 
         if (delayTicks > 0) { delayTicks--; return; }
 
-        if (!bypass.get() && delayTicks > 0) return;
-
         double posX = mc.player.getX();
         double posY = mc.player.getY();
         double posZ = mc.player.getZ();

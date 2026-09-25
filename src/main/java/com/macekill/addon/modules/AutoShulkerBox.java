@@ -303,6 +303,7 @@ public class AutoShulkerBox extends Module {
     }
 
     private void setSelectedSlot(int slot) {
+        if (mc.player == null || slot < 0 || slot > 8) return;
         try {
             if (selectedSlotField == null) {
                 selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
@@ -310,6 +311,11 @@ public class AutoShulkerBox extends Module {
             }
             selectedSlotField.setInt(mc.player.getInventory(), slot);
         } catch (Exception ignored) {}
+        // Keep the server in sync, otherwise place/mine uses the wrong held item (ghost blocks / kick).
+        if (mc.getNetworkHandler() != null) {
+            mc.getNetworkHandler().sendPacket(
+                new net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket(slot));
+        }
     }
 
     // ==================== 判定 ====================

@@ -74,6 +74,15 @@ public final class Combat {
         return armorDestroyed;
     }
 
+    public static int worldTop(MinecraftClient mc) {
+        if (mc != null && mc.world != null) {
+            try {
+                return mc.world.getTopYInclusive();
+            } catch (Exception ignored) {}
+        }
+        return 319;
+    }
+
     public static BlockPos findVclipHole(MinecraftClient mc,
                                          double x, double y, double z, double vclip) {
         BlockPos base = BlockPos.ofFloored(x, y, z);
@@ -85,7 +94,7 @@ public final class Combat {
         int by = base.getY();
         int bz = base.getZ();
         int top = by + (int) vclip;
-        top = Math.min(top, 319);
+        top = Math.min(top, worldTop(mc));
 
         // Scan UP from the player. The first non-safe block (a solid roof) is the ceiling.
         // We must never teleport through it into the disconnected sky above, or the fall back
@@ -144,8 +153,9 @@ public final class Combat {
     // Available vertical headroom (in blocks) directly above the target before a solid
     // roof is hit. In a cave this is small; in open sky it is large.
     public static int getVclipClearance(MinecraftClient mc, LivingEntity target) {
-        BlockPos hole = findVclipHole(mc, target.getX(), target.getY(), target.getZ(), 319);
-        return hole.getY() - (int) target.getY();
+        if (mc == null || target == null) return 0;
+        BlockPos hole = findVclipHole(mc, target.getX(), target.getY(), target.getZ(), worldTop(mc));
+        return hole.getY() - (int) Math.floor(target.getY());
     }
 
     // Builds the totem-bypass height list: (totemCount + 1) hits at STRICTLY INCREASING

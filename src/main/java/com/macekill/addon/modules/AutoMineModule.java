@@ -155,9 +155,9 @@ public class AutoMineModule extends Module {
 
     @Override public void onDeactivate() {
         orePositions.clear(); waypoints.clear();
-        releaseControls();
+        if (mc.player != null) releaseControls();
         // 恢复原始飞行状态
-        if (!wasFlying) {
+        if (mc.player != null && !wasFlying) {
             mc.player.getAbilities().flying = false;
             mc.player.getAbilities().allowFlying = false;
         }
@@ -859,13 +859,14 @@ public class AutoMineModule extends Module {
                     if (dxy2 + dz * dz > rSq) continue;
                     m.set(pp.getX() + dx, pp.getY() + dy, pp.getZ() + dz);
                     if (m.getY() <= minYLev) continue;
-                    if (abandonBlacklist.containsKey(m)) continue;
-                    if (dugPositions.containsKey(m)) continue;
-                    BlockState s = world.getBlockState(m);
+                    BlockPos imm = m.toImmutable();
+                    if (abandonBlacklist.containsKey(imm)) continue;
+                    if (dugPositions.containsKey(imm)) continue;
+                    BlockState s = world.getBlockState(imm);
                     if (!isTargetOre(s.getBlock())) continue;
-                    if (s.getHardness(world, m) < 0) continue;
-                    if (filterDanger && isOreNearFluid(m)) continue;
-                    orePositions.add(m.toImmutable());
+                    if (s.getHardness(world, imm) < 0) continue;
+                    if (filterDanger && isOreNearFluid(imm)) continue;
+                    orePositions.add(imm);
                 }
             }
         }

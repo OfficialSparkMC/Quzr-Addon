@@ -11,13 +11,15 @@ public final class Movement {
     private Movement() {}
 
     public static void doTpTo(MinecraftClient mc, Vec3d to, double moveDistance, boolean syncClientPos) {
+        if (mc == null || mc.player == null || mc.getNetworkHandler() == null || to == null) return;
+        if (!(moveDistance > 0)) moveDistance = 8.0;
         Vec3d from = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         double dist = from.distanceTo(to);
-        int steps = (int) Math.ceil(dist / moveDistance);
+        int steps = Math.max(1, (int) Math.ceil(dist / moveDistance));
         for (int i = 1; i <= steps; i++) {
-            sendMovePacket(mc, from.x, from.y, from.z);
+            double t = (double) i / steps;
+            sendMovePacket(mc, from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t, from.z + (to.z - from.z) * t);
         }
-        sendMovePacket(mc, to.x, to.y, to.z);
         if (syncClientPos) {
             mc.player.updatePosition(to.x, to.y, to.z);
         }
@@ -29,7 +31,7 @@ public final class Movement {
     }
 
     public static void sendRotations(MinecraftClient mc, int count) {
-        if (mc.getNetworkHandler() == null) return;
+        if (mc == null || mc.player == null || mc.getNetworkHandler() == null) return;
         for (int i = 0; i < count; i++) {
             mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
                 mc.player.getYaw(), mc.player.getPitch(), mc.player.isOnGround(), false));
@@ -42,7 +44,7 @@ public final class Movement {
     }
 
     public static void attackEntity(MinecraftClient mc, Entity target) {
-        if (mc.getNetworkHandler() == null) return;
+        if (mc == null || mc.player == null || mc.getNetworkHandler() == null || target == null) return;
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
     }
 }

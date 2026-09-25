@@ -60,12 +60,12 @@ public class MaceBreakerPro extends Module {
         // 仅持盾模式：跳过未举盾的目标
         if (onlyOnShield.get() && !target.isBlocking()) return;
 
-        // 检查当前武器是否匹配触发条件
+        // 检查当前武器是否匹配触发条件 (1.21.11 has no SwordItem class — swords are plain Items, match by registry id)
         ItemStack handItem = mc.player.getMainHandStack();
-        String weaponName = handItem.getItem().toString().toLowerCase();
-        boolean isSword = weaponName.contains("sword");
-        boolean isAxe = weaponName.contains("_axe") || weaponName.contains("axe");
-        boolean isMace = weaponName.contains("mace");
+        String swordPath = net.minecraft.registry.Registries.ITEM.getId(handItem.getItem()).getPath();
+        boolean isSword = swordPath.contains("sword");
+        boolean isAxe = handItem.getItem() instanceof net.minecraft.item.AxeItem;
+        boolean isMace = handItem.getItem() instanceof net.minecraft.item.MaceItem;
 
         if (!(isSword && swordTrigger.get())
                 && !(isAxe && axeTrigger.get())
@@ -115,8 +115,7 @@ public class MaceBreakerPro extends Module {
     private FindItemResult findAxe() {
         for (int i = 0; i < 9; i++) {
             ItemStack stack = mc.player.getInventory().getStack(i);
-            String name = stack.getItem().toString().toLowerCase();
-            if (name.contains("_axe")) return new FindItemResult(i, stack.getCount());
+            if (stack.getItem() instanceof net.minecraft.item.AxeItem) return new FindItemResult(i, stack.getCount());
         }
         return new FindItemResult(-1, 0);
     }
@@ -126,6 +125,7 @@ public class MaceBreakerPro extends Module {
     }
 
     private void switchTo(int slot) {
+        if (mc.player == null || mc.getNetworkHandler() == null || slot < 0 || slot > 8) return;
         setSelectedSlot(mc.player.getInventory(), slot);
         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(slot));
     }

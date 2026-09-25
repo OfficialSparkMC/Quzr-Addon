@@ -55,7 +55,7 @@ public class AutoRise extends Module {
 
         // 第一个包：上升
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
-                posX + h, posY, posZ, false, false));
+                posX, posY + h, posZ, false, false));
 
         // 第二个包：返回原位
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
