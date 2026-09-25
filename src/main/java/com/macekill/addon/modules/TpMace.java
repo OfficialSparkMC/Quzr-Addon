@@ -14,6 +14,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
@@ -293,6 +294,7 @@ public class TpMace extends Module {
                     error("Can only pop ~%d totems here", all.size() - 1);
                 }
                 warnBurstPackets(all);
+                checkMaceDurability(all.size());
                 boolean first = true;
                 for (int h : all) {
                     attackOnce(target, h, first);
@@ -619,6 +621,29 @@ public class TpMace extends Module {
         if (drainMode.get() == DrainMode.LIST) return BurstHeights.Mode.LIST;
         if (drainMode.get() == DrainMode.INCREMENTAL) return BurstHeights.Mode.INCREMENTAL;
         return BurstHeights.Mode.SPREAD;
+    }
+
+    // A landed hit costs 1 mace durability (vanilla) — a 198-hit burst eats ~198 of it.
+    // Warn before the burst instead of snapping the mace mid-fight (Unbreaking, e.g. via
+    // ItemGiver, divides the loss; Detect Totem + a sane Totems To Pop shrinks the burst).
+    private void checkMaceDurability(int hits) {
+        if (mc.player == null || hits < 10) return;
+        PlayerInventory inv = mc.player.getInventory();
+        ItemStack mace = null;
+        if (maceSlot >= 0 && maceSlot < inv.size() && inv.getStack(maceSlot).isOf(Items.MACE)) {
+            mace = inv.getStack(maceSlot);
+        } else if (inv.getStack(inv.getSelectedSlot()).isOf(Items.MACE)) {
+            mace = inv.getStack(inv.getSelectedSlot());
+        } else {
+            for (int i = 0; i < 9; i++) {
+                if (inv.getStack(i).isOf(Items.MACE)) { mace = inv.getStack(i); break; }
+            }
+        }
+        if (mace == null || !mace.isDamageable()) return;
+        int left = mace.getMaxDamage() - mace.getDamage();
+        if (left < hits) {
+            error("Mace has %d durability left but the burst needs ~%d hits — it may break! Lower Totems To Pop / enable Detect Totem, or add Unbreaking via ItemGiver.", left, hits);
+        }
     }
 
     // A 198-hit burst is thousands of move packets in ONE tick — only feasible on servers

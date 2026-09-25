@@ -48,7 +48,9 @@ then single-burst totem smash or single `getAttackHeight()` hit. Totem heights c
 (`Combat.worldTop - targetY`), so bursts work under caves/roofs; a packet estimate warns
 above ~1500 packets/tick (raise `Move Step` for big bursts). Silent swap reverts
 **immediately after the burst** (fixed 2026-09-25 — was deferred 3 ticks, desyncing
-server/client slots). Core is
+server/client slots). Durability: every landed hit costs 1 mace durability (vanilla),
+so the burst warns when the mace can't survive it — keep `Detect Totem` on, set a sane
+`Totems To Pop`, or put Unbreaking on the mace via `ItemGiver`. Core is
 `attackOnce(target,height,primeFall)`: `findDropColumn` (nearest clear ±2.5-block column),
 rotation pkt, `fallPackets` prime, `stepMove` up + `stepMoveDown` (block-skipping descent),
 `sendAttack`. `returnToStart` damage-checks (`preHealth` vs now) and either stepped-return or
