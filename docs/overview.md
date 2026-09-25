@@ -18,7 +18,7 @@
 | Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
 | Registration | `MaceKillAddon.onInitialize()` adds ~25 modules (`MaceKillAddon.java:43-75`) |
 
-## Module table (25 modules)
+## Module table (27 modules + 1 command)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
@@ -40,8 +40,10 @@
 | Name | Class | One-liner |
 |------|-------|-----------|
 | `Rise` | `modules/Rise.java` | 10× up/down jitter packets every `Delay` ticks |
-| `AutoRise` | `modules/AutoRise.java` | Rises when a target is within `Detection Range` (has X/Y bug, see `problems.md`) |
+| `AutoRise` | `modules/AutoRise.java` | Rises when a target is within `Detection Range` (fixed X/Y bug, see `problems.md`) |
 | `Speed` | `modules/SpeedModule.java` | Staircase rise `Cycles × Rise Height` packets per tick |
+| `PlayerTp` | `modules/PlayerTp.java` | One-shot TP to nearest player on enable (see `commands.md` for `.tp`) |
+| `AdvancedNoFall` | `modules/AdvancedNoFall.java` | Zero fall damage via client-state trigger, smash-safe (see below) |
 
 ### Automation
 
@@ -65,8 +67,8 @@
 | `auto-tpa-reject` | `modules/AutoTpaReject.java` | Denies `* wants to be teleported to you` messages |
 | `NearestPlayerHUD` | `modules/NearestPlayerHUD.java` | `getInfoString()` nearest-player name+dist (module info, not HUD element) |
 
-Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,TargetFilter,SortPriority}.java`,
-`utils/CreativeGiveUtil.java`. See `architecture.md`.
+Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,TargetFilter,SortPriority,BurstHeights}.java`,
+`utils/CreativeGiveUtil.java`, `commands/TpCommand.java` (`.tp <player>`, see `commands.md`). See `architecture.md`.
 
 ## Requirements
 

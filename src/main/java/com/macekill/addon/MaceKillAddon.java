@@ -1,5 +1,7 @@
 package com.macekill.addon;
 
+import com.macekill.addon.commands.TpCommand;
+import com.macekill.addon.modules.AdvancedNoFall;
 import com.macekill.addon.modules.AutoMsgModule;
 import com.macekill.addon.modules.AutoRise;
 import com.macekill.addon.modules.AutoTotemToHotbar;
@@ -21,11 +23,13 @@ import com.macekill.addon.modules.CreativeGiveModule;
 import com.macekill.addon.modules.CustomPotionModule;
 import com.macekill.addon.modules.MaceDMG;
 import com.macekill.addon.modules.MaceKillModule;
+import com.macekill.addon.modules.PlayerTp;
 import com.macekill.addon.modules.AntiAirMiss;
 import com.macekill.addon.modules.FreecamTp;
 import com.macekill.addon.modules.Hitback;
 import com.macekill.addon.modules.MassTpa;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
+import meteordevelopment.meteorclient.commands.Commands;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import org.slf4j.Logger;
@@ -60,6 +64,8 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new AutoRise());
         Modules.get().add(new Rise());
         Modules.get().add(new SpeedModule());
+        Modules.get().add(new PlayerTp());
+        Modules.get().add(new AdvancedNoFall());
 
         // ---- 自动化 ----
         Modules.get().add(new AutoShulkerBox());
@@ -73,6 +79,8 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new CustomPotionModule());
         Modules.get().add(new NearestPlayerHUD());
         Modules.get().add(new AutoTpaReject());
+
+        Commands.add(new TpCommand());
 
         LOG.info("Qazr Addons initialized successfully! ({} modules)", Modules.get().getGroup(CATEGORY).size());
     }

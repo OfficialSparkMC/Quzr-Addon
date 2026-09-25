@@ -116,6 +116,8 @@
 | `SpeedModule` | 33 pkts/tick at defaults (up to 153) | Instant Grim/Vulcan ban. |
 | `SpearKill` Blink flush | **FIXED 2026-09-25: capped at 500 queued packets** (auto-flush+reset) | Was unbounded OOM/kick risk. |
 | `MassTpa` | `/tpa` to everyone on timer | Spam mute + social-engineering abuse vector. Add confirm + cooldown. |
+| `PlayerTp` / `.tp` | stepped long-range TP packets | Same teleport flags as mace smashes; cross-map jumps kick vanilla/Paper. |
+| `AdvancedNoFall` | 1-5 `onGround=true`/tick while falling | Safe by design on vanilla/Paper; Grim-style anticheats flag sustained spoofs. |
 | `AutoMineModule` fly | `allowFlying` without creative | Fly flag on any anticheat. Needs a real movement bypass or removal. |
 | All VClip smashes | 170-block `onGround=false` teleports | Vanilla `moved too quickly`, Paper `invalid move`, Grim teleport checks. Test-server only. |
 

@@ -7,7 +7,7 @@
 ## 1. Mandatory first reads (in order)
 
 1. `docs/README.md` — index.
-2. `docs/overview.md` — module table (25 modules expected; count them in `MaceKillAddon.java`).
+2. `docs/overview.md` — module table (27 modules + `.tp` command; count them in `MaceKillAddon.java`).
 3. `docs/architecture.md` — entry point + `macekill/*` helpers + packet table.
 4. `docs/build.md` — versions in `gradle.properties`, `build.gradle` deps, `fabric.mod.json`.
 5. `docs/problems.md` — known bugs. Do **not** re-introduce anything listed there.
@@ -23,6 +23,7 @@ Every code change that affects behavior, settings, modules, build, or known issu
 | Code change | Docs to update |
 |-------------|----------------|
 | Add / remove / rename a module | `overview.md` table + count, `architecture.md` wiring table, `modules-mace.md` or `modules-other.md` section, `MaceKillAddon.java` line ref |
+| Add / remove / rename a chat command | `commands.md` section, `overview.md` shared-helpers note, `architecture.md` wiring table |
 | Add / remove / rename / retype a `@Setting` | The module's section in `modules-mace.md` / `modules-other.md` (name, type, default, range) |
 | Change packet flow / phases / triggers | `architecture.md` flow diagram + event table, module section |
 | Change `gradle.properties` / `build.gradle` / `fabric.mod.json` / Java version | `build.md` tables + checklist + `overview.md` identity table |
@@ -75,7 +76,6 @@ Every code change that affects behavior, settings, modules, build, or known issu
    Rule from §4 applies: always commit, never push unless asked.
 
 ---
-*Last verified: 2026-09-25 — slot reflection replaced with public API in all 9 files
-(root cause of silent-swap bug: Yarn name unresolvable at intermediary runtime); meteor-client
-depends >=0.18.6; always-commit rule; BurstHeights single-burst.*
+*Last verified: 2026-09-25 — PlayerTp module + .tp command (commands.md), AdvancedNoFall
+smash-safe module; slot reflection fix; meteor-client depends >=0.18.6.*
 *Maintainer note: bump this line on every docs-syncing change.*

@@ -14,9 +14,25 @@ Finds nearest alive non-creative/spectator attackable entity; if found sends two
 **Fixed 2026-09-25**: first packet was `PositionAndOnGround(posX+h, posY, posZ)` (height on X);
 now `(posX, posY+h, posZ)`.
 
-### Speed — `modules/SpeedModule.java` (50 lines)
-`Rise Height(5)`, `Cycles(10)`. Every tick sends `(Cycles+1)×3` packets staircasing
+### Speed — `modules/SpeedModule.java` (50 lines)`Rise Height(5)`, `Cycles(10)`. Every tick sends `(Cycles+1)×3` packets staircasing
 `posY + h*i`, all `onGround=false`. At defaults 33 packets/tick ≈ 660/s. Instant flag.
+
+### PlayerTp — `modules/PlayerTp.java`
+`Range(100)`, `Move Step(8)`, `Ignore Friends`. One-shot: on enable finds the nearest
+alive non-spectator attackable player in range, travels via shared
+`Movement.doTpTo(..., syncClientPos=true)` (client + server stay synced), chats the
+name, auto-disables. Named jumps go through `.tp <player>` (see `commands.md`),
+which calls the same static `teleportTo()` — module need not be enabled.
+
+### AdvancedNoFall — `modules/AdvancedNoFall.java`
+`Fall Threshold(3.0)`, `Fast-Fall Trigger(off)`, `Packets(1)`, `Pause on Elytra(on)`.
+Smash-safe by construction: triggers only on **client** `fallDistance` (packet smashes
+never move the client, so it idles through every smash and never resets the server's
+fake fall), then spoofs `onGround=true` at the same X/Y/Z every tick while really
+falling — the server can never accumulate a lethal fall, so post-smash/sky-strand
+landings always survive. Skips ground/creative/spectator/vehicle/elytra states.
+Not a void saver (void damage isn't fall damage); onGround spoof can flag strict
+anticheats — test-server first.
 
 ## Automation
 

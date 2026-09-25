@@ -105,6 +105,9 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | MassTpa | `TickEvent.Pre` | one `tpa <name>` per `Delay` ticks |
 | FreecamTp | `MouseClickEvent` (right) | teleport to `Freecam.pos` |
 | Rise/Speed/AutoRise/AntiAirMiss | `TickEvent.Pre` | packet bursts (see modules-other) |
+| PlayerTp | one-shot `onActivate` | nearest player → `Movement.doTpTo` → auto-disable |
+| AdvancedNoFall | `TickEvent.Pre` | client-fall trigger → `onGround=true` spoof |
+| TpCommand (`.tp`) | Brigadier execute (client thread) | `PlayerTp.teleportTo()` (module need not be active) |
 
 ## Resources
 
