@@ -14,8 +14,12 @@
    so `meteor_version` is no longer unused. `libs/` is still gitignored — fresh clones need the
    jars (see `docs/build.md`). Full Maven-ization still TODO.
 2. **FIXED 2026-09-25 — `src/main/resources/fabric.mod.json`.** Pinned to
-   `minecraft ~1.21.11`, `fabricloader >=0.18.6`, `meteor-client 0.18.6`; removed empty
+   `minecraft ~1.21.11`, `fabricloader >=0.18.6`, `meteor-client >=0.18.6`; removed empty
    `mixins` array (file `qazr-addons.mixins.json` kept but unwired).
+   NOTE: meteor-client must stay a `>=` range — an exact `"0.18.6"` pin blocks launch for
+   users on newer Meteor versioning (e.g. `1.21.11-86`, loader error "Some of your mods
+   are incompatible"). Runtime against newer Meteor is untested (we compile against the
+   local 0.18.6 jar), so API drift may still break at runtime.
 4. **MEDIUM — naming.** `maven_group com.macekill` vs `archives_base_name Qazr-Addons` vs id
    `qazr-addons` vs `MaceKillAddon` — pick one brand. `MassTpa`/`MaceAttect`(sic)/`MaceDMG` inconsistent caps.
 5. **LOW — `README.md`.** Profanity + theft claim, no usage/build info. Keep `docs/` as canonical reference.

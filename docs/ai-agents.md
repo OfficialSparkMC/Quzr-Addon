@@ -75,6 +75,6 @@ Every code change that affects behavior, settings, modules, build, or known issu
    Rule from §4 applies: always commit, never push unless asked.
 
 ---
-*Last verified: 2026-09-25 — always-commit rule (§4 + §5 step 7); silent-swap revert fix +
-BurstHeights single-burst (SPREAD/LIST/INCREMENTAL, 198 cap, pierce ceiling) in TpMace/MaceAttect.*
+*Last verified: 2026-09-25 — meteor-client depends widened to >=0.18.6 (exact pin blocked
+Meteor 1.21.11-86 at launch); always-commit rule; silent-swap revert fix + BurstHeights burst.*
 *Maintainer note: bump this line on every docs-syncing change.*

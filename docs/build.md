@@ -42,7 +42,10 @@ compileOnly files('libs/orbit-0.2.4.jar')
 - `id: qazr-addons`, `version: ${version}`, `environment: client`.
 - Entrypoint `meteor: [com.macekill.addon.MaceKillAddon]`.
 - No `mixins` entry (empty `qazr-addons.mixins.json` is kept but unwired since 2026-09-25).
-- `depends: {java: ">=21", minecraft: "~1.21.11", fabricloader: ">=0.18.6", meteor-client: "0.18.6"}`.
+- `depends: {java: ">=21", minecraft: "~1.21.11", fabricloader: ">=0.18.6", meteor-client: ">=0.18.6"}`.
+  meteor-client is a **range**, not an exact pin: a bare `"0.18.6"` is an exact match in
+  Fabric and rejects newer Meteor builds (e.g. `1.21.11-86`), blocking launch with
+  "Some of your mods are incompatible". `>=0.18.6` accepts both old and new versioning.
 - `custom."meteor-client:color": "255,80,80"`.
 
 ## Commands
