@@ -146,6 +146,12 @@ public class MaceAttect extends Module {
             .visible(totemBypass::get).build()
     );
 
+    private final Setting<Double> heightStep = sgTotem.add(new DoubleSetting.Builder()
+            .name("Height Step").description("Minimum separation between burst heights in blocks. 1.0 = classic 1-block steps; 0.5/0.25 packs big bursts under low cave roofs with far fewer packets")
+            .defaultValue(1.0).min(0.25).max(2.0).sliderRange(0.25, 2.0)
+            .visible(totemBypass::get).build()
+    );
+
     private final Setting<Boolean> singleTick = sgTotem.add(new BoolSetting.Builder()
             .name("Single Tick").description("Totem bypass always fires the whole hit list in one mace smash (required to beat AutoTotem)")
             .defaultValue(true).visible(() -> false).build()
@@ -387,8 +393,8 @@ public class MaceAttect extends Module {
             int maxH = Math.min(Combat.MAX_TOTEM_HITS,
                 Combat.worldTop(mc) - (int) Math.floor(target.getY()) - 1);
             if (maxH < 8) maxH = 8;
-            List<Integer> all = BurstHeights.build(totems, maxH, burstMode(),
-                drainHeights.get(), baseDrainHeight.get(), heightIncrement.get());
+            List<Double> all = BurstHeights.build(totems, maxH, burstMode(),
+                drainHeights.get(), baseDrainHeight.get(), heightIncrement.get(), heightStep.get());
             if (all.isEmpty()) {
                 error("Failed to build totem-bypass hit list.");
             } else if (all.size() < totems + 1) {
@@ -396,9 +402,13 @@ public class MaceAttect extends Module {
             }
             warnBurstPackets(all);
             checkMaceDurability(all.size());
+            // One column scan for the whole burst (per-hit rescans cost ~1M block
+            // lookups for a 198-burst and always return the same column mid-tick).
+            Vec3d burstColumn = all.isEmpty() ? null
+                : findDropColumn(target, all.get(all.size() - 1));
             boolean first = true;
-            for (int h : all) {
-                attackOnce(target, h, first);
+            for (double h : all) {
+                attackOnce(target, h, first, burstColumn);
                 first = false;
             }
             // Silent-swap fix: revert the server slot IMMEDIATELY after the burst (see TpMace).
@@ -420,26 +430,31 @@ public class MaceAttect extends Module {
         }
     }
 
-    private void attackOnce(LivingEntity target, int height) {
-        attackOnce(target, height, true);
+    private void attackOnce(LivingEntity target, double height) {
+        attackOnce(target, height, true, null);
     }
 
     // primeFall: when true, send the rotation-only "stay" packets that seed the fake fall distance.
     // Only the FIRST hit of a totem-bypass burst needs this - re-sending it on every hit wastes the
     // per-tick move-packet budget and causes later hits to be dropped (so only the first totem pops).
-    private void attackOnce(LivingEntity target, int height, boolean primeFall) {
+    private void attackOnce(LivingEntity target, double height, boolean primeFall) {
+        attackOnce(target, height, primeFall, null);
+    }
+
+    // column: pre-scanned drop column for bursts (null = scan now). The world does not change
+    // mid-tick, so one scan serves the whole burst and saves ~1M block lookups on 198-bursts.
+    private void attackOnce(LivingEntity target, double height, boolean primeFall, Vec3d column) {
         if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null || height < 1) return;
 
         // Pierce straight up through any roof. Position packets are NOT collision-checked, so the
-        // player teleports through solid blocks. Crucially, the up/down must run in a column with
-        // CLEAR headroom - if the player intersects a block mid-arc (e.g. dropping onto the target
-        // under a 1-block roof puts the head inside the roof), the server resets fall distance and
-        // the smash deals no bonus. So we drop in the nearest clear column within attack reach.
+        // player teleports through solid blocks. The drop runs in a column whose ATTACK position
+        // has a free hitbox within reach - if the final packet landed inside a ceiling block
+        // (e.g. the old fixed ty+1.1 in a 2-high tunnel), the server resets fall distance and
+        // the smash deals no bonus. See findDropColumn.
         double ty = target.getY();
-        double tpY = Math.min(ty + height, 318);
-        double targetY = ty + 1.1;
-        Vec3d drop = findDropColumn(target, height);
-        double tx = drop.x, tz = drop.z;
+        double tpY = Math.min(ty + height, Combat.worldTop(mc) - 1);
+        Vec3d drop = column != null ? column : findDropColumn(target, height);
+        double tx = drop.x, tz = drop.z, attackY = drop.y;
 
         if (rotate.get()) {
             float yaw = getYawTo(target);
@@ -471,9 +486,9 @@ public class MaceAttect extends Module {
         //   and no single packet exceeds the cap, so the full fall height is preserved under any roof.
         Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         stepMove(start, new Vec3d(tx, tpY, tz));
-        stepMoveDown(tx, tpY, targetY, tz);
+        stepMoveDown(tx, tpY, attackY, tz);
         lastSentX = tx;
-        lastSentY = targetY;
+        lastSentY = attackY;
         lastSentZ = tz;
 
         sendAttack(target);
@@ -556,14 +571,16 @@ public class MaceAttect extends Module {
         return floorY;
     }
 
-    // Find a column near the target with clear vertical space (no roof) so the fake-fall teleport
-    // never intersects a block. The player intersecting a block mid-arc makes the server reset the
-    // fall distance, which is exactly why the smash fails when the target is under a low roof. We
-    // prefer the target's own column; otherwise we step outward up to 2 blocks (still within attack
-    // reach) to find open air. Falls back to the target's column if nothing clear is found.
-    private Vec3d findDropColumn(LivingEntity target, int height) {
+    // Find where to drop onto the target. The returned Y is the ATTACK position, chosen so
+    // the final packet never lands inside a block: two-phase search —
+    // (1) open sky fast path: nearest fully-clear column (no ceiling skips on the way down);
+    // (2) cave path: nearest column with a FREE hitbox position within attack reach (2.9
+    // blocks of the target center). Phase 2 is what makes 2-high tunnels work — the old
+    // fixed ty+1.1 put the head inside the ceiling, the server reset the fall, and every
+    // hit dealt no bonus. Falls back to the target column if nothing is free (best effort).
+    private Vec3d findDropColumn(LivingEntity target, double height) {
         double ty = target.getY();
-        int topY = (int) Math.floor(Math.min(ty + height, 318));
+        int topY = (int) Math.floor(Math.min(ty + height, Combat.worldTop(mc) - 1));
         int botY = (int) Math.floor(ty + 1);
         int cx = (int) Math.floor(target.getX());
         int cz = (int) Math.floor(target.getZ());
@@ -580,10 +597,38 @@ public class MaceAttect extends Module {
                         break;
                     }
                 }
-                if (clear) return new Vec3d(x + 0.5, ty, z + 0.5);
+                if (clear) return new Vec3d(x + 0.5, findAttackY(x + 0.5, z + 0.5, target), z + 0.5);
             }
         }
-        return new Vec3d(target.getX(), ty, target.getZ());
+        Vec3d best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                if (Math.hypot(dx, dz) > 2.5) continue;
+                int x = cx + dx, z = cz + dz;
+                double ay = findAttackY(x + 0.5, z + 0.5, target);
+                if (ay < 0) continue; // no free in-reach spot in this column
+                // Target's own column first, then nearest; higher attack Y wins ties
+                // (shorter descent, closer to the drop path).
+                double score = Math.hypot(dx, dz) * 10 - ay * 0.001;
+                if (score < bestScore) { bestScore = score; best = new Vec3d(x + 0.5, ay, z + 0.5); }
+            }
+        }
+        if (best != null) return best;
+        return new Vec3d(target.getX(), ty + 1.1, target.getZ());
+    }
+
+    // Highest free-hitbox Y within attack reach of the target, or -1 if none.
+    // Scans top-down so the winner is the highest valid spot (shortest descent).
+    private double findAttackY(double x, double z, LivingEntity target) {
+        double cx = target.getX(), cy = target.getY() + target.getHeight() * 0.5, cz = target.getZ();
+        for (double y = target.getY() + 2.5; y >= target.getY() - 1.0; y -= 0.5) {
+            if (hitboxBlocked(x, y, z)) continue;
+            double dx = x - cx, dy = (y + 0.9) - cy, dz = z - cz;
+            if (dx * dx + dy * dy + dz * dz > 2.9 * 2.9) continue;
+            return y;
+        }
+        return -1;
     }
 
     private void sendAttack(LivingEntity target) {
@@ -704,11 +749,11 @@ public class MaceAttect extends Module {
 
     // A 198-hit burst is thousands of move packets in ONE tick — only feasible on servers
     // without packet limits. Estimate and warn so users raise Move Step instead of getting kicked.
-    private void warnBurstPackets(List<Integer> heights) {
+    private void warnBurstPackets(List<Double> heights) {
         if (heights.size() < 10) return;
         double step = Math.max(1.0, Math.min(moveDistance.get(), 99));
         long total = 0;
-        for (int h : heights) total += 2L * (long) Math.ceil(h / step) + 2;
+        for (double h : heights) total += 2L * (long) Math.ceil(h / step) + 2;
         if (total > 1500) warning("Burst of %d hits ≈ %d packets in one tick — raise Move Step or expect a kick", heights.size(), total);
     }
 
@@ -905,14 +950,6 @@ public class MaceAttect extends Module {
             return list;
         }
         return drainHeights.get();
-    }
-
-    private int parseHeight(String s) {
-        try {
-            return (int) Double.parseDouble(s.trim());
-        } catch (NumberFormatException e) {
-            return 0;
-        }
     }
 
     private List<String> parsePlayerList() {

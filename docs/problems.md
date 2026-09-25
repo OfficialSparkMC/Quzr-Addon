@@ -50,9 +50,13 @@
     `world.getTopYInclusive()` with 319 fallback; `getVclipClearance` uses `Math.floor(target.getY())`;
     TpMace/MaceAttect totem bursts use the pierce ceiling (`worldTop - targetY`, cave-proof).
     `MaceAura` scan and non-burst `getAttackHeight` paths still hardcode caps — unify next.
-11. **OPEN — `TpMace.findDropColumn` / `MaceAttect.findDropColumn`.**
-    Scans `isAir()` only — leaves, fluids, cobwebs counted as blocked while `vclipSafe` allows leaves.
-    Inconsistent with `Combat.vclipSafe`. Unify predicate.
+11. **FIXED 2026-09-25 — cave attack position.** `TpMace`/`MaceAttect.findDropColumn` is now
+    two-phase: fully-clear column (open sky) else nearest column with a FREE hitbox attack
+    spot within 2.9 blocks of the target (`findAttackY`, top-down scan). The old fixed
+    `ty+1.1` attack Y landed inside 2-high tunnel ceilings → server fall reset → zero-bonus
+    hits. Column scan is hoisted to once per burst (was ~1M block lookups on 198-bursts);
+    `tpY` cap uses `worldTop` (was hardcoded 318); burst heights are fractional with a
+    `Height Step` setting so big bursts fit under low roofs with fewer packets.
 12. **FIXED 2026-09-25 — `Rise.java`.** Removed unreachable
     `if (!bypass.get() && delayTicks > 0) return;`. Note: `Bypass` setting is now unused
     (kept for config compat).

@@ -41,12 +41,17 @@ Settings: `Range(20)`, `Move Step(8)`, `Fall Packets(4)`, `Attack Delay(10)`, `A
 Flow: `IDLE → DELAY(3t) → RETURN_DELAY(3t)`. `tickIdle` respects `firstAttack` fast path,
 `freeCooldown` after unhittable, `checkAndSwapWeapon` (3-way: held/hotbar/inventory-swap),
 then single-burst totem smash or single `getAttackHeight()` hit. Totem heights come from
-`macekill/BurstHeights.build` — `Drain Mode` `SPREAD` (even spread, default), `LIST`
-(custom `Drain Heights`, extended upward to fill the burst), `INCREMENTAL`
+`macekill/BurstHeights.build` (fractional doubles) — `Drain Mode` `SPREAD` (even spread,
+default), `LIST` (custom `Drain Heights`, extended upward to fill the burst), `INCREMENTAL`
 (`Base Drain Height + i*Height Increment`); `Totems To Pop(1-198)` sets burst size
-(+3 margin, capped at 198 hits). Ceiling is the pierce ceiling
-(`Combat.worldTop - targetY`), so bursts work under caves/roofs; a packet estimate warns
-above ~1500 packets/tick (raise `Move Step` for big bursts). Silent swap reverts
+(+3 margin, capped at 198 hits); `Height Step(1.0, 0.25-2.0)` sets minimum separation —
+0.5/0.25 packs a 198-burst into ~50-100 blocks instead of ~200 (fewer packets, fits low
+roofs; server fall is float so escalation still holds). Ceiling is the pierce ceiling
+(`Combat.worldTop - targetY`), so bursts work under caves/roofs; the drop column is
+scanned once per burst and the attack Y is picked as the highest free-hitbox spot within
+2.9 blocks of the target (fixed: old `ty+1.1` landed inside 2-high tunnel ceilings and the
+server reset the fall). A packet estimate warns above ~1500 packets/tick (raise `Move Step`
+for big bursts). Silent swap reverts
 **immediately after the burst** (fixed 2026-09-25 — was deferred 3 ticks, desyncing
 server/client slots). Durability: every landed hit costs 1 mace durability (vanilla),
 so the burst warns when the mace can't survive it — keep `Detect Totem` on, set a sane
