@@ -16,14 +16,11 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.Hand;
 
-import java.lang.reflect.Field;
-
 /**
  * 盾牌破碎 - 攻击时自动斧+重锤连击破盾
  * 来自 InvincibleMachineGun 的 MaceBreakerPro
  */
 public class MaceBreakerPro extends Module {
-    private static Field selectedSlotField;
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
@@ -136,24 +133,12 @@ public class MaceBreakerPro extends Module {
     }
 
     private int getSelectedSlot() {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            return selectedSlotField.getInt(mc.player.getInventory());
-        } catch (Exception e) {
-            return 0;
-        }
+        if (mc.player == null) return 0;
+        return mc.player.getInventory().getSelectedSlot();
     }
 
     private void setSelectedSlot(PlayerInventory inv, int slot) {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            selectedSlotField.setInt(inv, slot);
-        } catch (Exception ignored) {}
+        if (inv == null || slot < 0 || slot > 8) return;
+        inv.setSelectedSlot(slot);
     }
 }

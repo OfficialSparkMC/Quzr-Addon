@@ -21,7 +21,6 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
-import java.lang.reflect.Field;
 import java.util.*;
 
 /**
@@ -66,9 +65,6 @@ public class AutoShulkerBox extends Module {
             Items.WOODEN_PICKAXE, Items.STONE_PICKAXE, Items.IRON_PICKAXE,
             Items.GOLDEN_PICKAXE, Items.DIAMOND_PICKAXE, Items.NETHERITE_PICKAXE
     );
-
-    /* ==================== 反射 ==================== */
-    private static Field selectedSlotField;
 
     /* ==================== 设置 ==================== */
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -288,29 +284,16 @@ public class AutoShulkerBox extends Module {
         } catch (Exception ignored) {}
     }
 
-    // ==================== 反射（Qazr 风格：纯 setInt，无 UpdateSelectedSlot） ====================
+    // ==================== 快捷栏切换（带服务端同步，避免幽灵方块） ====================
 
     private int getSelectedSlot() {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            return selectedSlotField.getInt(mc.player.getInventory());
-        } catch (Exception e) {
-            return -1;
-        }
+        if (mc.player == null) return -1;
+        return mc.player.getInventory().getSelectedSlot();
     }
 
     private void setSelectedSlot(int slot) {
         if (mc.player == null || slot < 0 || slot > 8) return;
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            selectedSlotField.setInt(mc.player.getInventory(), slot);
-        } catch (Exception ignored) {}
+        mc.player.getInventory().setSelectedSlot(slot);
         // Keep the server in sync, otherwise place/mine uses the wrong held item (ghost blocks / kick).
         if (mc.getNetworkHandler() != null) {
             mc.getNetworkHandler().sendPacket(

@@ -19,7 +19,6 @@ import net.minecraft.network.packet.c2s.play.*;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
-import java.lang.reflect.Field;
 import java.util.*;
 
 /**
@@ -140,7 +139,6 @@ public class SpearKill extends Module {
 
     // ==================== 状态 ====================
     private final List<Packet<?>> packetQueue = new ArrayList<>();
-    private static Field selectedSlotField;
     private boolean isBlinking;
     private boolean isFlushing;
     private Vec3d startPos;
@@ -460,13 +458,8 @@ public class SpearKill extends Module {
     }
 
     private void setSelectedSlot(int slot) {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            selectedSlotField.setInt(mc.player.getInventory(), slot);
-        } catch (Exception ignored) {}
+        if (mc.player == null || slot < 0 || slot > 8) return;
+        mc.player.getInventory().setSelectedSlot(slot);
     }
 
     private int getSpearChargeTicks() {

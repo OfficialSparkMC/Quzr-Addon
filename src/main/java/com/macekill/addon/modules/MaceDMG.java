@@ -195,20 +195,13 @@ public class MaceDMG extends Module {
     }
 
     private void setSelectedSlot(PlayerEntity player, int slot) {
-        try {
-            java.lang.reflect.Field f = net.minecraft.entity.player.PlayerInventory.class.getDeclaredField("selectedSlot");
-            f.setAccessible(true);
-            f.setInt(player.getInventory(), slot);
-        } catch (Exception ignored) {}
+        if (player == null || slot < 0 || slot > 8) return;
+        player.getInventory().setSelectedSlot(slot);
     }
 
     private int getSelectedSlot(PlayerEntity player) {
-        try {
-            java.lang.reflect.Field f = net.minecraft.entity.player.PlayerInventory.class.getDeclaredField("selectedSlot");
-            f.setAccessible(true);
-            return f.getInt(player.getInventory());
-        } catch (Exception ignored) {}
-        return 0;
+        if (player == null) return 0;
+        return player.getInventory().getSelectedSlot();
     }
 
     private void info(String msg) {

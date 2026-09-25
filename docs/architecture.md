@@ -65,8 +65,11 @@ re-equip. Callers add `+3` margin (`Math.min(totems+3, MAX_TOTEM_HITS=198)`).
 3. Else `InvUtils.find(MACE)` + `InvUtils.move().from(src).to(cur)` (async inventory click!),
    remember `maceSwapBackSlot` and move back on finish.
 
-Reflection target is `PlayerInventory.selectedSlot` (`Inventory.java:103-108`), duplicated
+Reflection target was `PlayerInventory.selectedSlot` (`Inventory.java:103-108`), duplicated
 in `MaceAura`, `TpMace`, `MaceAttect`, `MaceDMG`, `AutoMineModule`, `AutoShulkerBox`, `SpearKill`.
+FIXED 2026-09-25: all copies now use the public `getSelectedSlot()/setSelectedSlot()` API —
+the Yarn-name reflection never resolved at runtime (intermediary), silently breaking slot
+reverts (root cause of the silent-swap bug, see `problems.md` §3).
 
 ### Packet primitives used
 

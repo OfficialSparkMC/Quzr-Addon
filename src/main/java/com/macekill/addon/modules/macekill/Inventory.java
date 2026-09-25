@@ -1,6 +1,5 @@
 package com.macekill.addon.modules.macekill;
 
-import java.lang.reflect.Field;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import net.minecraft.client.MinecraftClient;
@@ -8,7 +7,6 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.Items;
 
 public final class Inventory {
-    private static Field selectedSlotField;
     // When the mace was moved out of the main inventory into the hotbar, this is its
     // original slot so we can move it back after the attack. -1 means no swap happened.
     private static int lastMaceSwapSlot = -1;
@@ -83,27 +81,17 @@ public final class Inventory {
         return getSelectedSlot(mc.player.getInventory());
     }
 
+    // NOTE: public PlayerInventory.get/setSelectedSlot() API — never reflection.
+    // The old getDeclaredField("selectedSlot") lookup used the Yarn name, which does not
+    // exist at runtime (intermediary mappings), so it always failed in production: reads
+    // returned 0 and writes were silently dropped, breaking slot revert / silent swap.
     public static int getSelectedSlot(PlayerInventory inv) {
-        try {
-            ensureField();
-            return selectedSlotField.getInt(inv);
-        } catch (Exception e) {
-            return 0;
-        }
+        if (inv == null) return 0;
+        return inv.getSelectedSlot();
     }
 
     public static void setSelectedSlot(PlayerInventory inv, int slot) {
-        try {
-            ensureField();
-            selectedSlotField.setInt(inv, slot);
-        } catch (Exception ignored) {
-        }
-    }
-
-    private static void ensureField() throws NoSuchFieldException {
-        if (selectedSlotField == null) {
-            selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-            selectedSlotField.setAccessible(true);
-        }
+        if (inv == null || slot < 0 || slot > 8) return;
+        inv.setSelectedSlot(slot);
     }
 }

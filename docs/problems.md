@@ -59,9 +59,17 @@
 
 ## 3. Inventory / slot desync — HIGH
 
-13. **OPEN — reflection `PlayerInventory.selectedSlot`** (`Inventory.java` + 6 copies).
-    Private-field reflection breaks on mapping changes; Yarn already exposes accessors.
-    Fix: single helper using the public API, no reflection.
+13. **FIXED 2026-09-25 — reflection `PlayerInventory.selectedSlot` (ROOT CAUSE of the
+    silent-swap bug).** All 9 copies (`macekill/Inventory`, `TpMace`, `MaceAttect`, `MaceAura`,
+    `MaceBreakerPro`, `MaceDMG`, `AutoShulkerBox`, `AutoMineModule`, `SpearKill`) used
+    `getDeclaredField("selectedSlot")` with the Yarn name, which does not exist at runtime
+    (intermediary mappings) — so in production reads always returned 0 and writes were silently
+    dropped. Effects: silent-swap reverts sent slot 0 instead of the true original (server stuck
+    on the wrong slot after every smash), the "already holding mace" check read slot 0's stack
+    (could skip the slot packet → weak hit), and non-silent client switches never rendered.
+    Now uses the public `PlayerInventory.getSelectedSlot()/setSelectedSlot()` API (verified via
+    javap), which Loom remaps correctly — works in dev and production. Dead `Field` decls/imports
+    removed. (MaceAttect's dual-name packet-field reflection is unaffected — it already tries both.)
 14. **OPEN — `InvUtils.move()` is async** but `Combat.executeAttack`, `MaceAura.executeAttack`,
     `XinTpMace.onTick`, `MaceMissLite.doTpAura` attack in the same tick — server still sees the old
     item → no mace damage. Fix: defer attack 1–2 ticks after a backpack move.

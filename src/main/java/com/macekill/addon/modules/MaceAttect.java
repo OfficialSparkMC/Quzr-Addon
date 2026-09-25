@@ -36,7 +36,6 @@ import java.util.List;
  * your current position onto the hit entity) - no long-range teleport.
  */
 public class MaceAttect extends Module {
-    private static Field selectedSlotField;
     private static Field cachedTypeField;
     private static Object cachedAttackType;
     private static Field cachedEntityIdField;
@@ -842,26 +841,17 @@ public class MaceAttect extends Module {
 
     // ==================== 反射 ====================
 
+    // Public inventory API — the old getDeclaredField("selectedSlot") reflection used the
+    // Yarn name, which does not exist at runtime (intermediary), so reads returned 0 and
+    // silent-swap reverts sent the wrong slot. See macekill.Inventory.
     private int getSelectedSlot() {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            return selectedSlotField.getInt(mc.player.getInventory());
-        } catch (Exception e) {
-            return 0;
-        }
+        if (mc.player == null) return 0;
+        return mc.player.getInventory().getSelectedSlot();
     }
 
     private void setSelectedSlot(PlayerInventory inv, int slot) {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            selectedSlotField.setInt(inv, slot);
-        } catch (Exception ignored) {}
+        if (inv == null || slot < 0 || slot > 8) return;
+        inv.setSelectedSlot(slot);
     }
 
     private void setSlotClient(int slot) {

@@ -22,7 +22,6 @@ import net.minecraft.util.math.BlockPos.Mutable;
 import net.minecraft.world.World;
 
 import java.lang.management.ManagementFactory;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 
@@ -128,8 +127,6 @@ public class AutoMineModule extends Module {
     private final Map<BlockPos, Long> abandonBlacklist = new HashMap<>();
     private final Map<BlockPos, Long> dugPositions = new HashMap<>(); // 已挖掘位置, 1分钟过期
     private long lastOreMinedTime;
-
-    private static Field selectedSlotField;
 
     /* ==================== 构造 & 生命周期 ==================== */
     public AutoMineModule() {
@@ -1009,13 +1006,8 @@ public class AutoMineModule extends Module {
     }
 
     private void setSelectedSlot(PlayerInventory inv, int slot) {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            selectedSlotField.setInt(inv, slot);
-        } catch (Exception ignored) {}
+        if (inv == null || slot < 0 || slot > 8) return;
+        inv.setSelectedSlot(slot);
     }
 
     private boolean isPickaxe(Item i) {

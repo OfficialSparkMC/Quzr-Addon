@@ -75,6 +75,7 @@ Every code change that affects behavior, settings, modules, build, or known issu
    Rule from §4 applies: always commit, never push unless asked.
 
 ---
-*Last verified: 2026-09-25 — meteor-client depends widened to >=0.18.6 (exact pin blocked
-Meteor 1.21.11-86 at launch); always-commit rule; silent-swap revert fix + BurstHeights burst.*
+*Last verified: 2026-09-25 — slot reflection replaced with public API in all 9 files
+(root cause of silent-swap bug: Yarn name unresolvable at intermediary runtime); meteor-client
+depends >=0.18.6; always-commit rule; BurstHeights single-burst.*
 *Maintainer note: bump this line on every docs-syncing change.*

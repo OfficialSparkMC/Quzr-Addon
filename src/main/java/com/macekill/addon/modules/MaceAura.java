@@ -23,7 +23,6 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
-import java.lang.reflect.Field;
 import java.util.*;
 
 /**
@@ -38,7 +37,6 @@ import java.util.*;
  * - BlockPos.Mutable：减少 GC 压力
  */
 public class MaceAura extends Module {
-    private static Field selectedSlotField;
     private int maceSwapBackSlot = -1;
 
     /* ========== 设置 ========== */
@@ -349,23 +347,13 @@ public class MaceAura extends Module {
     }
 
     private int getSelectedSlot() {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            return selectedSlotField.getInt(mc.player.getInventory());
-        } catch (Exception e) { return 0; }
+        if (mc.player == null) return 0;
+        return mc.player.getInventory().getSelectedSlot();
     }
 
     private void setSelectedSlot(int slot) {
-        try {
-            if (selectedSlotField == null) {
-                selectedSlotField = PlayerInventory.class.getDeclaredField("selectedSlot");
-                selectedSlotField.setAccessible(true);
-            }
-            selectedSlotField.setInt(mc.player.getInventory(), slot);
-        } catch (Exception ignored) {}
+        if (mc.player == null || slot < 0 || slot > 8) return;
+        mc.player.getInventory().setSelectedSlot(slot);
     }
 
     @Override
