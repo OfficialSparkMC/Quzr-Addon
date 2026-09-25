@@ -20,7 +20,8 @@ To add a HUD element: it must extend Meteor's `HudElement`, not `Module` (note:
 | File | Type | Responsibility |
 |------|------|----------------|
 | `macekill/Config.java` | `record` | `(moveDistance, swingHand, autoTotem, syncClientPos, enableArmorDestroy, ignoreArmorValue, destroyHeights, killHeights)` — passed to `Combat.executeAttack` |
-| `macekill/Combat.java` | static util | `executeAttack`, `findVclipHole`, `vclipSafe`, `needsArmorDestroy`, `parseHeights`, `getVclipClearance`, `totemBypassHeights`, dead `BypassRunner` |
+| `macekill/Combat.java` | static util | `executeAttack`, `findVclipHole`, `vclipSafe`, `needsArmorDestroy`, `parseHeights`, `getVclipClearance`, `worldTop`, `totemBypassHeights`, dead `BypassRunner` |
+| `macekill/BurstHeights.java` | static util | Single-burst totem lists `SPREAD/LIST/INCREMENTAL` (`build`), pierce ceiling, 198 cap, strictly increasing |
 | `macekill/Movement.java` | static util | `doTpTo`, `sendMovePacket`, `sendRotations`, `sendSlotPacket`, `attackEntity` |
 | `macekill/Inventory.java` | static util + static `lastMaceSwapSlot` | `switchToMace`, `switchBack`, `findTotemSlot`, `ensureTotem`, reflection `selectedSlot` access |
 | `macekill/Targeting.java` | static util | `findBestTarget(mc, range, filter, priority)`, `predictPosition`, `isSafeBlock` |

@@ -1,6 +1,7 @@
 package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
+import com.macekill.addon.modules.macekill.BurstHeights;
 import com.macekill.addon.modules.macekill.Combat;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -112,8 +113,8 @@ public class TpMace extends Module {
     );
 
     private final Setting<DrainMode> drainMode = sgTotem.add(new EnumSetting.Builder<DrainMode>()
-            .name("Drain Mode").description("List: use custom height list | Incremental: base + step per hit")
-            .defaultValue(DrainMode.LIST).visible(totemBypass::get).build()
+            .name("Drain Mode").description("Spread: even heights to pop N totems | List: custom list, extended upward | Incremental: base + step per hit")
+            .defaultValue(DrainMode.SPREAD).visible(totemBypass::get).build()
     );
 
     private final Setting<List<String>> drainHeights = sgTotem.add(new StringListSetting.Builder()
@@ -213,15 +214,12 @@ public class TpMace extends Module {
     @Override
     public void onDeactivate() {
         // Restore a swapped-in mace before clearing state, otherwise the inventory is left rearranged.
-        if (maceSwapBackSlot >= 0 && originalSlot >= 0 && mc.player != null) {
+        if (maceSwapBackSlot >= 0 && originalSlot >= 0 && mc.player != null && mc.interactionManager != null) {
             InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
             maceSwapBackSlot = -1;
         }
         // Revert a pending silent-swap server selection so the slot stays in sync.
-        if (silentRevertSlot >= 0 && originalSlot >= 0 && mc.getNetworkHandler() != null) {
-            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
-            silentRevertSlot = -1;
-        }
+        revertSilentSwap();
         phase = Phase.IDLE;
         target = null;
         originalPos = null;
@@ -283,26 +281,28 @@ public class TpMace extends Module {
                 totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
                 // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
                 // MUST land in a single tick (one mace smash) or the target always survives.
-                // We pierce any roof, so the only real limit is the world top. Cap the heights to the
-                // headroom above the target (worldTop - targetY) so the fall never collapses onto the
-                // 318 cap and every hit stays strictly greater than the last (even inside a cave, where
-                // we simply go up through the ceiling).
-                int maxH = (int) Math.min(Combat.MAX_TOTEM_HITS, 317 - target.getY());
+                // We pierce any roof (world top is the only limit), so this works inside caves:
+                // the ascent/descent steps jump past ceiling blocks instead of landing in them.
+                int maxH = Math.min(Combat.MAX_TOTEM_HITS,
+                    Combat.worldTop(mc) - (int) Math.floor(target.getY()) - 1);
                 if (maxH < 8) maxH = 8;
-                List<String> all = Combat.totemBypassHeights(totems, maxH);
+                List<Integer> all = BurstHeights.build(totems, maxH, burstMode(),
+                    drainHeights.get(), baseDrainHeight.get(), heightIncrement.get());
                 if (all.isEmpty()) {
                     error("Failed to build totem-bypass hit list.");
                 } else if (all.size() < totems + 1) {
                     error("Can only pop ~%d totems here", all.size() - 1);
                 }
+                warnBurstPackets(all);
                 boolean first = true;
-                for (String hStr : all) {
-                    int h = parseHeight(hStr);
-                    if (h > 0) {
-                        attackOnce(target, h, first);
-                        first = false;
-                    }
+                for (int h : all) {
+                    attackOnce(target, h, first);
+                    first = false;
                 }
+                // Silent-swap fix: revert the server slot IMMEDIATELY after the burst.
+                // The old code waited until resetState() after the 3-tick RETURN_DELAY, leaving
+                // the server on the mace while the client showed the original item.
+                revertSilentSwap();
                 finishAttack();
                 return;
             }
@@ -350,7 +350,7 @@ public class TpMace extends Module {
     // Only the FIRST hit of a totem-bypass burst needs this - re-sending it on every hit wastes the
     // per-tick move-packet budget and causes later hits to be dropped (so only the first totem pops).
     private void attackOnce(LivingEntity target, int height, boolean primeFall) {
-        if (mc.player == null || height < 1) return;
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null || height < 1) return;
 
         // Pierce straight up through any roof. Position packets are NOT collision-checked, so the
         // player teleports through solid blocks. Crucially, the up/down must run in a column with
@@ -585,11 +585,8 @@ public class TpMace extends Module {
     }
 
     private void resetState() {
-        if (silentRevertSlot >= 0 && mc.getNetworkHandler() != null) {
-            // Revert the server-side slot selection done for a silent swap so the swap is invisible.
-            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
-            silentRevertSlot = -1;
-        }
+        // Safety net — the burst path already reverts immediately after the last hit.
+        revertSilentSwap();
         if (maceSwapBackSlot >= 0 && mc.player != null && mc.interactionManager != null) {
             swapMace(maceSwapBackSlot, originalSlot);
             maceSwapBackSlot = -1;
@@ -602,9 +599,38 @@ public class TpMace extends Module {
         lastSentZ = 0;
         target = null;
         originalPos = null;
+        originalSlot = -1;
+        maceSlot = -1;
         silentRevertSlot = -1;
         bypassHeights = null;
         bypassIdx = 0;
+    }
+
+    // Silent-swap revert, extracted so the burst reverts IMMEDIATELY after the last hit
+    // instead of waiting for resetState() after the 3-tick RETURN_DELAY (during which the
+    // server held the mace while the client showed the original item).
+    private void revertSilentSwap() {
+        if (silentRevertSlot >= 0 && mc.getNetworkHandler() != null) {
+            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
+            silentRevertSlot = -1;
+        }
+    }
+
+    private BurstHeights.Mode burstMode() {
+        if (drainMode.get() == DrainMode.LIST) return BurstHeights.Mode.LIST;
+        if (drainMode.get() == DrainMode.INCREMENTAL) return BurstHeights.Mode.INCREMENTAL;
+        return BurstHeights.Mode.SPREAD;
+    }
+
+    // A 198-hit burst is thousands of move packets in ONE tick — only feasible on servers
+    // without packet limits. Estimate and warn so users raise Move Step (fewer steps per
+    // ascent) instead of getting kicked for spam.
+    private void warnBurstPackets(List<Integer> heights) {
+        if (heights.size() < 10) return;
+        double step = Math.max(1.0, Math.min(moveDistance.get(), 99));
+        long total = 0;
+        for (int h : heights) total += 2L * (long) Math.ceil(h / step) + 2;
+        if (total > 1500) warning("Burst of %d hits ≈ %d packets in one tick — raise Move Step or expect a kick", heights.size(), total);
     }
 
     // ==================== 武器切换 ====================
@@ -665,6 +691,7 @@ public class TpMace extends Module {
         maceSlot = originalSlot;
         maceSwapBackSlot = src;
         // Make sure the server selects the slot that now holds the mace.
+        if (mc.getNetworkHandler() == null) return false;
         mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
         noMaceWarned = false;
         return true;
@@ -673,7 +700,9 @@ public class TpMace extends Module {
     // Swap the mace (any inventory slot) into the selected hotbar slot using a real click-slot SWAP,
     // which works even when the mace is not in the hotbar.
     private void swapMace(int invSlot, int hotbarSlot) {
-        if (mc.player == null) return;
+        if (mc.player == null || mc.interactionManager == null) return;
+        if (hotbarSlot < 0 || hotbarSlot > 8) return;
+        if (invSlot < 0 || invSlot >= mc.player.getInventory().size()) return;
         int screenSlot = invSlot;
         if (invSlot >= 36 && invSlot <= 39) screenSlot = invSlot - 31; // armor -> 5..8
         else if (invSlot == 40) screenSlot = 45; // offhand
@@ -852,6 +881,7 @@ public class TpMace extends Module {
     }
 
     private enum DrainMode {
+        SPREAD,
         LIST,
         INCREMENTAL
     }

@@ -27,9 +27,11 @@
   swapMace/getYawTo/getPitchTo` are ~95% identical. Same for `getDrainHeights/parseHeight/countTotems`
   ×5 files, `getSelectedSlot/setSelectedSlot` ×7 files, totem-bypass prologue ×5 files.
   Fix: move to `macekill/` (`SmashEngine`, `WeaponSwap`, `Heights`) and delete copies.
-- `Combat.BypassRunner` (`Combat.java:186-210`) is never instantiated — dead. So are hidden
-  `Single Tick` / `Hits Per Tick` settings in 4 modules and `Air Check` in TpMace, `NoFall` in
-  SpearKill, `bypassRunner/bypassTarget/bypassHeights/bypassIdx/preHealth/freeCooldown` fields in several.
+- `Combat.BypassRunner` (`Combat.java`) is never instantiated — dead. `Totem Attacks` /
+  `getDrainHeights()` in TpMace/MaceAttect are superseded by `BurstHeights` single-burst
+  (fixed 2026-09-25: `Drain Mode` now `SPREAD`(default)/`LIST`/`INCREMENTAL`, all wired).
+  Still dead: hidden `Single Tick` / `Hits Per Tick` settings, `Air Check` in TpMace,
+  `NoFall` in SpearKill, `bypassRunner/bypassTarget/bypassHeights/bypassIdx` fields.
 
 ## 2. Movement / teleport bugs — CRITICAL/HIGH
 
@@ -40,9 +42,10 @@
 8. **FIXED 2026-09-25 — `AutoRise.java`.** First packet is now `(posX, posY+h, posZ)` (was `posX+h`).
 9. **OPEN — `Combat.java` height loop.** `findVclipHole` scanned from player pos by design
    (VClip straight up, then drop onto target); `basePos` reuse matches that design. Left as-is.
-10. **PARTIALLY FIXED 2026-09-25 — hardcoded world top.** `Combat` now uses `worldTop(mc)` =
-    `world.getTopYInclusive()` with 319 fallback; `getVclipClearance` uses `Math.floor(target.getY())`.
-    `MaceAura/TpMace/MaceAttect` still hardcode 319/318/317 — unify next.
+10. **PARTIALLY FIXED 2026-09-25 — hardcoded world top.** `Combat` uses `worldTop(mc)` =
+    `world.getTopYInclusive()` with 319 fallback; `getVclipClearance` uses `Math.floor(target.getY())`;
+    TpMace/MaceAttect totem bursts use the pierce ceiling (`worldTop - targetY`, cave-proof).
+    `MaceAura` scan and non-burst `getAttackHeight` paths still hardcode caps — unify next.
 11. **OPEN — `TpMace.findDropColumn` / `MaceAttect.findDropColumn`.**
     Scans `isAir()` only — leaves, fluids, cobwebs counted as blocked while `vclipSafe` allows leaves.
     Inconsistent with `Combat.vclipSafe`. Unify predicate.
@@ -61,8 +64,13 @@
 15. **FIXED 2026-09-25 — `AutoShulkerBox.setSelectedSlot`.** Now validates slot range and sends
     `UpdateSelectedSlotC2SPacket` so server/client stay in sync.
 16. **PARTIALLY FIXED 2026-09-25 — `swapMace` / silent-swap.** `TpMace`/`MaceAttect`
-    `onDeactivate`/`resetState`/`switchTo` now null-guard `player`/`networkHandler`/`interactionManager`
-    and slot range. Screen-slot math itself unchanged.
+    `onDeactivate`/`resetState`/`switchTo` null-guard `player`/`networkHandler`/`interactionManager`
+    and slot range; `swapMace` validates both slots. Found 2026-09-25 — the SILENT-SWAP BUG:
+    the revert waited in `resetState()` until after the 3-tick `RETURN_DELAY`, so for 3 ticks
+    the server held the mace while the client showed the original item (wrong-item interacts,
+    anticheat slot desync). Both modules now call `revertSilentSwap()` immediately after the
+    burst loop; `resetState`/`onDeactivate` keep it as a safety net, and `resetState` also
+    clears stale `originalSlot`/`maceSlot`. Screen-slot math itself unchanged.
 17. **FIXED 2026-09-25 — silent-swap revert NPE.** Guarded by `networkHandler != null` in both modules.
 
 ## 4. Combat correctness — HIGH

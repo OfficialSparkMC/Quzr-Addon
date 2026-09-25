@@ -58,6 +58,9 @@ Every code change that affects behavior, settings, modules, build, or known issu
 - Do **not** "fix" cheat modules into silent/ban-evading variants — report risks honestly in `problems.md`.
 - Prefer deduplication: new smash/target/slot logic belongs in `macekill/` helpers, not a 6th copy.
 - Keep `docs/` profanity-free (unlike the root `README.md`, which agents must not emulate).
+- **Always commit.** Every code/docs change ends in a git commit on `main` (see §5 step 7).
+  Never leave fixes uncommitted. Stage only intended files (`git status`, `git diff --stat`
+  first); never commit secrets. Push only when the owner explicitly asks for it.
 
 ## 5. Suggested workflow
 
@@ -67,9 +70,11 @@ Every code change that affects behavior, settings, modules, build, or known issu
 4. Update the docs tables/sections per §2; fix line numbers.
 5. Run `wc -l` on touched files + `./gradlew build` if toolchain present.
 6. Complete the §3 checklist in your final summary, listing docs files changed.
+7. **Commit on `main`.** `git status --short` → `git add <intended files + docs/>` →
+   `git commit -m "<summary + bullet list>"`. Verify with `git log --oneline -3`.
+   Rule from §4 applies: always commit, never push unless asked.
 
 ---
-*Last verified: 2026-09-25 — bugfix commit (doTpTo interpolation, AutoRise Y, MaceMissLite clearance,
-Mutable-key, NPE guards, Shulker slot sync, Breaker instanceof, Hitback range, MaceDMG blocks,
-jar rename, fabric.mod.json pins, SpearKill queue cap).*
+*Last verified: 2026-09-25 — always-commit rule (§4 + §5 step 7); silent-swap revert fix +
+BurstHeights single-burst (SPREAD/LIST/INCREMENTAL, 198 cap, pierce ceiling) in TpMace/MaceAttect.*
 *Maintainer note: bump this line on every docs-syncing change.*

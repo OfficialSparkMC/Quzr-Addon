@@ -40,7 +40,15 @@ Settings: `Range(20)`, `Move Step(8)`, `Fall Packets(4)`, `Attack Delay(10)`, `A
 
 Flow: `IDLE → DELAY(3t) → RETURN_DELAY(3t)`. `tickIdle` respects `firstAttack` fast path,
 `freeCooldown` after unhittable, `checkAndSwapWeapon` (3-way: held/hotbar/inventory-swap),
-then full-list single-tick burst or single `getAttackHeight()` hit. Core is
+then single-burst totem smash or single `getAttackHeight()` hit. Totem heights come from
+`macekill/BurstHeights.build` — `Drain Mode` `SPREAD` (even spread, default), `LIST`
+(custom `Drain Heights`, extended upward to fill the burst), `INCREMENTAL`
+(`Base Drain Height + i*Height Increment`); `Totems To Pop(1-198)` sets burst size
+(+3 margin, capped at 198 hits). Ceiling is the pierce ceiling
+(`Combat.worldTop - targetY`), so bursts work under caves/roofs; a packet estimate warns
+above ~1500 packets/tick (raise `Move Step` for big bursts). Silent swap reverts
+**immediately after the burst** (fixed 2026-09-25 — was deferred 3 ticks, desyncing
+server/client slots). Core is
 `attackOnce(target,height,primeFall)`: `findDropColumn` (nearest clear ±2.5-block column),
 rotation pkt, `fallPackets` prime, `stepMove` up + `stepMoveDown` (block-skipping descent),
 `sendAttack`. `returnToStart` damage-checks (`preHealth` vs now) and either stepped-return or
@@ -52,7 +60,9 @@ Same smash as TpMace but **triggered, not auto-targeting**. Listens to `AttackEn
 (reflective `entity` field), `PacketEvent.Send` attack packets (yarn+intermediary field names
 `type/field_12871`, `ATTACK/field_29170`, `entityId/field_12870`), plus static
 `request(LivingEntity)` for other modules. Filters: `Players/Entities/Through Walls/Ignore Named/List Mode`.
-Phases `IDLE → SMASH → RETURN_DELAY`. `runSmash`/`attackOnce`/`stepMove`/`stepMoveDown`/
+Phases `IDLE → SMASH → RETURN_DELAY`. Totem burst, `Drain Mode` (`SPREAD`/`LIST`/`INCREMENTAL`),
+pierce ceiling, packet estimate, and immediate silent revert are identical to TpMace
+(fixed 2026-09-25). `runSmash`/`attackOnce`/`stepMove`/`stepMoveDown`/
 `findDropColumn`/`returnToStart` are line-for-line cousins of TpMace.
 
 ## xintpmace — `modules/XinTpMace.java` (255 lines)
