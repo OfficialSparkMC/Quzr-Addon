@@ -1,3 +1,3 @@
-## Qazr-Meteor-Addon 0.1
+# Qazr-Meteor-Addon 0.1
 
-# minecraft meteor addon
+minecraft meteor addon
