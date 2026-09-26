@@ -3,11 +3,13 @@
   "id": "qazr-addons",
   "version": "${version}",
   "name": "Qazr Addons",
-  "description": "Qazr1234 的 Meteor 插件集合 - 矿物追踪、重锤杀戮等功能",
+  "description": "Meteor Addon",
   "authors": [
-    "Qazr1234"
+    "Qazr1234",
+    "Turbo"
   ],
   "environment": "client",
+  "icon": "assets/icons/icon.png",
   "entrypoints": {
     "meteor": [
       "com.macekill.addon.MaceKillAddon"

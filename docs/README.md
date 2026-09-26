@@ -16,10 +16,11 @@ read `src/main/java/**` instead.
 | `modules-mace.md` | All mace / spear combat modules, settings, packet flow |
 | `modules-other.md` | Movement, automation, chat, creative, HUD modules |
 | `build.md` | Java 21 + Fabric Loom build, `fabric.mod.json`, version bump |
+| `commands.md` | Client chat commands (`.tp <player>`) |
 | `problems.md` | Full code-health / bug / ban-risk report with `file:line` refs |
 | `ai-agents.md` | **Mandatory instructions for any AI agent editing this repo** |
 
-## Quick start for humans
+## Quick start for Human()
 
 1. Read `overview.md` for the module list.
 2. Read `architecture.md` before touching `macekill/Combat.java`, `Movement.java`, `Inventory.java`.
