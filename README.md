@@ -1,6 +1,6 @@
 # Qazr-Meteor-Addon 0.1 (*Alpha*)
 
-![Icon](assets/icons/icon.png)
+![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
 
 minecraft meteor addon
 
