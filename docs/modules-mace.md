@@ -44,7 +44,13 @@ then single-burst totem smash or single `getAttackHeight()` hit. Totem heights c
 `macekill/BurstHeights.build` (fractional doubles) — `Drain Mode` `SPREAD` (even spread,
 default), `LIST` (custom `Drain Heights`, extended upward to fill the burst), `INCREMENTAL`
 (`Base Drain Height + i*Height Increment`); `Totems To Pop(1-198)` sets burst size
-(+3 margin, capped at 198 hits); `Height Step(1.0, 0.25-2.0)` sets minimum separation —
+(+3 margin, capped at 198 hits). NOTE: it pops at most what the enemy actually holds —
+~37 is a full legit inventory, so 64/198 only matters vs totem-refill cheats, and then
+across several bursts, not one. `Detect Totem` shrinks the burst to their visible count
++3, so leave it on unless they stash totems out of hand. Big-burst tuning: `Height Step:
+0.5`, `Move Step: 16-32` (fewer packets per hit — the #1 cause of bursts stalling partway
+is the server dropping excess same-tick packets or rubberbanding an over-cap jump, after
+which later hits land with no fall). `Height Step(1.0, 0.25-2.0)` sets minimum separation —
 0.5/0.25 packs a 198-burst into ~50-100 blocks instead of ~200 (fewer packets, fits low
 roofs; server fall is float so escalation still holds). Ceiling is the pierce ceiling
 (`Combat.worldTop - targetY`), so bursts work under caves/roofs; the drop column is

@@ -515,10 +515,13 @@ public class MaceAttect extends Module {
         }
     }
 
-    // Step DOWN from (x, fromY, z) to (x, toY, z) in <= moveDistance increments. If a step would
-    // land the player's hitbox inside a solid block (e.g. a cave ceiling), jump straight past it to
-    // the first clear Y below (a thin skip). No packet ever lands inside a block and no single move
-    // exceeds the server's per-packet cap, so the fake fall is preserved under any roof.
+    // Step DOWN from (x, fromY, z) to (x, toY, z) in <= moveDistance increments, picked by
+    // ROOF SIZE: thin roofs (clear within one step below) are jumped past so no packet lands
+    // inside a block (landing inside resets the server's fall and kills the smash bonus);
+    // thick rock is passed THROUGH in-cap steps instead. The old code allowed one up-to-100
+    // block skip packet here, which trips "moved too quickly": the server snaps you back and
+    // every later burst hit cascades into no-fall weak hits (bursts stalling partway). Every
+    // packet below stays in-cap; intermediate in-rock positions never tick, so vanilla-safe.
     private void stepMoveDown(double x, double fromY, double toY, double z) {
         double step = Math.min(moveDistance.get(), 99);
         double y = fromY;
@@ -528,10 +531,10 @@ public class MaceAttect extends Module {
             if (next < toY) next = toY;
             if (hitboxBlocked(x, next, z)) {
                 double clear = firstClearBelow(x, next, z, toY);
-                if (clear > toY && (y - clear) <= 100) {
-                    y = clear;
+                if (clear > toY && (y - clear) <= step + 1e-6) {
+                    y = clear; // thin roof: skip past it, still one in-cap packet
                 } else {
-                    y = next;
+                    y = next; // thick rock: straight through, in-cap (vanilla-safe)
                 }
             } else {
                 y = next;

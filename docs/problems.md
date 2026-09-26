@@ -60,6 +60,12 @@
 12. **FIXED 2026-09-25 — `Rise.java`.** Removed unreachable
     `if (!bypass.get() && delayTicks > 0) return;`. Note: `Bypass` setting is now unused
     (kept for config compat).
+12b. **FIXED 2026-09-25 — descent skip uncapped (`TpMace`/`MaceAttect.stepMoveDown`).**
+    The ceiling-skip allowed one up-to-100-block packet, tripping "moved too quickly":
+    the server snaps you back and every later burst hit cascades into no-fall weak hits,
+    which is exactly bursts stalling partway (~15 hits in, rest whiffed). Skips now fire
+    only when they fit in one step (thin roofs); thick rock is passed through in-cap —
+    every packet stays within the move cap on vanilla.
 
 ## 3. Inventory / slot desync — HIGH
 
