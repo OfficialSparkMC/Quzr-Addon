@@ -1,6 +1,40 @@
 # Qazr-Meteor-Addon 0.1 (*Alpha*)
 
 ![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
+minecraft meteor addon, made by Qazr. mostly mace pvp stuff plus some handy utilities.
+
+
+## Features
+
+**Mace combat**
+- TpMace — teleports to the target and smashes down with the mace, works underground too
+- MaceAttect — same smash but it triggers when YOU hit someone, no auto targeting
+- MaceAura / macemiss / MaceMissLite — auto-attack nearby players with the mace
+- Totem bypass — pops stacked totems, first in one big burst then keeps going one by one until they die
+- MaceBreakerPro — axe + mace combo that breaks shields
+- MaceDMG — fakes extra fall height for bigger mace hits
+
+**Movement**
+- PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat
+- Rise / Speed / AutoRise — quick vertical movement tricks
+- AdvancedNoFall — never take fall damage, doesn't mess with your mace smashes
+- FreecamTp — fly the freecam somewhere, right click, you're there
+
+**Automation**
+- OreTracker — finds ores nearby and digs its way to them by itself
+- AutoShulkerBox — places and breaks shulkers over and over for farming
+- ItemGiver / PotionGiver — spawn custom gear and potions in creative mode
+- AutoTotemToHotbar — keeps a totem in your hotbar slot
+- MassTpa / auto-tpa-reject — tpa spam and auto deny
+- Hitback — auto hits back whoever hits you
+
+**Chat stuff**
+- auto-gg — sends a gg message when you kill someone
+- auto-msg — messages players automatically
+- NearestPlayerHUD — shows the closest player and how far they are
+> heads up: most of the combat and movement stuff sends weird packets, so only use
+> it on servers where that's allowed. you will get banned anywhere with anticheat.
+
 
 ## Installation
 
