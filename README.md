@@ -60,3 +60,6 @@ To build again:
 ```bash
 ./gradlew build
 ```
+
+## Official *discord* server:
+https://discord.gg/M389NKHFY
