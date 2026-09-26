@@ -9,7 +9,7 @@
     "Turbo"
   ],
   "environment": "client",
-  "icon": "assets/macekill/icon.png",
+  "icon": "assets/icons/icon.png",
   "entrypoints": {
     "meteor": [
       "com.macekill.addon.MaceKillAddon"
