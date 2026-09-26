@@ -419,9 +419,10 @@ public class MaceAttect extends Module {
         sustainHit = sustainHit && target == sustainTarget && sustainLeft > 0;
 
         if (totemBypass.get() && target instanceof PlayerEntity p
-                && (!detectTotem.get() || targetHasTotem(p))) {
+                && (!detectTotem.get() || targetHasTotem(p) || sustainHit)) {
             // Sustained chain: single lethal per trigger for stacked totems the burst
-            // couldn't finish — no escalation needed.
+            // couldn't finish — no escalation needed. sustainHit also carries the target
+            // past Detect Totem blindness (hands empty but chain armed = totems known).
             if (sustainHit) {
                 sustainedSingle(p);
                 return;

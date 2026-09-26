@@ -76,6 +76,7 @@ Every code change that affects behavior, settings, modules, build, or known issu
    Rule from §4 applies: always commit, never push unless asked.
 
 ---
-*Last verified: 2026-09-25 — Sustained Drain chain for stacked totems (TpMace/MaceAttect);
-descent skip capped; cave reliability; durability guard; PlayerTp/.tp; NoFall; slot fix.*
+*Last verified: 2026-09-25 — sustained chain survives Detect blindness (isChainedTarget);
+Sustained Drain chain; descent skip capped; cave reliability; durability guard; PlayerTp/.tp;
+NoFall; slot fix.*
 *Maintainer note: bump this line on every docs-syncing change.*

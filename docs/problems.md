@@ -70,7 +70,10 @@
     A single burst can't exceed reality (actual held totems) and stalls under server mace-
     damage caps or packet drops. New chain: after an unfinished burst the module keeps one
     lethal single per 22 ticks (past hurt invuln, no escalation needed) until death or
-    `Max Sustained Hits`. This is the intended tool for 20-stacks/refill inventories.
+    `Max Sustained Hits`. FIXED 2026-09-25 (2nd pass): the chain used to die as soon as the
+    enemy's *visible* totems emptied, because `Detect Totem` only ever sees hands — the
+    client never receives a full enemy inventory (protocol blindness). An armed chain now
+    continues regardless of visibility (`isChainedTarget` / `sustainHit` gate the branch).
 
 ## 3. Inventory / slot desync — HIGH
 

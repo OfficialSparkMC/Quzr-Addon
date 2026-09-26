@@ -318,11 +318,11 @@ public class TpMace extends Module {
 
         try {
             if (totemBypass.get() && target instanceof PlayerEntity p
-                    && (!detectTotem.get() || targetHasTotem(p))) {
+                    && (!detectTotem.get() || targetHasTotem(p) || isChainedTarget(p))) {
                 // Sustained chain: the burst already ran on this target and it survived
                 // (stacked totems past a damage cap / dropped packets) — one lethal single
                 // per invuln window, no escalation needed.
-                if (sustainedDrain.get() && target == sustainTarget && sustainLeft > 0) {
+                if (isChainedTarget(p)) {
                     sustainedSingle(p);
                     return;
                 }
@@ -750,6 +750,15 @@ public class TpMace extends Module {
         }
         if (mace == null || !mace.isDamageable()) return Integer.MAX_VALUE;
         return mace.getMaxDamage() - mace.getDamage();
+    }
+
+    // An armed sustained chain continues even when no totem is currently VISIBLE on the
+    // target: the client never receives a full enemy inventory (main-inventory totems are
+    // protocol-invisible, Detect Totem only ever sees hands), so detection goes blind once
+    // hands empty — but we KNOW this target had stacked totems when the burst armed the chain.
+    private boolean isChainedTarget(PlayerEntity p) {
+        return sustainedDrain.get() && p == sustainTarget && sustainLeft > 0
+            && System.nanoTime() - sustainArmedAt <= SUSTAIN_TTL_NANOS;
     }
 
     // Sustained drain: one full-height lethal single per invuln window for stacked-totem
