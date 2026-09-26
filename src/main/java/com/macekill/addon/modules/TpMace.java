@@ -364,6 +364,7 @@ public class TpMace extends Module {
                     sustainTarget = target;
                     sustainLeft = maxSustainedHits.get();
                     sustainArmedAt = System.nanoTime();
+                    info("Sustained drain armed ×%d (%s) — singles every 22 ticks", sustainLeft, target.getName().getString());
                 }
                 finishAttack();
                 return;
@@ -777,7 +778,8 @@ public class TpMace extends Module {
         sustainLeft--;
         sustainCooldown = SUSTAIN_DELAY;
         if (sustainLeft <= 0 || !target.isAlive()) sustainTarget = null;
-        info("Sustained drain: %d left (%s)", Math.max(0, sustainLeft), p.getName().getString());
+        if (sustainTarget == null) info("Sustained drain finished (%s)", p.getName().getString());
+        else info("Sustained drain: %d left (%s)", sustainLeft, p.getName().getString());
         finishAttack();
     }
 
