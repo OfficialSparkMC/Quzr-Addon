@@ -66,6 +66,11 @@
     which is exactly bursts stalling partway (~15 hits in, rest whiffed). Skips now fire
     only when they fit in one step (thin roofs); thick rock is passed through in-cap —
     every packet stays within the move cap on vanilla.
+12c. **Stacked totems (20/slot) outlasting the burst — `Sustained Drain` (TpMace/MaceAttect).**
+    A single burst can't exceed reality (actual held totems) and stalls under server mace-
+    damage caps or packet drops. New chain: after an unfinished burst the module keeps one
+    lethal single per 22 ticks (past hurt invuln, no escalation needed) until death or
+    `Max Sustained Hits`. This is the intended tool for 20-stacks/refill inventories.
 
 ## 3. Inventory / slot desync — HIGH
 

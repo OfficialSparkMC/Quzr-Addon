@@ -153,6 +153,17 @@ public class TpMace extends Module {
             .visible(totemBypass::get).build()
     );
 
+    private final Setting<Boolean> sustainedDrain = sgTotem.add(new BoolSetting.Builder()
+            .name("Sustained Drain").description("After a burst that couldn't finish stacked totems (server damage cap / dropped packets), keep popping one per 22 ticks until the target dies or Max Sustained Hits runs out. No escalation needed — each hit only must be lethal on its own")
+            .defaultValue(true).visible(totemBypass::get).build()
+    );
+
+    private final Setting<Integer> maxSustainedHits = sgTotem.add(new IntSetting.Builder()
+            .name("Max Sustained Hits").description("Cap for sustained follow-up hits after the burst")
+            .defaultValue(40).min(1).max(200).sliderMax(200)
+            .visible(() -> totemBypass.get() && sustainedDrain.get()).build()
+    );
+
     private final Setting<Boolean> singleTick = sgTotem.add(new BoolSetting.Builder()
             .name("Single Tick").description("Totem bypass always fires the whole hit list in one mace smash (required to beat AutoTotem, which re-equips between ticks)")
             .defaultValue(true).visible(() -> false).build()
@@ -205,6 +216,15 @@ public class TpMace extends Module {
     private float preHealth;
     private int freeCooldown = 0;
     private boolean firstAttack = true;
+    // Sustained-drain chain: after a burst that couldn't finish stacked totems, keep
+    // popping one per invuln window. Survives resetState (cleared only on deactivate,
+    // target change, expiry, or exhaustion).
+    private LivingEntity sustainTarget;
+    private int sustainLeft;
+    private int sustainCooldown;
+    private long sustainArmedAt;
+    private static final int SUSTAIN_DELAY = 22;
+    private static final long SUSTAIN_TTL_NANOS = 120_000_000_000L;
 
     public TpMace() {
         super(MaceKillAddon.CATEGORY, "TpMace", "Long-range mace - TP teleport+totem bypass+silent swap");
@@ -240,6 +260,10 @@ public class TpMace extends Module {
         freeCooldown = 0;
         bypassHeights = null;
         bypassIdx = 0;
+        sustainTarget = null;
+        sustainLeft = 0;
+        sustainCooldown = 0;
+        sustainArmedAt = 0;
     }
 
     // ==================== Tick ====================
@@ -270,8 +294,21 @@ public class TpMace extends Module {
             return;
         }
 
+        // Sustained-drain pacing: one single per 22 ticks (past hurt invuln).
+        if (sustainCooldown > 0) {
+            sustainCooldown--;
+            return;
+        }
+
         target = findTarget();
         if (target == null) return;
+        // Chain belongs to one target for 120s max — a new target (or stale chain)
+        // starts over with a full burst instead of lone singles.
+        if (target != sustainTarget || !sustainedDrain.get()
+                || System.nanoTime() - sustainArmedAt > SUSTAIN_TTL_NANOS) {
+            sustainTarget = null;
+            sustainLeft = 0;
+        }
 
         if (!checkAndSwapWeapon()) return;
         originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
@@ -282,6 +319,13 @@ public class TpMace extends Module {
         try {
             if (totemBypass.get() && target instanceof PlayerEntity p
                     && (!detectTotem.get() || targetHasTotem(p))) {
+                // Sustained chain: the burst already ran on this target and it survived
+                // (stacked totems past a damage cap / dropped packets) — one lethal single
+                // per invuln window, no escalation needed.
+                if (sustainedDrain.get() && target == sustainTarget && sustainLeft > 0) {
+                    sustainedSingle(p);
+                    return;
+                }
                 int totems = totemsToPop.get();
                 if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
                 totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
@@ -314,6 +358,13 @@ public class TpMace extends Module {
                 // The old code waited until resetState() after the 3-tick RETURN_DELAY, leaving
                 // the server on the mace while the client showed the original item.
                 revertSilentSwap();
+                // Arm the sustained chain so stacked totems the burst couldn't finish
+                // (server damage cap, dropped packets) keep popping one per 22 ticks.
+                if (sustainedDrain.get() && target.isAlive() && maxSustainedHits.get() > 0) {
+                    sustainTarget = target;
+                    sustainLeft = maxSustainedHits.get();
+                    sustainArmedAt = System.nanoTime();
+                }
                 finishAttack();
                 return;
             }
@@ -675,7 +726,17 @@ public class TpMace extends Module {
     // Warn before the burst instead of snapping the mace mid-fight (Unbreaking, e.g. via
     // ItemGiver, divides the loss; Detect Totem + a sane Totems To Pop shrinks the burst).
     private void checkMaceDurability(int hits) {
-        if (mc.player == null || hits < 10) return;
+        if (hits < 10) return;
+        int left = maceDurabilityLeft();
+        if (left == Integer.MAX_VALUE) return;
+        if (left < hits) {
+            error("Mace has %d durability left but the burst needs ~%d hits — it may break! Lower Totems To Pop / enable Detect Totem, or add Unbreaking via ItemGiver.", left, hits);
+        }
+    }
+
+    // Remaining durability of the mace we are smashing with (MAX_VALUE if unassessable).
+    private int maceDurabilityLeft() {
+        if (mc.player == null) return Integer.MAX_VALUE;
         PlayerInventory inv = mc.player.getInventory();
         ItemStack mace = null;
         if (maceSlot >= 0 && maceSlot < inv.size() && inv.getStack(maceSlot).isOf(Items.MACE)) {
@@ -687,11 +748,28 @@ public class TpMace extends Module {
                 if (inv.getStack(i).isOf(Items.MACE)) { mace = inv.getStack(i); break; }
             }
         }
-        if (mace == null || !mace.isDamageable()) return;
-        int left = mace.getMaxDamage() - mace.getDamage();
-        if (left < hits) {
-            error("Mace has %d durability left but the burst needs ~%d hits — it may break! Lower Totems To Pop / enable Detect Totem, or add Unbreaking via ItemGiver.", left, hits);
+        if (mace == null || !mace.isDamageable()) return Integer.MAX_VALUE;
+        return mace.getMaxDamage() - mace.getDamage();
+    }
+
+    // Sustained drain: one full-height lethal single per invuln window for stacked-totem
+    // targets the burst couldn't finish. No escalation needed — each hit only must be
+    // lethal on its own, so server damage caps and dropped packets can't stall it.
+    private void sustainedSingle(PlayerEntity p) {
+        if (maceDurabilityLeft() < 3) {
+            error("Mace almost broken — stopping sustained drain.");
+            sustainTarget = null;
+            sustainLeft = 0;
+            finishAttack();
+            return;
         }
+        attackOnce(target, getAttackHeight(), true);
+        revertSilentSwap();
+        sustainLeft--;
+        sustainCooldown = SUSTAIN_DELAY;
+        if (sustainLeft <= 0 || !target.isAlive()) sustainTarget = null;
+        info("Sustained drain: %d left (%s)", Math.max(0, sustainLeft), p.getName().getString());
+        finishAttack();
     }
 
     // A 198-hit burst is thousands of move packets in ONE tick — only feasible on servers

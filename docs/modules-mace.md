@@ -50,7 +50,11 @@ across several bursts, not one. `Detect Totem` shrinks the burst to their visibl
 +3, so leave it on unless they stash totems out of hand. Big-burst tuning: `Height Step:
 0.5`, `Move Step: 16-32` (fewer packets per hit — the #1 cause of bursts stalling partway
 is the server dropping excess same-tick packets or rubberbanding an over-cap jump, after
-which later hits land with no fall). `Height Step(1.0, 0.25-2.0)` sets minimum separation —
+which later hits land with no fall). `Sustained Drain(on)` + `Max Sustained Hits(40)`: if a
+burst can't finish stacked totems (server mace-damage cap, dropped packets), the module arms
+a chain on that target and keeps popping one full-height lethal single per 22 ticks (past
+hurt invuln, no escalation needed) until death/exhaustion — this is what clears 20-stacks
+and refill inventories that outlast any single burst. `Height Step(1.0, 0.25-2.0)` sets minimum separation —
 0.5/0.25 packs a 198-burst into ~50-100 blocks instead of ~200 (fewer packets, fits low
 roofs; server fall is float so escalation still holds). Ceiling is the pierce ceiling
 (`Combat.worldTop - targetY`), so bursts work under caves/roofs; the drop column is
