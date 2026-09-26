@@ -2,9 +2,6 @@
 
 ![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
 
-minecraft meteor addon
-
-
 ## Installation
 
 ### 1. Clone the repository
