@@ -1,6 +1,7 @@
 # Qazr-Meteor-Addon 0.1 (*Alpha*)
 
 ![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
+<br>
 minecraft meteor addon, made by Qazr. mostly mace pvp stuff plus some handy utilities.
 
 
