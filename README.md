@@ -98,3 +98,7 @@ To build again:
 
 ## Official *discord* server:
 https://discord.gg/M389NKHFY
+
+
+## AI agents
+Read the docs files
