@@ -21,7 +21,7 @@ import com.macekill.addon.modules.AutoGGModule;
 import com.macekill.addon.modules.AutoMineModule;
 import com.macekill.addon.modules.CreativeGiveModule;
 import com.macekill.addon.modules.CustomPotionModule;
-import com.macekill.addon.modules.MaceDMG;
+// import com.macekill.addon.modules.MaceDMG;
 import com.macekill.addon.modules.MaceKillModule;
 import com.macekill.addon.modules.PlayerTp;
 import com.macekill.addon.modules.AntiAirMiss;
@@ -43,16 +43,16 @@ public class MaceKillAddon extends MeteorAddon {
     public void onInitialize() {
         LOG.info("Qazr Addons initializing...");
 
-        // ---- 重锤战斗 ----
+        
         Modules.get().add(new MaceKillModule());
-        Modules.get().add(new MaceAura());
-        Modules.get().add(new MaceMissLite());
-        Modules.get().add(new XinTpMace());
+        // Modules.get().add(new MaceAura());
+        // Modules.get().add(new MaceMissLite());
+        // Modules.get().add(new XinTpMace());
         Modules.get().add(new TpMace());
         Modules.get().add(new MaceAttect());
         Modules.get().add(new MaceBreakerPro());
-        Modules.get().add(new MaceDMG());
-        Modules.get().add(new AntiAirMiss());
+        // Modules.get().add(new MaceDMG());
+        // Modules.get().add(new AntiAirMiss());
         Modules.get().add(new FreecamTp());
         Modules.get().add(new Hitback());
         Modules.get().add(new MassTpa());
