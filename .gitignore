@@ -6,6 +6,7 @@ libs/
 gradle/
 .opencode/
 .java-hotswap/
+.zed/
 
 *.class
 
