@@ -1,7 +1,7 @@
 package com.macekill.addon;
 
 import com.macekill.addon.commands.TpCommand;
-import com.macekill.addon.modules.AdvancedNoFall;
+// import com.macekill.addon.modules.AdvancedNoFall;
 import com.macekill.addon.modules.AntiCreeper;
 import com.macekill.addon.modules.AntiPop;
 import com.macekill.addon.modules.AutoMsgModule;
@@ -71,7 +71,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new Rise());
         Modules.get().add(new SpeedModule());
         Modules.get().add(new PlayerTp());
-        Modules.get().add(new AdvancedNoFall());
+        // Modules.get().add(new AdvancedNoFall());
         Modules.get().add(new AntiPop());
 
         // ---- 自动化 ----
