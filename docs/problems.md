@@ -173,6 +173,24 @@
     keyed by name, not UUID — nick changes bypass it.
 35. Both send public chat spam → reports/mutes. Default them OFF with an ethics warning in docs (done in overview).
 
+## 9. Ported modules (2026-11-02) — MEDIUM
+
+36. **FIXED IN PORT — brew-addon `Attack`.** The original ran its packet steps through
+    `CompletableFuture.runAsync`, i.e. off the client thread, while calling
+    `mc.player.setPosition(...)` and sending packets. `utils/Attack.java` executes the three steps
+    in order on the client thread; the resulting packet sequence is unchanged.
+37. **FIXED IN PORT — vicore `UltraAura` silent swap.** `silentSwap` was only assigned from the
+    `Swap Mode` setting callback, so the default `SILENT` mode never restored the previous hotbar
+    slot. The constructor now initializes it from the setting.
+38. **1.21.11 DELTA — `AntiPop`.** vicore set the packet's `onGround` through a mixin accessor; in
+    1.21.11 all `PlayerMoveC2SPacket` fields are `final`. `modules/AntiPop.java` rebuilds the same
+    packet subtype with `onGround=false` and `sendSilently`s it — no mixin/accesswidener needed.
+39. **1.21.11 DELTA — position getters.** `Entity.getPos()` / `Camera.getPos()` were renamed to
+    `getEntityPos()` / `getCameraPos()`; the brew ports use the new names.
+40. **KNOWN RISK — `UltraAura`, `InfiniteReach`, `b-anti-creeper`.** All three send server-side
+    teleports to attack outside vanilla reach; trivially detectable by anticheat. `AntiPop` directly
+    conflicts with `AdvancedNoFall` (both rewrite outgoing move packets), so never enable both.
+
 ## Fix priority (suggested)
 
 1. DONE 2026-09-25: `Movement.doTpTo` interpolation + `AutoRise` X/Y swap + `MaceMissLite` clearance target.

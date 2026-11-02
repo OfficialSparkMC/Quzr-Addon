@@ -28,6 +28,9 @@ To add a HUD element: it must extend Meteor's `HudElement`, not `Module` (note:
 | `macekill/TargetFilter.java` | `record` | `(players, hostiles, animals, others)` + `accepts(LivingEntity)` |
 | `macekill/SortPriority.java` | `enum` | `DISTANCE / ANGLE / HEALTH` |
 | `utils/CreativeGiveUtil.java` | static util | `give(stack)` (empty-slot + `CreativeInventoryActionC2SPacket`), `warn/info/resetError` |
+| `utils/Attack.java` | static util | `attack(target, useMace, attackHeight, autoEquipMace)` — teleport in, optional up/down mace path, attack packet, teleport back (brew-addon port) |
+| `utils/Movement.java` | static util | `teleport` / `execute` / `calculatePackets` / `sendPackets` — `PositionAndOnGround` packet teleports, 10 blocks per filler packet (brew-addon port) |
+| `utils/HitResults.java` | static util | `getCrosshairTarget(entity, range, ignoreBlocks, filter)` — camera raycast with custom reach (brew-addon port) |
 
 ### Canonical combat flow (MaceKillModule / XinTpMace / MaceMissLite)
 
@@ -75,6 +78,8 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 
 - `PlayerMoveC2SPacket.PositionAndOnGround(x,y,z,onGround=false,false)` — teleport + fake fall.
 - `PlayerMoveC2SPacket.LookAndOnGround(yaw,pitch,onGround,false)` — rotation / fall-prime.
+- `PlayerMoveC2SPacket.Full` / `PositionAndOnGround` / `LookAndOnGround` / `OnGroundOnly` — AntiPop
+  rebuilds the same subtype with `onGround=false` (1.21.11 made the packet fields `final`, so no accessor mixin).
 - `PlayerInteractEntityC2SPacket.attack(target, sneaking)` — server-side hit.
 - `UpdateSelectedSlotC2SPacket(slot)` — server slot sync.
 - `CreativeInventoryActionC2SPacket(slot, stack)` — creative give.
@@ -87,13 +92,16 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | Module | Listens to | Does on event |
 |--------|------------|---------------|
 | MaceKillModule | `TickEvent.Pre`, phases IDLE/START_DELAY/RETURN_DELAY | TP → delay → smash → return |
-| MaceAura | `TickEvent.Pre` + `attackDelay` cooldown | nearest target → totem list or single height |
+| MaceAura *(unregistered)* | `TickEvent.Pre` + `attackDelay` cooldown | nearest target → totem list or single height |
 | TpMace | `TickEvent.Pre`, phases IDLE/DELAY/RETURN_DELAY | first-attack fast path, burst smash, stepped return |
 | MaceAttect | `AttackEntityEvent`, `PacketEvent.Send` (attack pkt), `TickEvent.Pre` | `pendingTarget` → SMASH → RETURN_DELAY |
-| MaceMissLite | `TickEvent.Pre` IDLE/DELAY, `Render3DEvent` | sorted target → dv-offset smash + box render |
-| XinTpMace | `TickEvent.Pre` + `cooldownTicks` | predicted TP + clamped heights |
-| MaceDMG | `TickEvent.Post` | cooldown-edge detect → fake-Y burst |
+| MaceMissLite *(unregistered)* | `TickEvent.Pre` IDLE/DELAY, `Render3DEvent` | sorted target → dv-offset smash + box render |
+| XinTpMace *(unregistered)* | `TickEvent.Pre` + `cooldownTicks` | predicted TP + clamped heights |
+| MaceDMG *(unregistered)* | `TickEvent.Post` | cooldown-edge detect → fake-Y burst |
 | MaceBreakerPro | `AttackEntityEvent` | cancel → axe hit → mace hit → restore |
+| UltraAura | `TickEvent.Pre` (target list), `TickEvent.Post` (attack timer) | closest-angle target → packet TP in → attack → TP back |
+| InfiniteReach | `TickEvent.Post` + attack/use key edges | custom-reach raycast → attack entity / interact / break block |
+| AntiPop | `PacketEvent.Send` (move packets) | rebuild packet with `onGround=false` and resend |
 | SpearKill Blink | `TickEvent.Pre` + `PacketEvent.Send` (move pkts) | queue moves → flush on charge |
 | SpearKill Lunge | `TickEvent.Pre` | VClip above → charge → release |
 | AutoMineModule | `TickEvent.Post` + `Render3DEvent` | scan → A* plan → WALK_XZ/FLY_UP/DIG_DOWN/MINE_ORE/RETURN |
@@ -104,7 +112,8 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | AutoMsg | `TickEvent.Post`, `PacketEvent.Receive(GameMessageS2C)` | interval/msg-count trigger → chat/cmd |
 | MassTpa | `TickEvent.Pre` | one `tpa <name>` per `Delay` ticks |
 | FreecamTp | `MouseClickEvent` (right) | teleport to `Freecam.pos` |
-| Rise/Speed/AutoRise/AntiAirMiss | `TickEvent.Pre` | packet bursts (see modules-other) |
+| Rise/Speed/AutoRise | `TickEvent.Pre` | packet bursts (see modules-other) |
+| b-anti-creeper | `TickEvent.Post` (OnExplode), `EntityAddedEvent` (OnSpawn) | in-range creeper → `Attack.attack(creeper, mace, 10, equip)` |
 | PlayerTp | one-shot `onActivate` | nearest player → `Movement.doTpTo` → auto-disable |
 | AdvancedNoFall | `TickEvent.Pre` | client-fall trigger → `onGround=true` spoof |
 | TpCommand (`.tp`) | Brigadier execute (client thread) | `PlayerTp.teleportTo()` (module need not be active) |

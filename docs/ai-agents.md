@@ -7,7 +7,7 @@
 ## 1. Mandatory first reads (in order)
 
 1. `docs/README.md` — index.
-2. `docs/overview.md` — module table (27 modules + `.tp` command; count them in `MaceKillAddon.java`).
+2. `docs/overview.md` — module table (26 modules + `.tp` command; count them in `MaceKillAddon.java`).
 3. `docs/architecture.md` — entry point + `macekill/*` helpers + packet table.
 4. `docs/build.md` — versions in `gradle.properties`, `build.gradle` deps, `fabric.mod.json`.
 5. `docs/problems.md` — known bugs. Do **not** re-introduce anything listed there.
@@ -79,7 +79,8 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-09-25 — sustained chain survives Detect blindness (isChainedTarget);
-Sustained Drain chain; descent skip capped; cave reliability; durability guard; PlayerTp/.tp;
-NoFall; slot fix.*
+*Last verified: 2026-11-02 — ported vicore `AntiPop` / `UltraAura` and brew-addon 1.21.8
+`AntiCreeper` / `InfiniteReach` (+ `utils/Attack`, `utils/Movement`, `utils/HitResults`);
+1.21.11 deltas: final packet fields → AntiPop rebuild, `getEntityPos`/`getCameraPos`;
+`MaceAura`/`MaceMissLite`/`XinTpMace`/`MaceDMG`/`AntiAirMiss` marked unregistered; docs synced.*
 *Maintainer note: bump this line on every docs-syncing change.*

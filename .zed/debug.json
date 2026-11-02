@@ -1,0 +1,6 @@
+[
+  {"label":"Java HotSwap: Run", "command":"java-hotswap", "args":["run","--project","$ZED_WORKTREE_ROOT"], "allow_concurrent_runs":false, "reveal":"always", "save":"all"},
+  {"label":"Java HotSwap: Stop", "command":"java-hotswap", "args":["stop","--project","$ZED_WORKTREE_ROOT"]},
+  {"label":"Java HotSwap: Clear status", "command":"java-hotswap", "args":["clear","--project","$ZED_WORKTREE_ROOT"]},
+  {"label":"Java HotSwap: Inspect project", "command":"java-hotswap", "args":["inspect","--project","$ZED_WORKTREE_ROOT"]}
+]

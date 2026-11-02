@@ -5,6 +5,9 @@ Shared theory: teleport high above the target with `onGround=false` packets, dro
 between the high packet and the hit packet becomes mace bonus damage. All heights are
 `StringListSetting` entries parsed by `Combat.parseHeights` (invalid/≤0 silently dropped).
 
+> Headings marked *(unregistered)* still exist on disk, but their entrypoint lines are commented
+> out in `MaceKillAddon.onInitialize()` (commit `728828c`) — they cannot be enabled in-game.
+
 ## macemiss — `modules/MaceKillModule.java` (479 lines)
 
 Settings: `Range(20)`, `Move Step(20)`, `Swing Hand`, `Require Full Cooldown`, `Teleport Delay(5)`,
@@ -19,7 +22,7 @@ Flow: `onTick IDLE → tickIdle()` finds `Targeting.findBestTarget`, saves `orig
 Totem path ignores all drain settings and builds `Combat.totemBypassHeights(min(countTotems,+3), clearance)`.
 `doReturn()` always steps back to `originalPos`.
 
-## MaceAura — `modules/MaceAura.java` (376 lines)
+## MaceAura *(unregistered)* — `modules/MaceAura.java` (376 lines)
 
 Settings: `Range(20)`, `Players Only`, `Swing Arm`, `Attack Height(30)`, `Spam Packets(2)`,
 `Attack Delay(10)`, `Use Offset + Horizontal(1.5) + Vertical(0.5)`,
@@ -82,7 +85,7 @@ pierce ceiling, packet estimate, and immediate silent revert are identical to Tp
 (fixed 2026-09-25). `runSmash`/`attackOnce`/`stepMove`/`stepMoveDown`/
 `findDropColumn`/`returnToStart` are line-for-line cousins of TpMace.
 
-## xintpmace — `modules/XinTpMace.java` (255 lines)
+## xintpmace *(unregistered)* — `modules/XinTpMace.java` (255 lines)
 
 Slim variant. Settings: `Range`, `Predict Ticks(5)`, `Max Step(8)`, `Cooldown(10)`,
 `Height List["10","20","30"]`, `Swing Hand`, `Players Only`, totem group (same shape).
@@ -92,7 +95,7 @@ for each height (clamped to `clearance`, skipped if `<5`): `doTpTo(jumpPos)` +
 `sendMovePacket(attackPos)` + attack → `switchBack` → `doTpTo(originalPos)`.
 Totem path builds `totemBypassHeights` like macemiss.
 
-## MaceMissLite — `modules/MaceMissLite.java` (422 lines)
+## MaceMissLite *(unregistered)* — `modules/MaceMissLite.java` (422 lines)
 
 Settings: `Range`, `Move Step(8)`, `Kill Heights`, `Attack Delay(10)`, `Predict+Ticks`,
 `Attack 1/2 Offset (dv1/dv2)`, `Swing Hand`, `Force Skip`, `Target{Players,Hostiles,Sort Priority,Auto Attack Entities}`,
@@ -105,7 +108,7 @@ or armor (`isNaked` via `!needsArmorDestroy`) or kill list. `doTpAura` applies `
 and `dv2` to hit 1 via random-angle `applyDv`, then shared `Combat.findVclipHole` +
 `Movement.doTpTo` + drop + return-to-`basePos` per hit. `Render3DEvent` draws target box.
 
-## MaceDMG — `modules/MaceDMG.java` (214 lines)
+## MaceDMG *(unregistered)* — `modules/MaceDMG.java` (214 lines)
 
 Wurst-style fake height. Settings: `Fake Height(22.0 blocks)` (fixed 2026-09-25 — was misleading
 sqrt `22.36`), `Attack Interval(55ms)`, `Global Attack Detect`, `Auto Switch Mace`,
@@ -137,7 +140,7 @@ Lunge{`Direction(FromAbove)`,`Above Height(10)`,`Strength(1.5)`,`Pause Before Hi
   pitch −90, hold `useKey`, on full charge release + extra through-target move pkt
   (`strength-1 × 2` blocks).
 
-## anti-air-miss — `modules/AntiAirMiss.java` (182 lines)
+## anti-air-miss *(unregistered)* — `modules/AntiAirMiss.java` (182 lines)
 
 `detection-range(6)`, `vertical-offset(10)`. Every `TickEvent.Pre` with any non-friend alive
 player in range: 10 rising + 10 falling + 1 restore `PositionAndOnGround` packets at the

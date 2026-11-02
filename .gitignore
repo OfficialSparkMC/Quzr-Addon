@@ -5,6 +5,7 @@ classes/
 libs/
 gradle/
 .opencode/
+.java-hotswap/
 
 *.class
 

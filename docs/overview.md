@@ -16,24 +16,25 @@
 | MC / Yarn / Loader | `1.21.11 / 1.21.11+build.3 / 0.18.6` (`gradle.properties:3-5`) |
 | Meteor | `0.18.6` local jar `libs/MeteorClient-1.21.11-0.18.6.jar` (renamed from `MeteorCilent` typo 2026-09-25) |
 | Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
-| Registration | `MaceKillAddon.onInitialize()` adds ~25 modules (`MaceKillAddon.java:43-75`) |
+| Registration | `MaceKillAddon.onInitialize()` adds 26 modules (`MaceKillAddon.java:51-89`) |
 
-## Module table (27 modules + 1 command)
+## Module table (26 modules + 1 command)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
 | In-game name | Class | One-liner |
 |--------------|-------|-----------|
 | `macemiss` | `modules/MaceKillModule.java` | TP-to-target + VClip multi-height attack, armor-break + totem-bypass modes |
-| `MaceAura` | `modules/MaceAura.java` | Closest-target aura, offset drops, spam packets, position cache |
 | `TpMace` | `modules/TpMace.java` | Long-range pierce-through-roof smash, silent swap, fall-prime packets |
-| `xintpmace` | `modules/XinTpMace.java` | Slim TP + predicted-pos + multi-height VClip |
-| `MaceMissLite` | `modules/MaceMissLite.java` | Lite missile, dv1/dv2 offsets, force-skip, render box |
 | `MaceAttect` | `modules/MaceAttect.java` | Hit-triggered smash (manual hit or attack packet), no auto-TP |
-| `MaceDMG` | `modules/MaceDMG.java` | Fake-Y height on hit (Wurst-style), global/manual detect |
 | `MaceBreakerPro` | `modules/MaceBreakerPro.java` | Axe+mace double-hit on `AttackEntityEvent` to break shields |
 | `SpearKill` | `modules/SpearKill.java` | Spear Blink (packet queue) / Lunge (charged dash) |
-| `anti-air-miss` | `modules/AntiAirMiss.java` | Sends 21 vertical packets/tick when a player is near (spam, dubious value) |
+| `UltraAura` | `modules/UltraAura.java` | TP aura: closest-angle target, packet teleport in → attack → teleport back |
+| `InfiniteReach` | `modules/InfiniteReach.java` | Attack / interact / break blocks up to `max-reach` (210) blocks away |
+
+> Classes `MaceAura`, `MaceMissLite`, `XinTpMace`, `MaceDMG` and `AntiAirMiss` still exist on disk but
+> their `Modules.get().add(...)` lines are commented out in `MaceKillAddon.java:52-59` — they cannot be
+> enabled in-game and are marked *(unregistered)* in `modules-mace.md`.
 
 ### Movement (see `modules-other.md`)
 
@@ -44,19 +45,21 @@
 | `Speed` | `modules/SpeedModule.java` | Staircase rise `Cycles × Rise Height` packets per tick |
 | `PlayerTp` | `modules/PlayerTp.java` | One-shot TP to nearest player on enable (see `commands.md` for `.tp`) |
 | `AdvancedNoFall` | `modules/AdvancedNoFall.java` | Zero fall damage via client-state trigger, smash-safe (see below) |
+| `AntiPop` | `modules/AntiPop.java` | Rebuilds every outgoing move packet with `onGround=false` (server never sees you land) |
 
 ### Automation
 
 | Name | Class | One-liner |
 |------|-------|-----------|
 | `OreTracker` | `modules/AutoMineModule.java` | 1053-line Wurst-style tunnel miner, A* + fly-up/dig-down, phase machine |
-| `AutoShulkerBox` | `modules/AutoShulkerBox.java` | Place/break shulker loop at crosshair pos, reflection slot swap |
+| `AutoShulkerBox` | `modules/AutoShulkerBox.java` | Place/break shulker loop at crosshair pos, public slot API |
 | `ItemGiver` | `modules/CreativeGiveModule.java` | Creative generic item + enchant + attribute spawner |
 | `PotionGiver` | `modules/CustomPotionModule.java` | Creative custom splash/lingering potion spawner |
 | `AutoTotemToHotbar` | `modules/AutoTotemToHotbar.java` | Moves a totem into hotbar `Slot` every tick |
 | `MassTpa` | `modules/MassTpa.java` | Sends `/tpa <everyone>` on a tick timer |
 | `freecamtp` | `modules/FreecamTp.java` | Right-click teleports real player to Freecam camera |
 | `Hitback` | `modules/Hitback.java` | Replies to `EntityDamageS2CPacket` with an attack packet |
+| `b-anti-creeper` | `modules/AntiCreeper.java` | Kills creepers on spawn or when their fuse lights up |
 
 ### Chat / info
 
@@ -68,7 +71,8 @@
 | `NearestPlayerHUD` | `modules/NearestPlayerHUD.java` | `getInfoString()` nearest-player name+dist (module info, not HUD element) |
 
 Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,TargetFilter,SortPriority,BurstHeights}.java`,
-`utils/CreativeGiveUtil.java`, `commands/TpCommand.java` (`.tp <player>`, see `commands.md`). See `architecture.md`.
+`utils/CreativeGiveUtil.java`, `utils/{Attack,Movement,HitResults}.java` (brew-addon ports),
+`commands/TpCommand.java` (`.tp <player>`, see `commands.md`). See `architecture.md`.
 
 ## Requirements
 
@@ -79,8 +83,8 @@ Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,Ta
 
 ## Warnings
 
-1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `Rise`, `Speed`, `AntiAirMiss`, `MassTpa`,
-   `AutoMineModule` (fly) all send abnormal packet bursts. Use only on test servers.
+1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `UltraAura`, `InfiniteReach`, `AntiPop`, `Rise`,
+   `Speed`, `MassTpa`, `AutoMineModule` (fly) all send abnormal packet bursts. Use only on test servers.
 2. **Desync risk.** Many modules move the *server* via packets but never update the client
    (or vice versa). See `problems.md` § desync.
 3. **Config confusion.** Five mace modules overlap ~80%. Pick one; do not enable several at once

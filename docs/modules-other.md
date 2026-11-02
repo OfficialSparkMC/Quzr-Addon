@@ -34,6 +34,49 @@ landings always survive. Skips ground/creative/spectator/vehicle/elytra states.
 Not a void saver (void damage isn't fall damage); onGround spoof can flag strict
 anticheats — test-server first.
 
+### AntiPop — `modules/AntiPop.java` (68 lines)
+`log-on-effect(off)` in the default group. On `PacketEvent.Send` for any `PlayerMoveC2SPacket`
+with `isOnGround() == true`: cancels the original and `sendSilently` re-sends a rebuilt packet of
+the **same subtype** (`Full` / `PositionAndOnGround` / `LookAndOnGround` / `OnGroundOnly`) with
+`onGround=false`, preserving X/Y/Z, yaw/pitch, `changePosition`/`changeLook` and
+`horizontalCollision`. The server therefore never registers a landing (no fall damage / landing
+effects). Port note: 1.21.11 declares the packet fields `final`, so vicore's mixin-accessor
+mutation is impossible — the rebuild is public-API only. Do not run together with
+`AdvancedNoFall`: both rewrite the same move packets (AntiPop would erase NoFall's
+`onGround=true` spoof).
+
+## Combat / reach (ported 2026-11-02)
+
+### UltraAura — `modules/UltraAura.java` (422 lines)
+`Configuration` group: `Attack Delay(20, 0-60)`, `Distance(50, 0-150)`, `Steps(8.5, 1-20)`,
+`Lock Target(off)`, `Ignore targets on water(off)`, `Entities(only attackable, PLAYER)`,
+`ServerType(PAPER)` `{SPIGOT, PAPER}`, `Switch(off)`, `Swap Mode(SILENT)` `{SILENT, NORMAL}`,
+`Weapon(MACE)` `{SWORD, AXE, MACE, TRIDENT, ALL, ANY}`.
+`TickEvent.Pre` → `TargetUtils.getList(targets, ClosestAngle, 5)`; `TickEvent.Post` runs the
+attack timer. Target = locked target or first sorted entry; `updatePositions` uses
+`Entity.getEntityPos()`. After `Attack Delay`: `PAPER` sends one `PositionAndOnGround(targetPos)`
+and one back to `startPos`; `SPIGOT` sends the stepped blink path (`Steps` blocks per packet,
+stopping 4 blocks short on the way in). The client `setPosition` mirrors both hops, then
+`PlayerInteractEntityC2SPacket.attack` + swing, optional hotbar swap to `Weapon`
+(`SILENT` restores the previous slot), return, timer reset. Filter: living, attackable type,
+not self/camera, inside `Distance` of the bounding box, non-creative, `Friends.shouldAttack`;
+optional water skip. `getInfoString()` = target name.
+Port fix: `silentSwap` is initialized from the `Swap Mode` default — vicore only updated it in the
+setting callback, so the default `SILENT` never restored the weapon. The `MaceTotemFail`
+name-lookup is kept from the original; it is a no-op in this addon.
+
+### InfiniteReach — `modules/InfiniteReach.java` (245 lines)
+`max-reach(210, min5)`, `mace-attack(off)`, `attack-height(35, 1-170, visible with mace-attack)`,
+`Debug(off)`. `TickEvent.Post` edge-detects the attack/use keys.
+Attack click: custom-reach crosshair raycast (`utils/HitResults`, entities first) → entity beyond
+4.5 blocks (not an item entity) → `Attack.attack(target, mace-attack, attack-height, no auto-equip)`.
+No entity → `breakBlock`: packet-teleport to `block.toCenterPos().add(0,2,0)`, send
+`START_DESTROY_BLOCK`, teleport back; while held, `updateBreakProgress` picks the fastest hotbar tool
+and adds `BlockUtils.getBreakDelta`, at `>=1.0` → `STOP_DESTROY_BLOCK` + reset.
+Use click: block raycast → beyond 4.5 blocks → packet-teleport, `PlayerInteractBlockC2SPacket`,
+teleport back. `onDeactivate` resets the break state. All teleports are server-side only
+(`setClientSided=false`) and are trivially visible to anticheat.
+
 ## Automation
 
 ### OreTracker — `modules/AutoMineModule.java` (1053 lines, largest file)
@@ -78,7 +121,16 @@ Single far packet usually rubberbanded — needs stepping for >10 blocks.
 `Rotate`, `Ignore Friends`, `Only Players`, `Cooldown(10t)`. On
 `PacketEvent.Receive(EntityDamageS2CPacket)` addressed to self with `sourceCauseId>0`:
 resolve attacker, friend/player filters, cooldown gate → `Rotations.rotate(yaw,pitch,attack)`
-sending `PlayerInteractEntityC2SPacket.attack`. No range check — fails silently at distance.
+sending `PlayerInteractEntityC2SPacket.attack`. Skips attackers farther than 4.5 blocks
+(server drops those hits anyway).
+
+### b-anti-creeper — `modules/AntiCreeper.java` (79 lines)
+`kill-mode(OnExplode)` `{OnExplode, OnSpawn}`, `range(4)`.
+`OnExplode`: `TickEvent.Post` scans `mc.world.getEntities()` for `CreeperEntity` with
+`getFuseSpeed() > 0` inside range → `Attack.attack(creeper, useMace=true, attackHeight=10,
+autoEquipMace=true)`. `OnSpawn`: `EntityAddedEvent` → same attack for a newly added creeper in range.
+`Attack` teleports the player to the creeper and (with a mace) through a 10-block up/down path —
+very obvious to nearby players and anticheat.
 
 ## Chat / info
 

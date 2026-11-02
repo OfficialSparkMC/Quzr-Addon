@@ -12,11 +12,14 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 - MaceAttect — same smash but it triggers when YOU hit someone, no auto targeting
 - Totem bypass — pops stacked totems, first in one big burst then keeps going one by one until they die
 - MaceBreakerPro — axe + mace combo that breaks shields
+- UltraAura — teleports to the player closest to your crosshair, smashes them and teleports back
+- InfiniteReach — attack, use and break blocks up to 210 blocks away
 
 **Movement**
 - PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat
 - Rise / Speed / AutoRise — quick vertical movement tricks
 - AdvancedNoFall — never take fall damage, doesn't mess with your mace smashes
+- AntiPop — the server never sees you touch the ground, so no fall damage
 - FreecamTp — fly the freecam somewhere, right click, you're there
 
 **Automation**
@@ -24,6 +27,7 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 - AutoShulkerBox — places and breaks shulkers over and over for farming
 - ItemGiver / PotionGiver — spawn custom gear and potions in creative mode
 - AutoTotemToHotbar — keeps a totem in your hotbar slot
+- AntiCreeper — kills creepers before they blow up
 - MassTpa / auto-tpa-reject — tpa spam and auto deny
 - Hitback — auto hits back whoever hits you
 
