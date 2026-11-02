@@ -100,7 +100,7 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | MaceDMG *(unregistered)* | `TickEvent.Post` | cooldown-edge detect → fake-Y burst |
 | MaceBreakerPro | `AttackEntityEvent` | cancel → axe hit → mace hit → restore |
 | UltraAura | `TickEvent.Pre` (target list), `TickEvent.Post` (attack timer) | closest-angle target → packet TP in → attack → TP back |
-| InfiniteReach | `TickEvent.Post` + attack/use key edges | custom-reach raycast → attack entity / interact / break block |
+| InfiniteReach | `TickEvent.Post` + attack/use key edges | entity raycast (if `entities`) → attack; else block raycast (if `blocks`) → interact/break |
 | AntiPop | `PacketEvent.Send` (move packets) | rebuild packet with `onGround=false` and resend |
 | SpearKill Blink | `TickEvent.Pre` + `PacketEvent.Send` (move pkts) | queue moves → flush on charge |
 | SpearKill Lunge | `TickEvent.Pre` | VClip above → charge → release |

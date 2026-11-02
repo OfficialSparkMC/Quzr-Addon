@@ -82,5 +82,6 @@ Every code change that affects behavior, settings, modules, build, or known issu
 *Last verified: 2026-11-02 — ported vicore `AntiPop` / `UltraAura` and brew-addon 1.21.8
 `AntiCreeper` / `InfiniteReach` (+ `utils/Attack`, `utils/Movement`, `utils/HitResults`);
 1.21.11 deltas: final packet fields → AntiPop rebuild, `getEntityPos`/`getCameraPos`;
-`MaceAura`/`MaceMissLite`/`XinTpMace`/`MaceDMG`/`AntiAirMiss` marked unregistered; docs synced.*
+`MaceAura`/`MaceMissLite`/`XinTpMace`/`MaceDMG`/`AntiAirMiss` marked unregistered;
+`b-reach` renamed `inf-reach` with separate entity/block reach; docs synced.*
 *Maintainer note: bump this line on every docs-syncing change.*

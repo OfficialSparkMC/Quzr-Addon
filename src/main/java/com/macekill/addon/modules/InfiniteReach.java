@@ -29,6 +29,7 @@ import net.minecraft.util.math.Vec3d;
 /**
  * InfiniteReach (ported from brew-addon 1.21.8).
  * Lets you attack entities, interact with blocks and break blocks far beyond vanilla reach.
+ * Entity reach and block reach are configured independently.
  */
 public class InfiniteReach extends Module {
     private static final double VANILLA_REACH = 4.5;
@@ -43,12 +44,38 @@ public class InfiniteReach extends Module {
     private boolean hasStartedBreaking = false;
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final Setting<Integer> maxReach = sgGeneral.add(new IntSetting.Builder()
-        .name("max-reach")
-        .description("The maximum reach distance.")
+
+    private final Setting<Boolean> entities = sgGeneral.add(new BoolSetting.Builder()
+        .name("entities")
+        .description("Attack entities beyond vanilla reach.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Integer> entityReach = sgGeneral.add(new IntSetting.Builder()
+        .name("entity-reach")
+        .description("Maximum distance for attacking entities.")
         .defaultValue(210)
         .min(5)
         .sliderMax(210)
+        .visible(entities::get)
+        .build()
+    );
+
+    private final Setting<Boolean> blocks = sgGeneral.add(new BoolSetting.Builder()
+        .name("blocks")
+        .description("Interact with and break blocks beyond vanilla reach.")
+        .defaultValue(true)
+        .build()
+    );
+
+    private final Setting<Integer> blockReach = sgGeneral.add(new IntSetting.Builder()
+        .name("block-reach")
+        .description("Maximum distance for interacting with and breaking blocks.")
+        .defaultValue(210)
+        .min(5)
+        .sliderMax(210)
+        .visible(blocks::get)
         .build()
     );
 
@@ -77,7 +104,7 @@ public class InfiniteReach extends Module {
     );
 
     public InfiniteReach() {
-        super(MaceKillAddon.CATEGORY, "b-reach", "Lets you interact with blocks and entities far away.");
+        super(MaceKillAddon.CATEGORY, "inf-reach", "Lets you interact with blocks and entities far away.");
     }
 
     private double getTargetDistance(Vec3d target) {
@@ -85,25 +112,37 @@ public class InfiniteReach extends Module {
         return mc.player.getEyePos().distanceTo(target);
     }
 
-    private void attack() {
-        if (mc.player == null) return;
+    /**
+     * Handles one attack-key press: entities first (if enabled), then blocks (if enabled).
+     */
+    private void onAttackClick() {
+        if (entities.get() && attackEntity()) return;
+        if (blocks.get()) breakBlock();
+    }
 
-        HitResult hitResult = HitResults.getCrosshairTarget(mc.player, maxReach.get(), true, entity -> true);
-        if (hitResult instanceof EntityHitResult entityHit) {
-            Entity target = entityHit.getEntity();
-            if (target != null && getTargetDistance(target.getEntityPos()) > VANILLA_REACH && !(target instanceof ItemEntity)) {
-                if (debug.get()) {
-                    info("Attacking " + target.getName().getString() + " at distance " + getTargetDistance(target.getEntityPos()));
-                }
-                Attack.attack(target, maceAttack.get(), attackHeight.get(), false);
-            }
+    private boolean attackEntity() {
+        if (mc.player == null) return false;
+
+        HitResult hitResult = HitResults.getCrosshairTarget(mc.player, entityReach.get(), true, entity -> true);
+        if (!(hitResult instanceof EntityHitResult entityHit)) return false;
+
+        Entity target = entityHit.getEntity();
+        if (target == null || target instanceof ItemEntity) return false;
+
+        double distance = getTargetDistance(target.getEntityPos());
+        if (distance <= VANILLA_REACH || distance > entityReach.get()) return false;
+
+        if (debug.get()) {
+            info("Attacking " + target.getName().getString() + " at distance " + distance);
         }
+        Attack.attack(target, maceAttack.get(), attackHeight.get(), false);
+        return true;
     }
 
     private void interact() {
         if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
-        HitResult hitResult = HitResults.getCrosshairTarget(mc.player, maxReach.get(), false, entity -> true);
+        HitResult hitResult = HitResults.getCrosshairTarget(mc.player, blockReach.get(), false, entity -> true);
         if (hitResult instanceof BlockHitResult blockHit) {
             BlockPos target = blockHit.getBlockPos();
             if (getTargetDistance(Vec3d.ofCenter(target)) <= VANILLA_REACH) return;
@@ -126,7 +165,7 @@ public class InfiniteReach extends Module {
     private void breakBlock() {
         if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
-        HitResult hitResult = HitResults.getCrosshairTarget(mc.player, maxReach.get(), false, entity -> true);
+        HitResult hitResult = HitResults.getCrosshairTarget(mc.player, blockReach.get(), false, entity -> true);
         if (hitResult instanceof BlockHitResult blockHit) {
             BlockPos target = blockHit.getBlockPos();
             if (getTargetDistance(Vec3d.ofCenter(target)) <= VANILLA_REACH) return;
@@ -158,7 +197,7 @@ public class InfiniteReach extends Module {
     }
 
     private void updateBreakProgress() {
-        if (currentBreakingBlock == null || currentBlockState == null || mc.player == null) return;
+        if (!blocks.get() || currentBreakingBlock == null || currentBlockState == null || mc.player == null) return;
 
         double bestScore = -1.0;
         int bestSlot = -1;
@@ -181,7 +220,7 @@ public class InfiniteReach extends Module {
     }
 
     private void finishBreaking() {
-        if (currentBreakingBlock == null || mc.player == null || mc.getNetworkHandler() == null) return;
+        if (currentBreakingBlock == null || mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
         Vec3d originalPos = mc.player.getEntityPos();
 
@@ -213,15 +252,12 @@ public class InfiniteReach extends Module {
         boolean interactKeyIsPressed = mc.options.useKey.isPressed();
 
         if (attackKeyIsPressed && !attackKeyWasPressed) {
-            HitResult hitResult = HitResults.getCrosshairTarget(mc.player, maxReach.get(), true, entity -> true);
-            if (hitResult instanceof EntityHitResult) {
-                attack();
-            } else {
-                breakBlock();
-            }
+            onAttackClick();
         }
 
-        if (attackKeyIsPressed && hasStartedBreaking) {
+        if (!blocks.get() && hasStartedBreaking) {
+            resetBreaking();
+        } else if (attackKeyIsPressed && hasStartedBreaking) {
             updateBreakProgress();
         }
 
@@ -229,7 +265,7 @@ public class InfiniteReach extends Module {
             resetBreaking();
         }
 
-        if (interactKeyIsPressed && !interactKeyWasPressed) {
+        if (interactKeyIsPressed && !interactKeyWasPressed && blocks.get()) {
             interact();
         }
 

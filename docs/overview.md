@@ -30,7 +30,7 @@
 | `MaceBreakerPro` | `modules/MaceBreakerPro.java` | Axe+mace double-hit on `AttackEntityEvent` to break shields |
 | `SpearKill` | `modules/SpearKill.java` | Spear Blink (packet queue) / Lunge (charged dash) |
 | `UltraAura` | `modules/UltraAura.java` | TP aura: closest-angle target, packet teleport in → attack → teleport back |
-| `InfiniteReach` | `modules/InfiniteReach.java` | Attack / interact / break blocks up to `max-reach` (210) blocks away |
+| `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) |
 
 > Classes `MaceAura`, `MaceMissLite`, `XinTpMace`, `MaceDMG` and `AntiAirMiss` still exist on disk but
 > their `Modules.get().add(...)` lines are commented out in `MaceKillAddon.java:52-59` — they cannot be

@@ -13,7 +13,7 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 - Totem bypass — pops stacked totems, first in one big burst then keeps going one by one until they die
 - MaceBreakerPro — axe + mace combo that breaks shields
 - UltraAura — teleports to the player closest to your crosshair, smashes them and teleports back
-- InfiniteReach — attack, use and break blocks up to 210 blocks away
+- InfiniteReach — attack entities and use/break blocks far away, with separate entity/block reach
 
 **Movement**
 - PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat
