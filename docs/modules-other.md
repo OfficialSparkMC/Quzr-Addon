@@ -66,13 +66,12 @@ Port fix: `silentSwap` is initialized from the `Swap Mode` default — vicore on
 setting callback, so the default `SILENT` never restored the weapon. The `MaceTotemFail`
 name-lookup is kept from the original; it is a no-op in this addon.
 
-### InfiniteReach — `modules/InfiniteReach.java` (281 lines)
-`entities(on)`, `entity-reach(210, min5)`, `blocks(on)`, `block-reach(210, min5)`,
-`mace-attack(off)`, `attack-height(35, 1-170, visible with mace-attack)`, `Debug(off)`.
+### InfiniteReach — `modules/InfiniteReach.java` (264 lines)
+`entities(on)`, `entity-reach(210, min5)`, `blocks(on)`, `block-reach(210, min5)`, `Debug(off)`.
 `TickEvent.Post` edge-detects the attack/use keys. Attack click: with `entities` on, entity raycast
 (blocks ignored) → entity beyond 4.5 blocks and within `entity-reach` (not an item entity) →
-`Attack.attack(target, mace-attack, attack-height, no auto-equip)`; if that did not fire and `blocks`
-is on → `breakBlock`. Use click only works while `blocks` is on.
+`Attack.attack(target, false, 0, false)` (plain hit — the mace path was removed); if that did not
+fire and `blocks` is on → `breakBlock`. Use click only works while `blocks` is on.
 `breakBlock`: packet-teleport to `block.toCenterPos().add(0,2,0)`, send `START_DESTROY_BLOCK`,
 teleport back; while held, `updateBreakProgress` picks the fastest hotbar tool and adds
 `BlockUtils.getBreakDelta`, at `>=1.0` → `STOP_DESTROY_BLOCK` + reset. `interact` uses the same

@@ -79,23 +79,6 @@ public class InfiniteReach extends Module {
         .build()
     );
 
-    private final Setting<Boolean> maceAttack = sgGeneral.add(new BoolSetting.Builder()
-        .name("mace-attack")
-        .description("Maceattack entities.")
-        .defaultValue(false)
-        .build()
-    );
-
-    private final Setting<Integer> attackHeight = sgGeneral.add(new IntSetting.Builder()
-        .name("attack-height")
-        .description("Maceattack height.")
-        .defaultValue(35)
-        .min(1)
-        .max(170)
-        .visible(maceAttack::get)
-        .build()
-    );
-
     private final Setting<Boolean> debug = sgGeneral.add(new BoolSetting.Builder()
         .name("Debug")
         .description("Debugging shit")
@@ -135,7 +118,7 @@ public class InfiniteReach extends Module {
         if (debug.get()) {
             info("Attacking " + target.getName().getString() + " at distance " + distance);
         }
-        Attack.attack(target, maceAttack.get(), attackHeight.get(), false);
+        Attack.attack(target, false, 0, false);
         return true;
     }
 
