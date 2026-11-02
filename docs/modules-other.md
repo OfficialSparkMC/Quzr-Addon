@@ -66,8 +66,9 @@ Port fix: `silentSwap` is initialized from the `Swap Mode` default — vicore on
 setting callback, so the default `SILENT` never restored the weapon. The `MaceTotemFail`
 name-lookup is kept from the original; it is a no-op in this addon.
 
-### InfiniteReach — `modules/InfiniteReach.java` (264 lines)
-`entities(on)`, `entity-reach(210, min5)`, `blocks(on)`, `block-reach(210, min5)`, `Debug(off)`.
+### InfiniteReach — `modules/InfiniteReach.java` (309 lines)
+`entities(on)`, `entity-reach(210, min5)`, `blocks(on)`, `block-reach(210, min5)`,
+`hover-box(on)`, `hover-color(SettingColor(0,255,0,60))`, `Debug(off)`.
 `TickEvent.Post` edge-detects the attack/use keys. Attack click: with `entities` on, entity raycast
 (blocks ignored) → entity beyond 4.5 blocks and within `entity-reach` (not an item entity) →
 `Attack.attack(target, false, 0, false)` (plain hit — the mace path was removed); if that did not
@@ -78,6 +79,43 @@ teleport back; while held, `updateBreakProgress` picks the fastest hotbar tool a
 block path with `PlayerInteractBlockC2SPacket`. Turning `blocks` off, releasing the key, or
 `onDeactivate` resets the break state. All teleports are server-side only
 (`setClientSided=false`) and are trivially visible to anticheat.
+
+`Render3DEvent` draws the hover box while `blocks` and `hover-box` are on: a camera raycast up to
+`block-reach` (OUTLINE, no fluids), then `Renderer3D.box(pos, hover-color sides, full-alpha
+outline, ShapeMode.Both, 0)` when the hit point is beyond the vanilla 4.5-block reach (near blocks
+are skipped so the vanilla outline is not duplicated). The box follows the camera, so it also works
+in third person/freecam; it only draws what the ray actually hits within the configured range.
+
+### ArrowKiller — `modules/ArrowKiller.java` (736 lines)
+vicore port. `Affected Projectiles(BOW, TRIDENT)` (the list filter only allows those two; the legacy
+pearl/potion/snowball/wind-charge branches in `isAffectedProjectile` are unreachable from the UI but
+kept for old configs), `Interact Amount(1, 0-15)`, `Show Logs(off)`; Target
+`Entities(only attackable, PLAYER)`, `Ignore Friends(off)`; Teleport `No Ground Packets(4, 0-20)`,
+`First Damage(10)`, `Second Damage(13)`, `Third Damage(16)`, `Max teleport distance(60)`,
+`Above target offset(0.01)`, `Horizontal Offset(0.05)`, `Y Offset First(0)`, `Refresh Rate(10, 0-30)`;
+Bow `Bow Machinegun(on)`, `charge-ticks(4, 4-60)`; Prediction `Predict movement(off)`,
+`Predict Ticks(1)`, `Render predict boxes(off)`.
+
+`TickEvent.Post` refreshes the nearest valid target (configured entity types, alive/attackable,
+not invulnerable/self, friend filter) and—when `Bow Machinegun` is on—charges a held bow and sends
+`PlayerActionC2SPacket(RELEASE_USE_ITEM)` after `charge-ticks`; the three damage heights cycle
+First → Second → Third → First, resetting to First when the bow is idle for `Refresh Rate`.
+`PacketEvent.Send(priority=200)` intercepts `PlayerInteractItemC2SPacket` for an affected projectile
+(cancels it and calls `teleportAndUse`), marks `bowCharging` on a bow use, and intercepts
+`RELEASE_USE_ITEM` while holding a charged bow/trident (cancels and calls `teleportAndRelease`).
+Both paths build `from = start + currentHeight`, `to = predicted target top + height`, and
+`above = predicted + Above target offset`, reject obstructed point sets, send `No Ground Packets`
+(`OnGroundOnly(true, …)` for the player — deliberately the original prime; `VehicleMoveC2SPacket.fromVehicle`
+for a vehicle), then `teleport()` (tagged `PositionAndOnGround` for the player, vehicle packet
+otherwise), send the use/replayed action, and return through `to`/`from`/`start` to a
+`findSafeStart` candidate. `isObstructed` validates `World.isPosLoaded` (1.21.11 delta; vicore used
+`getChunk`), lava, collision shapes, and collidable entities; `Predict movement` extrapolates
+`getEntityPos - getLastRenderPos` for `Predict Ticks`, and `Render3DEvent` can draw the predicted
+boxes in brown `(143,85,34)`.
+
+`onActivate` warns when `AntiPop` is inactive: the teleports accumulate fall distance and the prime
+packet is `onGround=true`, so without AntiPop the next real movement packet can apply the fall damage.
+Even with AntiPop this is a blatant server-side teleport and should only be used on test servers.
 
 ## Automation
 

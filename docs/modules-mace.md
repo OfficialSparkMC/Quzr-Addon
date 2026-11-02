@@ -74,16 +74,42 @@ rotation pkt, `fallPackets` prime, `stepMove` up + `stepMoveDown` (block-skippin
 `sendAttack`. `returnToStart` damage-checks (`preHealth` vs now) and either stepped-return or
 client snap. `getMaxHeightAbovePlayer` is dead code (pierce-through-roof replaced it).
 
-## MaceAttect — `modules/MaceAttect.java` (892 lines, sic spelling)
+## MaceAttect — `modules/MaceAttect.java` (1242 lines, sic spelling)
+
+Settings: `Move Step(8)`, `Auto Switch(on)`, `Rotate(on)`, `Swing Hand(off)`, `Return to Start(on)`,
+`Disable When Blocked(on)`, `Max Damage(on) + Attack Height(170)`, `Silent Swap(off)`,
+`Fall Packets(4, 0-17)`, totem group `Totem Bypass(off)`, `Detect Totem(on)`,
+`Drain Mode(SPREAD)`, `Drain Heights["4","8","12","16"]`, `Base Drain Height(4)`,
+`Height Increment(4)`, `Totem Attacks(4)`, `Totems To Pop(24)`, `Height Step(1.0, 0.25-2.0)`,
+`Sustained Drain(on)`, `Cave Safe(on)`, `Max Sustained Hits(40)`, hidden `Single Tick`/`Hits Per Tick`;
+`Target{Players(on), Entities(off), Through Walls(off), Ignore Named(off), List Mode(Off), Player List("")}`.
 
 Same smash as TpMace but **triggered, not auto-targeting**. Listens to `AttackEntityEvent`
-(reflective `entity` field), `PacketEvent.Send` attack packets (yarn+intermediary field names
-`type/field_12871`, `ATTACK/field_29170`, `entityId/field_12870`), plus static
-`request(LivingEntity)` for other modules. Filters: `Players/Entities/Through Walls/Ignore Named/List Mode`.
+(public `entity` field) and `PacketEvent.Send` attack packets — `PlayerInteractEntityC2SPacket.handle(Handler)`
+detects the `ATTACK` variant and Meteor's `IPlayerInteractEntityC2SPacket.meteor$getEntity()` resolves
+the target (the old yarn/intermediary field-name reflection is gone; `request(LivingEntity)` is kept
+for other modules). Filters: `Players/Entities/Through Walls/Ignore Named/List Mode`.
+`Disable When Blocked(on)` skips blocking+recent-damage, invulnerable, or creative targets.
 Phases `IDLE → SMASH → RETURN_DELAY`. Totem burst, `Drain Mode` (`SPREAD`/`LIST`/`INCREMENTAL`),
 pierce ceiling, packet estimate, and immediate silent revert are identical to TpMace
 (fixed 2026-09-25). `runSmash`/`attackOnce`/`stepMove`/`stepMoveDown`/
 `findDropColumn`/`returnToStart` are line-for-line cousins of TpMace.
+
+**Cave Safe** (`Cave Safe(on)`, Totem group) is the MaceTotemFail port for low ceilings. Instead of
+piercing to `worldTop`, it finds the highest hitbox-clear destination within 22 blocks (an air pocket
+above a thin roof counts; a contiguous clear column is not required), sends `start → start+h → start`
+all with `onGround=false`, then attacks. A landed mace hit resets the attacker's fall
+(`MaceItem.postDamageEntity` → `onLanding`), so every hit needs a strictly greater fall:
+`BurstHeights` supplies ascending one-climb heights in `[MIN_LETHAL=6, maxClear]`, and only heights
+whose destination hitbox is clear are sent (a height inside the thin roof between the player and an
+air pocket is skipped). When the built heights run out
+(or `maxClear < 6`) the burst stacks `2..n` clear up/down cycles before each hit — a low cave needs
+`ceil(6/maxClear)` cycles for the first lethal hit. The burst is capped at `MAX_CAVE_CYCLES=400`
+(≈800 move packets) and warns when the cap cuts it short; `Sustained Drain` then continues with one
+lethal cave single per 22 ticks. It warns once when `AntiPop` (or another NoFall) is inactive, because
+the stacked fake fall is only safe if the final landing packet is stripped. Cave Safe still passes
+through roof blocks between the two packet endpoints (positions, not collisions), so it remains
+anticheat-visible; it just avoids landing inside a block and the huge world-top teleport.
 
 ## xintpmace *(unregistered)* — `modules/XinTpMace.java` (255 lines)
 

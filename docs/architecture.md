@@ -6,8 +6,8 @@
 
 - `extends MeteorAddon`, `LOG = "Qazr-Addons"`.
 - `onRegisterCategories()` registers `CATEGORY = new Category("Qazr1234")`.
-- `onInitialize()` adds every module via `Modules.get().add(new X())` grouped by comments
-  (重锤战斗 / 长矛战斗 / 移动辅助 / 自动化 / 聊天/信息).
+- `onInitialize()` adds 26 registered modules via `Modules.get().add(new X())` grouped by comments
+  (重锤战斗 / 长矛战斗 / 移动辅助 / 自动化 / 聊天/信息); five classes remain unregistered.
 - `getPackage()` returns `"com.macekill.addon"` — Meteor uses it to scan settings/commands.
 - Logs module count via `Modules.get().getGroup(CATEGORY).size()`.
 
@@ -60,6 +60,17 @@ each successive mace hit must deal strictly more damage to beat `hurtResistantTi
 invuln, and the whole list must fire in **one tick / one smash** to beat enemy AutoTotem
 re-equip. Callers add `+3` margin (`Math.min(totems+3, MAX_TOTEM_HITS=198)`).
 
+`MaceAttect`'s **Cave Safe** branch applies the same strict-increase rule to MaceTotemFail's
+capped cave movement. It scans for the highest hitbox-clear height within 22 blocks (a
+destination scan, so an air pocket above a thin roof qualifies), sends one up/down cycle per
+hit, and uses `BurstHeights` heights in `[6, maxClear]`, skipping built heights whose
+destination hitbox is not clear (an air pocket above a thin roof is reachable, the roof
+between is not a valid endpoint). Because `MaceItem.postDamageEntity`
+calls `onLanding()` after every landed smash, the attacker's fall resets per hit; when the
+available distinct heights run out (or the cave is lower than 6 blocks) the branch stacks
+`2..n` up/down cycles before each hit to rebuild a larger fall. `MAX_CAVE_CYCLES=400` caps one
+tick (~800 move packets); `Sustained Drain` continues afterwards.
+
 ### Inventory switching (all mace modules)
 
 1. If selected hotbar slot already holds the mace → keep.
@@ -81,6 +92,9 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 - `PlayerMoveC2SPacket.Full` / `PositionAndOnGround` / `LookAndOnGround` / `OnGroundOnly` — AntiPop
   rebuilds the same subtype with `onGround=false` (1.21.11 made the packet fields `final`, so no accessor mixin).
 - `PlayerInteractEntityC2SPacket.attack(target, sneaking)` — server-side hit.
+- `PlayerInteractItemC2SPacket(hand, sequence, yaw, pitch)` — bow/trident use (ArrowKiller re-sends it at the teleported position).
+- `PlayerActionC2SPacket(RELEASE_USE_ITEM)` — bow release (ArrowKiller cancels/replays it at the target).
+- `VehicleMoveC2SPacket.fromVehicle(entity)` — ArrowKiller's movement/teleport packet when riding.
 - `UpdateSelectedSlotC2SPacket(slot)` — server slot sync.
 - `CreativeInventoryActionC2SPacket(slot, stack)` — creative give.
 - `PlayerActionC2SPacket(START/STOP_DESTROY_BLOCK)` + `PlayerInteractBlockC2SPacket` — miner/shulker.
@@ -94,13 +108,14 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | MaceKillModule | `TickEvent.Pre`, phases IDLE/START_DELAY/RETURN_DELAY | TP → delay → smash → return |
 | MaceAura *(unregistered)* | `TickEvent.Pre` + `attackDelay` cooldown | nearest target → totem list or single height |
 | TpMace | `TickEvent.Pre`, phases IDLE/DELAY/RETURN_DELAY | first-attack fast path, burst smash, stepped return |
-| MaceAttect | `AttackEntityEvent`, `PacketEvent.Send` (attack pkt), `TickEvent.Pre` | `pendingTarget` → SMASH → RETURN_DELAY |
+| MaceAttect | `AttackEntityEvent`, `PacketEvent.Send` (public `handle`/`meteor$getEntity`), `TickEvent.Pre` | `pendingTarget` → SMASH (pierce or Cave Safe) → RETURN_DELAY |
 | MaceMissLite *(unregistered)* | `TickEvent.Pre` IDLE/DELAY, `Render3DEvent` | sorted target → dv-offset smash + box render |
 | XinTpMace *(unregistered)* | `TickEvent.Pre` + `cooldownTicks` | predicted TP + clamped heights |
 | MaceDMG *(unregistered)* | `TickEvent.Post` | cooldown-edge detect → fake-Y burst |
 | MaceBreakerPro | `AttackEntityEvent` | cancel → axe hit → mace hit → restore |
 | UltraAura | `TickEvent.Pre` (target list), `TickEvent.Post` (attack timer) | closest-angle target → packet TP in → attack → TP back |
-| InfiniteReach | `TickEvent.Post` + attack/use key edges | entity raycast (if `entities`) → attack; else block raycast (if `blocks`) → interact/break |
+| ArrowKiller | `TickEvent.Pre`/`Post`, `PacketEvent.Send` (priority 200), `Render3DEvent` | predict target / charge bow; intercept use/release → TP to target → replay → TP back; optional boxes |
+| InfiniteReach | `TickEvent.Post`, `Render3DEvent` + attack/use key edges | entity raycast (if `entities`) → attack; else block raycast (if `blocks`) → interact/break; hover box for far blocks |
 | AntiPop | `PacketEvent.Send` (move packets) | rebuild packet with `onGround=false` and resend |
 | SpearKill Blink | `TickEvent.Pre` + `PacketEvent.Send` (move pkts) | queue moves → flush on charge |
 | SpearKill Lunge | `TickEvent.Pre` | VClip above → charge → release |

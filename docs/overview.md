@@ -16,9 +16,9 @@
 | MC / Yarn / Loader | `1.21.11 / 1.21.11+build.3 / 0.18.6` (`gradle.properties:3-5`) |
 | Meteor | `0.18.6` local jar `libs/MeteorClient-1.21.11-0.18.6.jar` (renamed from `MeteorCilent` typo 2026-09-25) |
 | Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
-| Registration | `MaceKillAddon.onInitialize()` adds 25 modules (`MaceKillAddon.java:51-89`) |
+| Registration | `MaceKillAddon.onInitialize()` adds 26 modules (`MaceKillAddon.java:51-91`) |
 
-## Module table (25 modules + 1 command)
+## Module table (26 modules + 1 command)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
@@ -30,10 +30,11 @@
 | `MaceBreakerPro` | `modules/MaceBreakerPro.java` | Axe+mace double-hit on `AttackEntityEvent` to break shields |
 | `SpearKill` | `modules/SpearKill.java` | Spear Blink (packet queue) / Lunge (charged dash) |
 | `UltraAura` | `modules/UltraAura.java` | TP aura: closest-angle target, packet teleport in → attack → teleport back |
-| `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) |
+| `ArrowKiller` | `modules/ArrowKiller.java` | Teleports bow/trident shots onto the target (needs `AntiPop` for the fall) |
+| `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) + far-block hover box |
 
 > Classes `MaceAura`, `MaceMissLite`, `XinTpMace`, `MaceDMG` and `AntiAirMiss` still exist on disk but
-> their `Modules.get().add(...)` lines are commented out in `MaceKillAddon.java:52-59` — they cannot be
+> their `Modules.get().add(...)` lines are commented out in `MaceKillAddon.java:54-59` — they cannot be
 > enabled in-game and are marked *(unregistered)* in `modules-mace.md`.
 
 ### Movement (see `modules-other.md`)
@@ -47,7 +48,7 @@
 | `AntiPop` | `modules/AntiPop.java` | Rebuilds every outgoing move packet with `onGround=false` (server never sees you land) |
 
 > `AdvancedNoFall` is also on disk but its import/registration are commented out
-> (`MaceKillAddon.java:4,74`) — unregistered, cannot be enabled in-game.
+> (`MaceKillAddon.java:4,76`) — unregistered, cannot be enabled in-game.
 
 ### Automation
 
@@ -85,7 +86,7 @@ Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,Ta
 
 ## Warnings
 
-1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `UltraAura`, `InfiniteReach`, `AntiPop`, `Rise`,
+1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `UltraAura`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
    `Speed`, `MassTpa`, `AutoMineModule` (fly) all send abnormal packet bursts. Use only on test servers.
 2. **Desync risk.** Many modules move the *server* via packets but never update the client
    (or vice versa). See `problems.md` § desync.

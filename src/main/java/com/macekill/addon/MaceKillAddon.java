@@ -4,6 +4,7 @@ import com.macekill.addon.commands.TpCommand;
 // import com.macekill.addon.modules.AdvancedNoFall;
 import com.macekill.addon.modules.AntiCreeper;
 import com.macekill.addon.modules.AntiPop;
+import com.macekill.addon.modules.ArrowKiller;
 import com.macekill.addon.modules.AutoMsgModule;
 import com.macekill.addon.modules.AutoRise;
 import com.macekill.addon.modules.AutoTotemToHotbar;
@@ -61,6 +62,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new Hitback());
         Modules.get().add(new MassTpa());
         Modules.get().add(new UltraAura());
+        Modules.get().add(new ArrowKiller());
         Modules.get().add(new InfiniteReach());
 
         // ---- 长矛战斗 ----

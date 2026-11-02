@@ -9,11 +9,12 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 
 **Mace combat**
 - TpMace — teleports to the target and smashes down with the mace, works underground too
-- MaceAttect — same smash but it triggers when YOU hit someone, no auto targeting
-- Totem bypass — pops stacked totems, first in one big burst then keeps going one by one until they die
+- MaceAttect — same smash but it triggers when YOU hit someone, no auto targeting; Cave Safe handles low roofs
+- Totem bypass — pops stacked totems in one burst, then keeps going one by one until they die; cave mode uses strictly increasing falls
 - MaceBreakerPro — axe + mace combo that breaks shields
 - UltraAura — teleports to the player closest to your crosshair, smashes them and teleports back
-- InfiniteReach — attack entities and use/break blocks far away, with separate entity/block reach
+- ArrowKiller — teleports bow/trident shots onto the target (enable AntiPop)
+- InfiniteReach — attack entities and use/break blocks far away, with separate entity/block reach and a far-block hover box
 
 **Movement**
 - PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat

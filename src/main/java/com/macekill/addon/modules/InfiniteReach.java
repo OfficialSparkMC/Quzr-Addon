@@ -4,16 +4,22 @@ import com.macekill.addon.MaceKillAddon;
 import com.macekill.addon.utils.Attack;
 import com.macekill.addon.utils.HitResults;
 import com.macekill.addon.utils.Movement;
+import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
+import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
+import meteordevelopment.meteorclient.settings.ColorSetting;
 import meteordevelopment.meteorclient.settings.IntSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.render.color.Color;
+import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
+import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.ItemEntity;
 import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
@@ -25,6 +31,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 
 /**
  * InfiniteReach (ported from brew-addon 1.21.8).
@@ -76,6 +83,22 @@ public class InfiniteReach extends Module {
         .min(5)
         .sliderMax(210)
         .visible(blocks::get)
+        .build()
+    );
+
+    private final Setting<Boolean> hoverBox = sgGeneral.add(new BoolSetting.Builder()
+        .name("hover-box")
+        .description("Draw a box around the far block under your crosshair while blocks is on.")
+        .defaultValue(true)
+        .visible(blocks::get)
+        .build()
+    );
+
+    private final Setting<SettingColor> hoverColor = sgGeneral.add(new ColorSetting.Builder()
+        .name("hover-color")
+        .description("Side color of the hover box (the outline uses the same color at full alpha).")
+        .defaultValue(new SettingColor(0, 255, 0, 60))
+        .visible(() -> blocks.get() && hoverBox.get())
         .build()
     );
 
@@ -225,6 +248,28 @@ public class InfiniteReach extends Module {
         currentBlockState = null;
         breakProgress = 0.0;
         hasStartedBreaking = false;
+    }
+
+    @EventHandler
+    private void onRender3D(Render3DEvent event) {
+        if (!blocks.get() || !hoverBox.get() || mc.player == null || mc.world == null) return;
+
+        Camera camera = mc.gameRenderer.getCamera();
+        Vec3d start = camera.getCameraPos();
+        Vec3d end = start.add(Vec3d.fromPolar(camera.getPitch(), camera.getYaw())
+            .multiply(blockReach.get()));
+
+        HitResult hit = mc.world.raycast(new RaycastContext(
+            start, end, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, mc.player));
+        if (!(hit instanceof BlockHitResult blockHit) || hit.getType() != HitResult.Type.BLOCK) return;
+
+        BlockPos pos = blockHit.getBlockPos();
+        // Only highlight blocks the module can actually act on (beyond vanilla reach).
+        if (getTargetDistance(blockHit.getPos()) <= VANILLA_REACH) return;
+
+        Color side = hoverColor.get();
+        Color line = new Color(side.r, side.g, side.b, 255);
+        event.renderer.box(pos, side, line, ShapeMode.Both, 0);
     }
 
     @EventHandler
