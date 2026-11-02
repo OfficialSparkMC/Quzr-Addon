@@ -99,4 +99,4 @@ To build again:
 ```
 
 ## Official *discord* server:
-https://discord.gg/M389NKHFY
+[https://discord.gg/M389NKHFY](https://discord.gg/H8BaMhuDzc)
