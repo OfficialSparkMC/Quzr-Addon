@@ -189,7 +189,8 @@
     `getEntityPos()` / `getCameraPos()`; the brew ports use the new names.
 40. **KNOWN RISK — `UltraAura`, `InfiniteReach`, `b-anti-creeper`.** All three send server-side
     teleports to attack outside vanilla reach; trivially detectable by anticheat. `AntiPop` directly
-    conflicts with `AdvancedNoFall` (both rewrite outgoing move packets), so never enable both.
+    conflicts with `AdvancedNoFall` (currently unregistered, file kept; both rewrite outgoing
+    move packets), so never enable both.
 
 ## Fix priority (suggested)
 

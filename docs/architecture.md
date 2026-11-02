@@ -115,7 +115,7 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | Rise/Speed/AutoRise | `TickEvent.Pre` | packet bursts (see modules-other) |
 | b-anti-creeper | `TickEvent.Post` (OnExplode), `EntityAddedEvent` (OnSpawn) | in-range creeper → `Attack.attack(creeper, mace, 10, equip)` |
 | PlayerTp | one-shot `onActivate` | nearest player → `Movement.doTpTo` → auto-disable |
-| AdvancedNoFall | `TickEvent.Pre` | client-fall trigger → `onGround=true` spoof |
+| AdvancedNoFall *(unregistered)* | `TickEvent.Pre` | client-fall trigger → `onGround=true` spoof |
 | TpCommand (`.tp`) | Brigadier execute (client thread) | `PlayerTp.teleportTo()` (module need not be active) |
 
 ## Resources

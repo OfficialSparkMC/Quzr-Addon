@@ -24,7 +24,7 @@ alive non-spectator attackable player in range, travels via shared
 name, auto-disables. Named jumps go through `.tp <player>` (see `commands.md`),
 which calls the same static `teleportTo()` — module need not be enabled.
 
-### AdvancedNoFall — `modules/AdvancedNoFall.java`
+### AdvancedNoFall *(unregistered)* — `modules/AdvancedNoFall.java`
 `Fall Threshold(3.0)`, `Fast-Fall Trigger(off)`, `Packets(1)`, `Pause on Elytra(on)`.
 Smash-safe by construction: triggers only on **client** `fallDistance` (packet smashes
 never move the client, so it idles through every smash and never resets the server's
@@ -32,7 +32,8 @@ fake fall), then spoofs `onGround=true` at the same X/Y/Z every tick while reall
 falling — the server can never accumulate a lethal fall, so post-smash/sky-strand
 landings always survive. Skips ground/creative/spectator/vehicle/elytra states.
 Not a void saver (void damage isn't fall damage); onGround spoof can flag strict
-anticheats — test-server first.
+anticheats — test-server first. Import/registration commented out since 2026-11-02
+(`MaceKillAddon.java:4,74`) — unregistered, cannot be enabled in-game.
 
 ### AntiPop — `modules/AntiPop.java` (68 lines)
 `log-on-effect(off)` in the default group. On `PacketEvent.Send` for any `PlayerMoveC2SPacket`

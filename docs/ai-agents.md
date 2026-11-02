@@ -83,5 +83,6 @@ Every code change that affects behavior, settings, modules, build, or known issu
 `AntiCreeper` / `InfiniteReach` (+ `utils/Attack`, `utils/Movement`, `utils/HitResults`);
 1.21.11 deltas: final packet fields → AntiPop rebuild, `getEntityPos`/`getCameraPos`;
 `MaceAura`/`MaceMissLite`/`XinTpMace`/`MaceDMG`/`AntiAirMiss` marked unregistered;
-`b-reach` renamed `inf-reach` with separate entity/block reach; docs synced.*
+`b-reach` renamed `inf-reach` with separate entity/block reach; `AdvancedNoFall`
+unregistered (2026-11-02); docs synced.*
 *Maintainer note: bump this line on every docs-syncing change.*

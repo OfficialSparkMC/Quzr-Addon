@@ -18,7 +18,6 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 **Movement**
 - PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat
 - Rise / Speed / AutoRise — quick vertical movement tricks
-- AdvancedNoFall — never take fall damage, doesn't mess with your mace smashes
 - AntiPop — the server never sees you touch the ground, so no fall damage
 - FreecamTp — fly the freecam somewhere, right click, you're there
 

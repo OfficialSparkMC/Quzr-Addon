@@ -16,9 +16,9 @@
 | MC / Yarn / Loader | `1.21.11 / 1.21.11+build.3 / 0.18.6` (`gradle.properties:3-5`) |
 | Meteor | `0.18.6` local jar `libs/MeteorClient-1.21.11-0.18.6.jar` (renamed from `MeteorCilent` typo 2026-09-25) |
 | Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
-| Registration | `MaceKillAddon.onInitialize()` adds 26 modules (`MaceKillAddon.java:51-89`) |
+| Registration | `MaceKillAddon.onInitialize()` adds 25 modules (`MaceKillAddon.java:51-89`) |
 
-## Module table (26 modules + 1 command)
+## Module table (25 modules + 1 command)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
@@ -44,8 +44,10 @@
 | `AutoRise` | `modules/AutoRise.java` | Rises when a target is within `Detection Range` (fixed X/Y bug, see `problems.md`) |
 | `Speed` | `modules/SpeedModule.java` | Staircase rise `Cycles × Rise Height` packets per tick |
 | `PlayerTp` | `modules/PlayerTp.java` | One-shot TP to nearest player on enable (see `commands.md` for `.tp`) |
-| `AdvancedNoFall` | `modules/AdvancedNoFall.java` | Zero fall damage via client-state trigger, smash-safe (see below) |
 | `AntiPop` | `modules/AntiPop.java` | Rebuilds every outgoing move packet with `onGround=false` (server never sees you land) |
+
+> `AdvancedNoFall` is also on disk but its import/registration are commented out
+> (`MaceKillAddon.java:4,74`) — unregistered, cannot be enabled in-game.
 
 ### Automation
 
