@@ -50,3 +50,19 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
     withSourcesJar()
 }
+
+tasks.named('test') {
+    // src/test also holds the plain-Java CaveBurstSimulation proof harness (no JUnit);
+    // Gradle 9 otherwise fails when a test source set contains no discoverable tests.
+    failOnNoDiscoveredTests = false
+}
+
+// Deterministic proof for the Cave Safe packet sequence (no Minecraft runtime needed).
+// Run with: ./gradlew caveBurstSimulation
+tasks.register('caveBurstSimulation', JavaExec) {
+    group = 'verification'
+    description = 'Runs the 1.21.11 cave climb/mace/totem simulation proof.'
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.macekill.addon.modules.macekill.CaveBurstSimulation'
+}

@@ -2,7 +2,7 @@
 
 ## Toolchain
 
-- Java 21 (`build.gradle:41-50`, `fabric.mod.json:23` `java >= 21`).
+- Java 21 (`build.gradle:43-52`, `fabric.mod.json:23` `java >= 21`).
 - Fabric Loom `1.14-SNAPSHOT` (`build.gradle:2`), Gradle wrapper (`gradlew`).
 - `org.gradle.jvmargs=-Xmx2G` (`gradle.properties:1`).
 
@@ -20,7 +20,7 @@
 
 `version = mod_version`, `archivesName = archives_base_name` (`build.gradle:5-10`).
 
-## Dependencies (`build.gradle:26-33`)
+## Dependencies (`build.gradle:26-35`)
 
 ```groovy
 minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -54,7 +54,15 @@ compileOnly files('libs/orbit-0.2.4.jar')
 ./gradlew build        # full build, jar -> build/libs/Qazr-Addons-1.0.0.jar (+ -sources.jar)
 ./gradlew runClient    # loom test client (needs Meteor jar present)
 ./gradlew --refresh-dependencies build   # after changing versions
+./gradlew caveBurstSimulation           # deterministic 1.21.11 cave climb/mace/totem proof
 ```
+
+`caveBurstSimulation` compiles `src/test/java/.../CaveBurstSimulation.java` (a plain `main`, no
+JUnit) and runs it with `JavaExec` against `sourceSets.test.runtimeClasspath`. It models the
+`ServerPlayNetworkHandler.onPlayerMove` packet cap and upward `onLanding()` fall reset, mace
+fall damage, hurt invulnerability, and totem pops; it exits non-zero on any failed check. The
+`test` task sets `failOnNoDiscoveredTests = false` because this proof harness is the only file
+in the test source set.
 
 ## Version bump checklist
 
@@ -63,9 +71,11 @@ compileOnly files('libs/orbit-0.2.4.jar')
 3. Rebuild; confirm `build/libs/` artifact name.
 4. Update `docs/overview.md` version table + `docs/ai-agents.md` last-verified line.
 5. If MC/Meteor changes: update `minecraft_version`, `yarn_mappings`, `loader_version`,
-   `meteor_version`, local `libs/*.jar` names in `build.gradle`, and re-verify every
-   reflection string in `MaceAttect` (`field_12871/type`, `field_29170/ATTACK`, `field_12870/entityId`)
-   and `PlayerInventory.selectedSlot`.
+   `meteor_version`, local `libs/*.jar` names in `build.gradle`, and re-verify
+   `MaceAttect`'s public packet API (`PlayerInteractEntityC2SPacket.handle(Handler)` +
+   `IPlayerInteractEntityC2SPacket.meteor$getEntity()`) and the public
+   `PlayerInventory.getSelectedSlot()/setSelectedSlot()` calls (the old field-name
+   reflection is gone).
 
 ## Known build smells (detail in `problems.md`)
 

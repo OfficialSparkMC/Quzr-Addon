@@ -79,13 +79,18 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-02 — ported vicore `AntiPop` / `UltraAura` / `MaceTotemFail` cave path and
-brew-addon 1.21.8 `AntiCreeper` / `InfiniteReach` (+ `utils/Attack`, `utils/Movement`, `utils/HitResults`);
-ported vicore `ArrowKiller` (needs `AntiPop`); `MaceAttect` Cave Safe uses strictly increasing falls
-(one climb per hit, stacked cycles in low caves, 400-cycle cap) + public packet `handle`/`m meteor$getEntity`
-API and `Disable When Blocked`; `inf-reach` hover box settings/render; 1.21.11 deltas: final packet
-fields → AntiPop rebuild, `getEntityPos`/`getCameraPos`, `World.isPosLoaded`, `VehicleMoveC2SPacket.fromVehicle`;
-`MaceAura`/`MaceMissLite`/`XinTpMace`/`MaceDMG`/`AntiAirMiss` marked unregistered; `b-reach` renamed
-`inf-reach` with separate entity/block reach (mace-attack options removed); `AdvancedNoFall` unregistered
-(2026-11-02); docs synced.*
+*Last verified: 2026-11-03 — corrected `MaceAttect` Cave Safe for 1.21.11: `onPlayerMove` calls
+`onLanding()` on every upward move packet, so up/down cycles cannot stack fall. The cave path now
+uses one contiguous clear climb per hit (`CaveBurst`, cap 8, packet-cap checked), a one-hit
+production burst, and `Sustained Drain` with a dynamic 22-60 tick cooldown for the rest; caves below
+~7 blocks of headroom warn instead of stacking. Added `./gradlew caveBurstSimulation` proof (24
+totems, no rejected packets). Previously: ported vicore `AntiPop` / `UltraAura` / `MaceTotemFail`
+cave path and brew-addon 1.21.8 `AntiCreeper` / `InfiniteReach` (+ `utils/Attack`,
+`utils/Movement`, `utils/HitResults`); ported vicore `ArrowKiller` (needs `AntiPop`); `MaceAttect`
+uses public packet `handle`/`meteor$getEntity` API and `Disable When Blocked`; `inf-reach` hover box
+settings/render; 1.21.11 deltas: final packet fields → AntiPop rebuild, `getEntityPos`/`getCameraPos`,
+`World.isPosLoaded`, `VehicleMoveC2SPacket.fromVehicle`; `MaceAura`/`MaceMissLite`/`XinTpMace`/
+`MaceDMG`/`AntiAirMiss` marked unregistered; `b-reach` renamed `inf-reach` with separate
+entity/block reach (mace-attack options removed); `AdvancedNoFall` unregistered (2026-11-02); docs
+synced.*
 *Maintainer note: bump this line on every docs-syncing change.*

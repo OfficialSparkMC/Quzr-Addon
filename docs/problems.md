@@ -26,7 +26,7 @@
 
 ## 1. Duplication — HIGH (maintenance)
 
-- `TpMace.java` (864) vs `MaceAttect.java` (1242): `attackOnce/stepMove/stepMoveDown/hitboxBlocked/
+- `TpMace.java` (864) vs `MaceAttect.java` (1223): `attackOnce/stepMove/stepMoveDown/hitboxBlocked/
   firstClearBelow/findDropColumn/sendAttack/finishAttack/returnToStart/resetState/checkAndSwapWeapon/
   swapMace/getYawTo/getPitchTo` are ~95% identical. Same for `getDrainHeights/parseHeight/countTotems`
   ×5 files, `getSelectedSlot/setSelectedSlot` ×7 files, totem-bypass prologue ×5 files.
@@ -69,8 +69,8 @@
 12c. **Stacked totems (20/slot) outlasting the burst — `Sustained Drain` (TpMace/MaceAttect).**
     A single burst can't exceed reality (actual held totems) and stalls under server mace-
     damage caps or packet drops. New chain: after an unfinished burst the module keeps one
-    lethal single per 22 ticks (past hurt invuln, no escalation needed) until death or
-    `Max Sustained Hits`. FIXED 2026-09-25 (2nd pass): the chain used to die as soon as the
+    lethal single per cooldown window (22 ticks in the pierce path, 22-60 in Cave Safe) until
+    death or `Max Sustained Hits`. FIXED 2026-09-25 (2nd pass): the chain used to die as soon as the
     enemy's *visible* totems emptied, because `Detect Totem` only ever sees hands — the
     client never receives a full enemy inventory (protocol blindness). An armed chain now
     continues regardless of visibility (`isChainedTarget` / `sustainHit` gate the branch).
@@ -139,7 +139,7 @@
 | `PlayerTp` / `.tp` | stepped long-range TP packets | Same teleport flags as mace smashes; cross-map jumps kick vanilla/Paper. |
 | `AdvancedNoFall` | 1-5 `onGround=true`/tick while falling | Safe by design on vanilla/Paper; Grim-style anticheats flag sustained spoofs. |
 | `ArrowKiller` | 4 no-ground primes + 6-8 tagged teleports + use/release per shot | Blatant server-side teleport; the prime is `onGround=true` unless AntiPop strips it. |
-| `MaceAttect` Cave Safe | up to `MAX_CAVE_CYCLES=400` up/down cycles/tick (≈800 move packets) | Capped and warned; still a teleport burst, and it passes through roof blocks between endpoints. |
+| `MaceAttect` Cave Safe | 2 move packets per burst hit + 2 per sustained hit (one climb each) | Contiguous clear column; no roof piercing and no stacked cycles (1.21.11 resets fall on ascent). Position-only packets remain anticheat-visible. |
 | `AutoMineModule` fly | `allowFlying` without creative | Fly flag on any anticheat. Needs a real movement bypass or removal. |
 | All VClip smashes | 170-block `onGround=false` teleports | Vanilla `moved too quickly`, Paper `invalid move`, Grim teleport checks. Test-server only. |
 
@@ -195,13 +195,15 @@
     server-side teleports to attack outside vanilla reach; trivially detectable by anticheat.
     `AntiPop` directly conflicts with `AdvancedNoFall` (currently unregistered, file kept; both
     rewrite outgoing move packets), so never enable both.
-41. **KNOWN RISK — `MaceAttect` Cave Safe.** Ported from `MaceTotemFail` with a higher-clearance
-    destination scan and hitbox checks, but it still teleports through roof blocks between two
-    valid endpoints. The burst uses strictly increasing falls because `MaceItem.postDamageEntity`
-    resets the attacker's `fallDistance` per landed hit; a low cave stacks cycles and is capped at
-    `MAX_CAVE_CYCLES=400` (≈800 movement packets/tick), warning when it truncates. It also warns
-    once when `AntiPop` is inactive: the stacked fall is only safe if the final `onGround=true`
-    landing packet is stripped.
+41. **KNOWN RISK — `MaceAttect` Cave Safe.** Corrected for 1.21.11: `onPlayerMove` calls
+    `onLanding()` on every upward move packet, so stacked up/down cycles cannot build fall.
+    The cave path now uses one contiguous clear climb per hit (`CaveBurst`), capped at 8
+    blocks and checked against the per-tick movement cap; the production burst emits one
+    hit and `Sustained Drain` finishes stacked totems one dynamic cooldown window at a time.
+    Caves with less than ~7 blocks of headroom cannot support a lethal mace hit and now warn
+    instead of stacking cycles. It still sends position-only teleports (anticheat-visible)
+    and warns once when `AntiPop` is inactive: an unlanded hit leaves real server fall that
+    can hurt on the next landing. Proof: `./gradlew caveBurstSimulation`.
 42. **1.21.11 DELTA — `ArrowKiller` fallback lookup.** vicore used `World.getChunk(BlockPos)` to
     reject unloaded positions; the port uses `World.isPosLoaded(BlockPos)` (the 1.21.11 API).
     Vehicles use `VehicleMoveC2SPacket.fromVehicle`; the player path tags its

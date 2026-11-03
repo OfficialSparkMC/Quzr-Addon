@@ -55,8 +55,9 @@ across several bursts, not one. `Detect Totem` shrinks the burst to their visibl
 is the server dropping excess same-tick packets or rubberbanding an over-cap jump, after
 which later hits land with no fall). `Sustained Drain(on)` + `Max Sustained Hits(40)`: if a
 burst can't finish stacked totems (server mace-damage cap, dropped packets), the module arms
-a chain on that target and keeps popping one full-height lethal single per 22 ticks (past
-hurt invuln, no escalation needed) until death/exhaustion — this is what clears 20-stacks
+a chain on that target and keeps popping one full-height lethal single per cooldown window (22
+ticks past hurt invuln in the pierce path, 22-60 in Cave Safe depending on ceiling; no
+escalation needed) until death/exhaustion — this is what clears 20-stacks
 and refill inventories that outlast any single burst. `Height Step(1.0, 0.25-2.0)` sets minimum separation —
 0.5/0.25 packs a 198-burst into ~50-100 blocks instead of ~200 (fewer packets, fits low
 roofs; server fall is float so escalation still holds). Ceiling is the pierce ceiling
@@ -74,7 +75,7 @@ rotation pkt, `fallPackets` prime, `stepMove` up + `stepMoveDown` (block-skippin
 `sendAttack`. `returnToStart` damage-checks (`preHealth` vs now) and either stepped-return or
 client snap. `getMaxHeightAbovePlayer` is dead code (pierce-through-roof replaced it).
 
-## MaceAttect — `modules/MaceAttect.java` (1242 lines, sic spelling)
+## MaceAttect — `modules/MaceAttect.java` (1223 lines, sic spelling)
 
 Settings: `Move Step(8)`, `Auto Switch(on)`, `Rotate(on)`, `Swing Hand(off)`, `Return to Start(on)`,
 `Disable When Blocked(on)`, `Max Damage(on) + Attack Height(170)`, `Silent Swap(off)`,
@@ -93,23 +94,28 @@ for other modules). Filters: `Players/Entities/Through Walls/Ignore Named/List M
 Phases `IDLE → SMASH → RETURN_DELAY`. Totem burst, `Drain Mode` (`SPREAD`/`LIST`/`INCREMENTAL`),
 pierce ceiling, packet estimate, and immediate silent revert are identical to TpMace
 (fixed 2026-09-25). `runSmash`/`attackOnce`/`stepMove`/`stepMoveDown`/
-`findDropColumn`/`returnToStart` are line-for-line cousins of TpMace.
+`findDropColumn`/`returnToStart` are line-for-line cousins of TpMace, except the Cave Safe
+branch, which uses `CaveBurst` + `caveLift`/`caveClearance`/`caveClimb`.
 
-**Cave Safe** (`Cave Safe(on)`, Totem group) is the MaceTotemFail port for low ceilings. Instead of
-piercing to `worldTop`, it finds the highest hitbox-clear destination within 22 blocks (an air pocket
-above a thin roof counts; a contiguous clear column is not required), sends `start → start+h → start`
-all with `onGround=false`, then attacks. A landed mace hit resets the attacker's fall
-(`MaceItem.postDamageEntity` → `onLanding`), so every hit needs a strictly greater fall:
-`BurstHeights` supplies ascending one-climb heights in `[MIN_LETHAL=6, maxClear]`, and only heights
-whose destination hitbox is clear are sent (a height inside the thin roof between the player and an
-air pocket is skipped). When the built heights run out
-(or `maxClear < 6`) the burst stacks `2..n` clear up/down cycles before each hit — a low cave needs
-`ceil(6/maxClear)` cycles for the first lethal hit. The burst is capped at `MAX_CAVE_CYCLES=400`
-(≈800 move packets) and warns when the cap cuts it short; `Sustained Drain` then continues with one
-lethal cave single per 22 ticks. It warns once when `AntiPop` (or another NoFall) is inactive, because
-the stacked fake fall is only safe if the final landing packet is stripped. Cave Safe still passes
-through roof blocks between the two packet endpoints (positions, not collisions), so it remains
-anticheat-visible; it just avoids landing inside a block and the huge world-top teleport.
+**Cave Safe** (`Cave Safe(on)`, Totem group) is the MaceTotemFail port for low ceilings, corrected
+for 1.21.11. Instead of piercing to `worldTop`, it measures the **contiguous** clear column above
+the player (a roof is not skipped) and takes `min(Move Step, 8)` minus the 1.8-block hitbox and a
+0.05 margin. A hit is one independent climb: `start → start+lift → start` with `onGround=false`,
+then attack. This is required because `ServerPlayNetworkHandler.onPlayerMove` calls
+`player.onLanding()` on every upward move packet, so an up/down cycle cannot stack fall — the
+ascent wipes whatever the previous descent added. `MaceItem.postDamageEntity` also resets the
+attacker's fall after a landed smash. `CaveBurst.burstPlan` emits only strictly increasing climbs
+that fit the movement cap (`p ≤ 100*q`, q resets after 5 packets); with the production cap of 8
+that is exactly one burst hit. `Sustained Drain` then pops the remaining totems one hit per
+dynamically computed cooldown window (`CaveBurst.sustainedDelay`, 22-60 ticks), waiting for enough
+mace charge at the available lift. A full-charge lethal hit needs ~4.25 blocks of climb (about 7
+blocks of headroom); below that the module warns and skips rather than pretending stacked cycles
+can help. The old 400-cycle/22-block-destination-scan path is removed. It warns once when `AntiPop`
+(or another NoFall) is inactive: each climb builds real server fall, so a rejected hit can hurt on
+the next landing. Position-only packets are still anticheat-visible, but the climb never enters a
+roof block. Proof: `./gradlew caveBurstSimulation` runs a deterministic 1.21.11 model of the
+movement cap, upward fall reset, mace damage, hurt invulnerability, and totem pops; it passes for
+every clearance 7-32 (24 totems) and confirms 2-6 is physically impossible.
 
 ## xintpmace *(unregistered)* — `modules/XinTpMace.java` (255 lines)
 
