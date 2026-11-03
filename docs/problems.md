@@ -139,7 +139,7 @@
 | `PlayerTp` / `.tp` | stepped long-range TP packets | Same teleport flags as mace smashes; cross-map jumps kick vanilla/Paper. |
 | `AdvancedNoFall` | 1-5 `onGround=true`/tick while falling | Safe by design on vanilla/Paper; Grim-style anticheats flag sustained spoofs. |
 | `ArrowKiller` | 4 no-ground primes + 6-8 tagged teleports + use/release per shot | Blatant server-side teleport; the prime is `onGround=true` unless AntiPop strips it. |
-| `MaceAttect` Cave Safe | 2 move packets per burst hit + 2 per sustained hit (one climb each) | Contiguous clear column; no roof piercing and no stacked cycles (1.21.11 resets fall on ascent). Position-only packets remain anticheat-visible. |
+| `MaceAttect` Cave Safe | 6 move packets per cave climb (4 no-op padding + up/down) | 22-block destination scan: the server accepts a clear endpoint even through a roof; 4 padding packets put the ascent at packet 5 (`sqrt(500)=22.36`). No stacked cycles (1.21.11 resets fall on ascent). Position-only packets remain anticheat-visible. |
 | `AutoMineModule` fly | `allowFlying` without creative | Fly flag on any anticheat. Needs a real movement bypass or removal. |
 | All VClip smashes | 170-block `onGround=false` teleports | Vanilla `moved too quickly`, Paper `invalid move`, Grim teleport checks. Test-server only. |
 
@@ -197,13 +197,19 @@
     rewrite outgoing move packets), so never enable both.
 41. **KNOWN RISK — `MaceAttect` Cave Safe.** Corrected for 1.21.11: `onPlayerMove` calls
     `onLanding()` on every upward move packet, so stacked up/down cycles cannot build fall.
-    The cave path now uses one contiguous clear climb per hit (`CaveBurst`), capped at 8
-    blocks and checked against the per-tick movement cap; the production burst emits one
-    hit and `Sustained Drain` finishes stacked totems one dynamic cooldown window at a time.
-    Caves with less than ~7 blocks of headroom cannot support a lethal mace hit and now warn
-    instead of stacking cycles. It still sends position-only teleports (anticheat-visible)
-    and warns once when `AntiPop` is inactive: an unlanded hit leaves real server fall that
-    can hurt on the next landing. Proof: `./gradlew caveBurstSimulation`.
+    The cave path scans destinations down from `CaveBurst.MAX_LIFT=22` and picks the highest
+    collision-clear endpoint; `isEntityNotCollidingWithBlocks` checks only that endpoint, so
+    the climb may pass through a roof into an air pocket above it. Contiguous clearance is
+    only the fallback. Four no-op padding packets (the last may carry the rotation) make the
+    ascent packet 5 of the tick, raising the cap to `sqrt(500)=22.36` blocks. `CaveBurst`
+    plans one burst hit from the verified endpoint, and `Sustained Drain` repeats the same
+    padded climb for stacked totems one dynamic cooldown window at a time. Caves with no
+    clear endpoint at least ~4.25 blocks up cannot support a lethal mace hit and warn instead
+    of stacking cycles. It still sends position-only teleports (anticheat-visible) and warns
+    once when `AntiPop` is inactive: an unlanded hit leaves real server fall that can hurt on
+    the next landing. Proof: `./gradlew caveBurstSimulation` includes a 2-block cave under a
+    6-block roof with an air pocket, pops 24/24 totems with zero rejected packets, and also
+    covers the 7-block sustained-only and 3-block impossible cases.
 42. **1.21.11 DELTA — `ArrowKiller` fallback lookup.** vicore used `World.getChunk(BlockPos)` to
     reject unloaded positions; the port uses `World.isPosLoaded(BlockPos)` (the 1.21.11 API).
     Vehicles use `VehicleMoveC2SPacket.fromVehicle`; the player path tags its

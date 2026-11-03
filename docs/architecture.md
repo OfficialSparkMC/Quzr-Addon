@@ -22,7 +22,7 @@ To add a HUD element: it must extend Meteor's `HudElement`, not `Module` (note:
 | `macekill/Config.java` | `record` | `(moveDistance, swingHand, autoTotem, syncClientPos, enableArmorDestroy, ignoreArmorValue, destroyHeights, killHeights)` — passed to `Combat.executeAttack` |
 | `macekill/Combat.java` | static util | `executeAttack`, `findVclipHole`, `vclipSafe`, `needsArmorDestroy`, `parseHeights`, `getVclipClearance`, `worldTop`, `totemBypassHeights`, dead `BypassRunner` |
 | `macekill/BurstHeights.java` | static util | Single-burst totem lists `SPREAD/LIST/INCREMENTAL` (`build`), pierce ceiling, 198 cap, strictly increasing |
-| `macekill/CaveBurst.java` | static util | Pure Cave Safe planner: contiguous lift cap 8, per-tick packet cap, strictly increasing one-climb hits, dynamic sustained delay |
+| `macekill/CaveBurst.java` | static util | Pure Cave Safe planner: 22-block destination cap, 4-packet padding, per-tick packet cap, one-climb hit, dynamic sustained delay |
 | `macekill/Movement.java` | static util | `doTpTo`, `sendMovePacket`, `sendRotations`, `sendSlotPacket`, `attackEntity` |
 | `macekill/Inventory.java` | static util + static `lastMaceSwapSlot` | `switchToMace`, `switchBack`, `findTotemSlot`, `ensureTotem`, public `get/setSelectedSlot` access |
 | `macekill/Targeting.java` | static util | `findBestTarget(mc, range, filter, priority)`, `predictPosition`, `isSafeBlock` |
@@ -65,12 +65,20 @@ re-equip. Callers add `+3` margin (`Math.min(totems+3, MAX_TOTEM_HITS=198)`).
 `ServerPlayNetworkHandler.onPlayerMove`, every upward Y delta calls `player.onLanding()`
 (which zeroes `fallDistance`); the movement cap is `p - velocity² <= 100*q`, where `q` is
 the movement-packet count in the tick (reset to 1 after the 5th). Therefore up/down cycles
-cannot stack fall: each hit is one contiguous climb (`up` resets, `down` adds the climb
-height, `attack`). `CaveBurst` plans strictly increasing climbs that fit both the
-contiguous clear column and the packet cap; the production `MAX_LIFT=8` yields one burst
-hit, and `Sustained Drain` finishes the rest one dynamically computed cooldown window at
-a time. There is no 22-block destination scan, no air-pocket hop, and no
-`MAX_CAVE_CYCLES` stack. Proof: `./gradlew caveBurstSimulation`.
+cannot stack fall: each hit is one climb (`up` resets, `down` adds the climb height,
+`attack`). The server accepts a climb based on the **destination** hitbox
+(`isEntityNotCollidingWithBlocks`), and vertical moved-wrongly error is discarded by the
+tautological `if (m > -0.5 || m < 0.5) m = 0.0;`, so a climb may pass through a roof and
+finish in an air pocket above it. `MaceAttect.caveLift()` scans destinations down from
+`CaveBurst.MAX_LIFT=22` and falls back to the contiguous column only when no higher clear
+endpoint exists. Each climb first sends `CAVE_PAD_PACKETS=4` no-op movement packets (the
+last may carry the rotation), making the ascent packet 5 of the tick, which permits
+`sqrt(500)=22.36` blocks. `CaveBurst.burstPlan` uses the full verified endpoint for the
+first climb and therefore emits one burst hit; `Sustained Drain` repeats the compliant
+padded climb for the rest one dynamically computed cooldown window at a time. There is no
+`MAX_CAVE_CYCLES` stack. Proof: `./gradlew caveBurstSimulation` models destination
+acceptance through a thick roof, the 4-packet padding, the movement cap, fall reset, mace
+damage, hurt invulnerability, and 24-totem sustained drain.
 
 ### Inventory switching (all mace modules)
 

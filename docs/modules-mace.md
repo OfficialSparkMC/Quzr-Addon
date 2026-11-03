@@ -75,7 +75,7 @@ rotation pkt, `fallPackets` prime, `stepMove` up + `stepMoveDown` (block-skippin
 `sendAttack`. `returnToStart` damage-checks (`preHealth` vs now) and either stepped-return or
 client snap. `getMaxHeightAbovePlayer` is dead code (pierce-through-roof replaced it).
 
-## MaceAttect — `modules/MaceAttect.java` (1223 lines, sic spelling)
+## MaceAttect — `modules/MaceAttect.java` (1269 lines, sic spelling)
 
 Settings: `Move Step(8)`, `Auto Switch(on)`, `Rotate(on)`, `Swing Hand(off)`, `Return to Start(on)`,
 `Disable When Blocked(on)`, `Max Damage(on) + Attack Height(170)`, `Silent Swap(off)`,
@@ -98,24 +98,31 @@ pierce ceiling, packet estimate, and immediate silent revert are identical to Tp
 branch, which uses `CaveBurst` + `caveLift`/`caveClearance`/`caveClimb`.
 
 **Cave Safe** (`Cave Safe(on)`, Totem group) is the MaceTotemFail port for low ceilings, corrected
-for 1.21.11. Instead of piercing to `worldTop`, it measures the **contiguous** clear column above
-the player (a roof is not skipped) and takes `min(Move Step, 8)` minus the 1.8-block hitbox and a
-0.05 margin. A hit is one independent climb: `start → start+lift → start` with `onGround=false`,
-then attack. This is required because `ServerPlayNetworkHandler.onPlayerMove` calls
-`player.onLanding()` on every upward move packet, so an up/down cycle cannot stack fall — the
-ascent wipes whatever the previous descent added. `MaceItem.postDamageEntity` also resets the
-attacker's fall after a landed smash. `CaveBurst.burstPlan` emits only strictly increasing climbs
-that fit the movement cap (`p ≤ 100*q`, q resets after 5 packets); with the production cap of 8
-that is exactly one burst hit. `Sustained Drain` then pops the remaining totems one hit per
-dynamically computed cooldown window (`CaveBurst.sustainedDelay`, 22-60 ticks), waiting for enough
-mace charge at the available lift. A full-charge lethal hit needs ~4.25 blocks of climb (about 7
-blocks of headroom); below that the module warns and skips rather than pretending stacked cycles
-can help. The old 400-cycle/22-block-destination-scan path is removed. It warns once when `AntiPop`
+for 1.21.11. It scans **destinations** from `CaveBurst.MAX_LIFT=22` downwards and picks the highest
+collision-clear endpoint. The server accepts a movement packet when the destination hitbox is clear
+(`isEntityNotCollidingWithBlocks`) and discards vertical moved-wrongly error via the tautological
+`if (m > -0.5 || m < 0.5) m = 0.0;`, so the climb may pass through a cave roof and finish in an air
+pocket above it. Contiguous clearance is only the fallback when no higher endpoint exists. Each
+climb sends four no-op movement packets first (the last may carry the rotation), making the ascent
+packet 5 of the tick and raising the displacement cap to `sqrt(500)=22.36` blocks; then
+`start → start+lift → start` with `onGround=false`, then attack from the start position. This is
+required because `ServerPlayNetworkHandler.onPlayerMove` calls `player.onLanding()` on every upward
+move packet, so an up/down cycle cannot stack fall — the ascent wipes whatever the previous descent
+added. `MaceItem.postDamageEntity` also resets the attacker's fall after a landed smash.
+`CaveBurst.burstPlan` uses the full verified endpoint for the first climb (a minimum-height climb
+could sit inside a thick roof below the pocket), capped by the packet cap; with the 4-packet padding
+the production burst is exactly one hit. `Sustained Drain` then repeats the same padded climb for the
+remaining totems, one hit per dynamically computed cooldown window (`CaveBurst.sustainedDelay`,
+22-60 ticks), waiting for enough mace charge at the available lift. A full-charge lethal hit needs
+~4.25 blocks of climb (about 7 blocks of clear space); if no clear endpoint that high exists, the
+module warns and skips rather than pretending stacked cycles can help. It warns once when `AntiPop`
 (or another NoFall) is inactive: each climb builds real server fall, so a rejected hit can hurt on
-the next landing. Position-only packets are still anticheat-visible, but the climb never enters a
-roof block. Proof: `./gradlew caveBurstSimulation` runs a deterministic 1.21.11 model of the
-movement cap, upward fall reset, mace damage, hurt invulnerability, and totem pops; it passes for
-every clearance 7-32 (24 totems) and confirms 2-6 is physically impossible.
+the next landing. Position-only packets are still anticheat-visible, but the selected endpoint never
+collides with a block. Proof: `./gradlew caveBurstSimulation` runs a deterministic 1.21.11 model of
+endpoint acceptance through a thick roof, the 4-packet padding, the movement cap, upward fall reset,
+mace damage, hurt invulnerability, and totem pops; it proves a 2-block cave with a 6-block roof and
+an air pocket above it pops 24/24 totems with zero rejected packets, plus the 7-block
+sustained-only and 3-block impossible cases.
 
 ## xintpmace *(unregistered)* — `modules/XinTpMace.java` (255 lines)
 

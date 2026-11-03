@@ -81,10 +81,14 @@ Every code change that affects behavior, settings, modules, build, or known issu
 ---
 *Last verified: 2026-11-03 — corrected `MaceAttect` Cave Safe for 1.21.11: `onPlayerMove` calls
 `onLanding()` on every upward move packet, so up/down cycles cannot stack fall. The cave path now
-uses one contiguous clear climb per hit (`CaveBurst`, cap 8, packet-cap checked), a one-hit
-production burst, and `Sustained Drain` with a dynamic 22-60 tick cooldown for the rest; caves below
-~7 blocks of headroom warn instead of stacking. Added `./gradlew caveBurstSimulation` proof (24
-totems, no rejected packets). Previously: ported vicore `AntiPop` / `UltraAura` / `MaceTotemFail`
+scans destinations down from 22 blocks (`isEntityNotCollidingWithBlocks` checks the endpoint, not
+the path, so roofs can be pierced into an air pocket) and sends 4 no-op padding packets before each
+climb so the ascent is packet 5 (`sqrt(500)=22.36` cap). `CaveBurst` plans one verified-endpoint
+burst hit, and `Sustained Drain` repeats the padded climb with a dynamic 22-60 tick cooldown for the
+rest; caves with no clear endpoint at least ~4.25 blocks up warn instead of stacking. Added
+`./gradlew caveBurstSimulation` proof (2-high cave under a 6-block roof with a pocket pops 24/24
+totems, zero rejected packets; 7-block sustained-only and 3-block impossible cases covered).
+Previously: ported vicore `AntiPop` / `UltraAura` / `MaceTotemFail`
 cave path and brew-addon 1.21.8 `AntiCreeper` / `InfiniteReach` (+ `utils/Attack`,
 `utils/Movement`, `utils/HitResults`); ported vicore `ArrowKiller` (needs `AntiPop`); `MaceAttect`
 uses public packet `handle`/`meteor$getEntity` API and `Disable When Blocked`; `inf-reach` hover box

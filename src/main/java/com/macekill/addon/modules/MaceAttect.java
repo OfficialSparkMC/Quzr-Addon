@@ -28,7 +28,9 @@ import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.util.shape.VoxelShape;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +50,7 @@ public class MaceAttect extends Module {
 
     // ---- 通用 ----
     private final Setting<Double> moveDistance = sgGeneral.add(new DoubleSetting.Builder()
-            .name("Move Step").description("Max distance per movement packet")
+            .name("Move Step").description("Max distance per movement packet for normal smashes (Cave Safe uses its own 22-block padded climb)")
             .defaultValue(8).min(1).max(128).sliderRange(1, 128).build()
     );
 
@@ -154,11 +156,12 @@ public class MaceAttect extends Module {
 
     // MaceTotemFail-style cave mode, corrected for 1.21.11: an upward movement packet calls
     // player.onLanding() server-side and wipes fallDistance, so up/down cycles CANNOT stack
-    // fall. Each hit gets exactly one contiguous-clear climb: up (reset), down (fall = climb),
-    // attack. The burst emits only the strictly-increasing climbs that fit the server movement
-    // cap; Sustained Drain finishes the remaining totems one cooldown window at a time.
+    // fall. Each hit gets exactly one destination-clear climb: four no-op padding packets
+    // (ascent becomes packet 5, cap 22.36), up (reset), down (fall = climb), attack. The
+    // destination may be an air pocket above a roof: the server checks the endpoint box,
+    // not the path. Sustained Drain repeats the same padded climb for the remaining totems.
     private final Setting<Boolean> caveSafe = sgTotem.add(new BoolSetting.Builder()
-            .name("Cave Safe").description("Cave bypass: use one contiguous-clear climb per hit (capped at 8 blocks) instead of piercing to world top. 1.21.11 resets fall on every ascent, so stacked cycles cannot work; any totems the burst cannot fit are drained one per cooldown window by Sustained Drain")
+            .name("Cave Safe").description("Cave bypass: one destination-clear climb per hit, up to 22 blocks, with 4 padding packets so the ascent gets the 22.36-block packet cap. Picks the highest air pocket above cave roofs (the server only checks the endpoint hitbox); contiguous clearance is the fallback. 1.21.11 resets fall on every ascent, so stacked cycles cannot work; remaining totems are drained one per cooldown window by Sustained Drain")
             .defaultValue(true).visible(totemBypass::get).build()
     );
 
@@ -465,10 +468,12 @@ public class MaceAttect extends Module {
      * Cave burst corrected for 1.21.11. {@code ServerPlayNetworkHandler.onPlayerMove}
      * calls {@code player.onLanding()} on every upward position packet, so an up/down
      * cycle cannot stack fall: the ascent wipes it. Each hit is therefore one independent
-     * climb (up resets, down adds the climb height, attack). Heights must be strictly
-     * increasing to beat hurtResistantTime, and each climb must fit the contiguous clear
-     * column and the per-tick movement cap. The planner emits only those hits; Sustained
-     * Drain finishes the remaining totems one cooldown window at a time.
+     * climb (up resets, down adds the climb height, attack). The ascent may pass through
+     * cave ceilings: the server accepts it whenever the destination hitbox is clear
+     * ({@code isEntityNotCollidingWithBlocks}) and discards vertical moved-wrongly error.
+     * Four no-op packets make the ascent packet 5, raising the cap to 22.36 blocks. The
+     * planner emits one padded hit; Sustained Drain repeats that padded climb for the
+     * remaining totems one cooldown window at a time.
      */
     private void runCaveBurst(int totemsWanted) {
         if (mc.getNetworkHandler() == null || mc.player == null || target == null) {
@@ -478,40 +483,38 @@ public class MaceAttect extends Module {
 
         double lift = caveLift();
         CaveBurst.BurstPlan plan = CaveBurst.burstPlan(
-            totemsWanted, lift, rotate.get() ? 1 : 0);
+            totemsWanted, lift, CaveBurst.CAVE_PAD_PACKETS);
         int delay = CaveBurst.sustainedDelay(lift);
 
         if (plan.isEmpty()) {
             if (delay < 0) {
-                warning("Cave Safe: only %.2f blocks of clear climb — even a fully charged mace needs ~%.2f (about %d blocks of headroom). Smash skipped.",
+                warning("Cave Safe: highest clear destination is only %.2f blocks away — even a fully charged mace needs ~%.2f (about %d blocks of clear space). Smash skipped.",
                     lift, CaveBurst.MIN_LETHAL_FALL, CaveBurst.headroomFor(CaveBurst.MIN_LETHAL_FALL));
                 revertSilentSwap();
                 finishAttack();
                 return;
             }
             if (!sustainedDrain.get()) {
-                warning("Cave Safe: ceiling too low for a burst here; enable Sustained Drain to pop totems one hit per cooldown window.");
+                warning("Cave Safe: no clear destination high enough for a burst here; enable Sustained Drain to pop totems one hit per cooldown window.");
             } else {
-                info("Cave Safe: ceiling too low for a burst — Sustained Drain will pop one totem every %d ticks.", delay);
+                info("Cave Safe: highest clear destination %.2f blocks — Sustained Drain will pop one totem every %d ticks.", lift, delay);
             }
         } else {
             checkMaceDurability(plan.hits().size());
             warnCaveFall();
 
-            if (rotate.get()) {
-                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
-                    getYawTo(target), getPitchTo(target), false, false));
-            }
-            // Deliberately no fall-prime packets here: every PlayerMove packet counts
-            // toward the server's per-tick move cap. The ascent already resets fall.
+            // Every PlayerMove packet counts toward the per-tick move cap. Each caveClimb
+            // now spends exactly CAVE_PAD_PACKETS no-op packets (the last one may carry the
+            // rotation), then the up/down pair; no extra priming packets are sent.
             for (CaveBurst.Hit hit : plan.hits()) {
                 caveClimb(hit.height());
                 sendAttack(target);
             }
             if (sustainedDrain.get() && maxSustainedHits.get() > 0) {
-                info("Cave burst: %d hit(s), then sustained drain every %d ticks.", plan.hits().size(), Math.max(delay, 0));
+                info("Cave burst: %d hit(s) at %.2f blocks (destination scan), then sustained drain every %d ticks.",
+                    plan.hits().size(), lift, Math.max(delay, 0));
             } else {
-                info("Cave burst: %d hit(s).", plan.hits().size());
+                info("Cave burst: %d hit(s) at %.2f blocks (destination scan).", plan.hits().size(), lift);
             }
         }
 
@@ -526,10 +529,26 @@ public class MaceAttect extends Module {
         finishAttack();
     }
 
-    /** One independent clear climb: start -> start+height -> start (all onGround=false). */
+    /**
+     * One independent destination-clear climb: start -> start+height -> start (all
+     * onGround=false). Four padding packets make the ascent packet 5 of the tick, which
+     * permits up to 22.36 blocks; the rotation rides on the last padding packet so it
+     * costs no extra packet budget.
+     */
     private void caveClimb(double height) {
         if (mc.player == null || mc.getNetworkHandler() == null || height <= 0) return;
         Vec3d start = mc.player.getEntityPos();
+        height = Math.min(height, CaveBurst.MAX_LIFT);
+        for (int i = 0; i < CaveBurst.CAVE_PAD_PACKETS; i++) {
+            boolean last = i == CaveBurst.CAVE_PAD_PACKETS - 1;
+            if (last && rotate.get() && target != null) {
+                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
+                    getYawTo(target), getPitchTo(target), false, false));
+            } else {
+                mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.OnGroundOnly(false, false));
+            }
+        }
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
             start.x, start.y + height, start.z, false, false));
         mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
@@ -540,20 +559,34 @@ public class MaceAttect extends Module {
     }
 
     /**
-     * Maximum contiguous-clear climb above the player. Unlike the old 22-block
-     * destination scan, this cannot jump through a roof into an air pocket: every block
-     * the hitbox occupies on the way up is checked. Capped by {@link CaveBurst#MAX_LIFT}.
+     * Highest collision-clear destination above the player, up to
+     * {@link CaveBurst#MAX_LIFT}. This is the MaceTotemFail destination scan restored:
+     * 1.21.11 accepts a movement packet when its endpoint hitbox is clear, even if the
+     * vertical path crosses a roof, so a low cave with an air pocket above it is usable.
+     * The contiguous column is only the fallback when no higher endpoint exists.
      */
     private double caveLift() {
         if (mc.player == null || mc.world == null) return 0;
         Vec3d start = mc.player.getEntityPos();
-        double clearance = caveClearance(start);
-        double lift = CaveBurst.effectiveLift(clearance, moveDistance.get());
-        // Float/rounding guard: shrink until the destination hitbox is definitely clear.
-        while (lift > 0.01 && !caveHitboxClear(start.x, start.y + lift, start.z)) {
-            lift -= 0.05;
+        // The down packet must return to this exact position and the attack is sent from
+        // it, so a blocked start makes the whole climb unusable.
+        if (!caveHitboxClear(start.x, start.y, start.z)) return 0;
+
+        double destination = 0;
+        for (double lift = CaveBurst.MAX_LIFT; lift > 0.01; lift -= 0.05) {
+            if (caveHitboxClear(start.x, start.y + lift, start.z)) {
+                destination = lift;
+                break;
+            }
         }
-        return Math.max(0.0, lift);
+
+        double clearance = caveClearance(start);
+        double contiguous = CaveBurst.effectiveLift(clearance, CaveBurst.MAX_LIFT);
+        // Float/rounding guard: shrink until the fallback destination is definitely clear.
+        while (contiguous > 0.01 && !caveHitboxClear(start.x, start.y + contiguous, start.z)) {
+            contiguous -= 0.05;
+        }
+        return Math.max(destination, Math.max(0.0, contiguous));
     }
 
     /** First blocking block above the feet, in blocks; 0/negative when the hitbox is stuck. */
@@ -575,21 +608,37 @@ public class MaceAttect extends Module {
         return top + 1 - start.y;
     }
 
+    /**
+     * True when the player hitbox at {@code (x, y, z)} does not collide with any block
+     * shape. This mirrors the server's endpoint check
+     * ({@code isEntityNotCollidingWithBlocks}) rather than the old block-is-air heuristic,
+     * so slabs/stairs under the feet are handled correctly and a destination inside solid
+     * rock is never mistaken for clear.
+     */
     private boolean caveHitboxClear(double x, double y, double z) {
         if (mc.world == null) return false;
-        int bx0 = (int) Math.floor(x - 0.3);
-        int bx1 = (int) Math.floor(x + 0.3);
-        int bz0 = (int) Math.floor(z - 0.3);
-        int bz1 = (int) Math.floor(z + 0.3);
-        // Start at the first block the hitbox actually reaches. Rounding up avoids
-        // treating a slab/stair/carpet the player is standing on as if it filled the
-        // whole feet block (which would falsely report "no headroom").
-        int by0 = (int) Math.ceil(y - 1e-6);
-        int by1 = (int) Math.floor(y + 1.8 - 1e-9);
+        Box box = new Box(
+            x - 0.3, y, z - 0.3,
+            x + 0.3, y + CaveBurst.HITBOX_HEIGHT, z + 0.3).contract(1.0E-5);
+        int bx0 = (int) Math.floor(box.minX);
+        int bx1 = (int) Math.floor(box.maxX);
+        int by0 = (int) Math.floor(box.minY);
+        int by1 = (int) Math.floor(box.maxY);
+        int bz0 = (int) Math.floor(box.minZ);
+        int bz1 = (int) Math.floor(box.maxZ);
         for (int bx = bx0; bx <= bx1; bx++) {
             for (int by = by0; by <= by1; by++) {
                 for (int bz = bz0; bz <= bz1; bz++) {
-                    if (!isClear(new BlockPos(bx, by, bz))) return false;
+                    BlockPos pos = new BlockPos(bx, by, bz);
+                    BlockState state = mc.world.getBlockState(pos);
+                    if (!mc.world.getFluidState(pos).isEmpty() || state.isOf(Blocks.POWDER_SNOW)) {
+                        return false;
+                    }
+                    VoxelShape shape = state.getCollisionShape(mc.world, pos);
+                    if (shape.isEmpty()) continue;
+                    for (Box shapeBox : shape.getBoundingBoxes()) {
+                        if (shapeBox.offset(pos).intersects(box)) return false;
+                    }
                 }
             }
         }
@@ -994,7 +1043,7 @@ public class MaceAttect extends Module {
             double lift = caveLift();
             int delay = CaveBurst.sustainedDelay(lift);
             if (delay < 0) {
-                warning("Cave Safe: only %.2f blocks of clear climb — even a fully charged mace needs ~%.2f (about %d blocks of headroom). Sustained drain stopped.",
+                warning("Cave Safe: highest clear destination is only %.2f blocks away — even a fully charged mace needs ~%.2f (about %d blocks of clear space). Sustained drain stopped.",
                     lift, CaveBurst.MIN_LETHAL_FALL, CaveBurst.headroomFor(CaveBurst.MIN_LETHAL_FALL));
                 sustainTarget = null;
                 sustainLeft = 0;
@@ -1002,12 +1051,9 @@ public class MaceAttect extends Module {
                 return;
             }
             warnCaveFall();
-            if (rotate.get()) {
-                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
-                    getYawTo(target), getPitchTo(target), false, false));
-            }
             // One independent climb per hit: the ascent resets fall server-side, so priming
             // or stacking extra cycles only adds packets and cannot raise the fall.
+            // caveClimb sends the four padding packets and folds the rotation into the last.
             caveClimb(lift);
             sendAttack(target);
             // Wait long enough for the mace charge this ceiling needs (>= hurt invuln).

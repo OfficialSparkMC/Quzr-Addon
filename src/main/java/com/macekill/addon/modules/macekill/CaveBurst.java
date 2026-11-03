@@ -16,18 +16,25 @@ import java.util.List;
  * <p>What does work is one clear climb per hit: ascent (fall reset), descent to the start
  * (fall = climb height), attack. Every hit is independent; {@code MaceItem.postDamageEntity}
  * resets the attacker's fall after each landed smash, which is harmless because the next
- * hit rebuilds its own fall. Heights must be strictly increasing to beat
- * hurtResistantTime, and each climb must fit both the contiguous cave clearance and the
- * server's per-tick movement cap.
+ * hit rebuilds its own fall.
+ *
+ * <p><b>Why a cave roof does not stop the climb:</b> the server accepts a movement packet
+ * when the <em>destination</em> box is clear ({@code isEntityNotCollidingWithBlocks}), not
+ * when the whole path is clear. Vertical moved-wrongly error is discarded by the
+ * tautological {@code if (m > -0.5 || m < 0.5) m = 0.0;}, so a climb may pass through a
+ * roof and finish in an air pocket above it. Cave Safe therefore scans destinations from
+ * {@link #MAX_LIFT} downwards, preferring the highest collision-clear endpoint. Contiguous
+ * clearance is only the fallback when no higher endpoint exists.
  *
  * <p>The movement cap is measured from the position at the start of the server tick:
  * {@code displacement^2 <= 100 * q}, where {@code q = packetsSinceTick} (q resets to 1
  * after the 5th packet). That is 10 blocks for the first and sixth+ packets, up to 22.36
- * blocks for the fifth. One climb uses two packets (up, down), so a burst can fit at most
- * two strictly increasing hits before the q-reset clamps every later ascent to 10 blocks.
- * Cave Safe deliberately caps a climb at {@link #MAX_LIFT} = 8, so the normal production
- * path emits exactly one burst hit; the rest of the totems are drained by
- * {@code Sustained Drain}, one hit per cooldown window.
+ * blocks for the fifth. Cave Safe sends {@link #CAVE_PAD_PACKETS} no-op movement packets
+ * first so every climb's ascent is packet 5. One climb uses two further packets (up,
+ * down); the down packet returns to the tick-start position, so its displacement is zero.
+ * The padding leaves only one ascent above 10 blocks per tick, so the production burst is
+ * exactly one hit; {@code Sustained Drain} repeats the same padded climb one cooldown
+ * window at a time for the rest of the totems.
  */
 public final class CaveBurst {
     private CaveBurst() {}
@@ -36,8 +43,18 @@ public final class CaveBurst {
     public static final double HITBOX_HEIGHT = 1.8;
     /** Keep a small gap so a float-rounded packet never clips the roof. */
     public static final double CLEARANCE_MARGIN = 0.05;
-    /** Conservative per-climb cap: every packet stays under the 10-block q-reset cap. */
-    public static final double MAX_LIFT = 8.0;
+    /**
+     * Highest cave destination. The fifth movement packet of a server tick allows
+     * {@code sqrt(500) = 22.36} blocks; 22.0 leaves velocity/rounding headroom while
+     * matching the proven MaceTotemFail destination bound.
+     */
+    public static final double MAX_LIFT = 22.0;
+    /**
+     * No-op movement packets sent before every cave climb. They make the ascent packet 5
+     * of the tick, which raises the server displacement cap to 22.36 blocks. The last one
+     * may carry the rotation.
+     */
+    public static final int CAVE_PAD_PACKETS = 4;
     public static final int MAX_HITS = 198;
 
     /** Player + mace attack damage before the mace fall bonus. */
@@ -88,9 +105,9 @@ public final class CaveBurst {
     }
 
     /**
-     * Maximum safe climb from a floor position with {@code clearance} blocks of air
-     * between the feet and the first blocking block. Capped at {@link #MAX_LIFT} and by
-     * the user's Move Step.
+     * Maximum climb inside a fully contiguous clear column. Kept as the fallback for low
+     * caves where no higher air pocket is reachable. Capped at {@link #MAX_LIFT} and by
+     * the supplied step cap.
      */
     public static double effectiveLift(double clearance, double moveStep) {
         double stepCap = Math.min(MAX_LIFT, Math.max(1.0, moveStep));
@@ -121,9 +138,10 @@ public final class CaveBurst {
      * Plans independent one-climb hits for a burst.
      *
      * @param totemsWanted  totems the caller wants to pop (+ a small kill margin)
-     * @param maxLift       maximum contiguous-clear climb
-     * @param leadingPackets movement packets sent before the first climb (0 or 1 for a
-     *                       rotation packet; fall primes are deliberately not sent)
+     * @param maxLift       highest <em>verified clear</em> cave destination (the 22-block
+     *                      destination scan, or the contiguous fallback)
+     * @param leadingPackets movement packets sent before the first climb. Production uses
+     *                       {@link #CAVE_PAD_PACKETS}; the first ascent is then packet 5
      * @return hits whose ascent fits the packet cap and whose damage escalation pops one
      *         totem per hit; empty when the ceiling is below {@link #FIRST_HIT_FALL}
      */
@@ -149,7 +167,14 @@ public final class CaveBurst {
             double cap = Math.min(maxLift, packetCap(upIndex));
             if (requiredFall > cap + 1e-9) break;
 
-            double height = Math.max(requiredFall, i == 0 ? 0.0 : previousHeight + 0.05);
+            // The first climb uses the full verified destination, not just the minimum
+            // lethal fall. caveLift() guarantees that exact endpoint is collision-clear;
+            // a minimum-height climb could sit inside a thick roof below an air pocket.
+            // Later climbs use the minimum escalation height (with production padding the
+            // second ascent is capped at 10 blocks, so it cannot fit anyway).
+            double height = (i == 0)
+                ? cap
+                : Math.max(requiredFall, previousHeight + 0.05);
             if (height > cap + 1e-9) break;
 
             hits.add(new Hit(height, upIndex, damageForFall(height, LOW_BASE_DAMAGE)));

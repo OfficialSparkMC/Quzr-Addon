@@ -59,8 +59,9 @@ compileOnly files('libs/orbit-0.2.4.jar')
 
 `caveBurstSimulation` compiles `src/test/java/.../CaveBurstSimulation.java` (a plain `main`, no
 JUnit) and runs it with `JavaExec` against `sourceSets.test.runtimeClasspath`. It models the
-`ServerPlayNetworkHandler.onPlayerMove` packet cap and upward `onLanding()` fall reset, mace
-fall damage, hurt invulnerability, and totem pops; it exits non-zero on any failed check. The
+`ServerPlayNetworkHandler.onPlayerMove` packet cap, endpoint acceptance through a roof
+(`isEntityNotCollidingWithBlocks`), the 4-packet padding sequence, upward `onLanding()` fall reset,
+mace fall damage, hurt invulnerability, and totem pops; it exits non-zero on any failed check. The
 `test` task sets `failOnNoDiscoveredTests = false` because this proof harness is the only file
 in the test source set.
 
