@@ -79,7 +79,7 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-03 — corrected `MaceAttect` Cave Safe for 1.21.11: `onPlayerMove` calls
+*Last verified: 2026-11-05 — corrected `MaceAttect` Cave Safe for 1.21.11: `onPlayerMove` calls
 `onLanding()` on every upward move packet, so up/down cycles cannot stack fall. The cave path now
 scans destinations down from 22 blocks (`isEntityNotCollidingWithBlocks` checks the endpoint, not
 the path, so roofs can be pierced into an air pocket) and sends 4 no-op padding packets before each
