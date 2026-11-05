@@ -140,6 +140,7 @@
 | `AdvancedNoFall` | 1-5 `onGround=true`/tick while falling | Safe by design on vanilla/Paper; Grim-style anticheats flag sustained spoofs. |
 | `ArrowKiller` | 4 no-ground primes + 6-8 tagged teleports + use/release per shot | Blatant server-side teleport; the prime is `onGround=true` unless AntiPop strips it. |
 | `MaceAttect` Cave Safe | 6 move packets per cave climb (4 no-op padding + up/down) | 22-block destination scan: the server accepts a clear endpoint even through a roof; 4 padding packets put the ascent at packet 5 (`sqrt(500)=22.36`). No stacked cycles (1.21.11 resets fall on ascent). Position-only packets remain anticheat-visible. |
+| `Blacklist` | 2 move packets (PAPER) or a stepped path (SPIGOT) + attack packet, per smash | One smash per `Attack Delay` (default 20 ticks) on every blacklisted name in `Scan Distance` (0-256, default 60). Reuses `UltraAura.smash` — whatever ServerType/steps setup UltraAura is configured with. Same ban profile as UltraAura. |
 | `AutoMineModule` fly | `allowFlying` without creative | Fly flag on any anticheat. Needs a real movement bypass or removal. |
 | All VClip smashes | 170-block `onGround=false` teleports | Vanilla `moved too quickly`, Paper `invalid move`, Grim teleport checks. Test-server only. |
 
@@ -219,6 +220,12 @@
     `Renderer3D.box(BlockPos, Color, Color, ShapeMode, int)` at `Render3DEvent` priority 0. The
     raycast is camera-based; only hits beyond vanilla 4.5 blocks are drawn so the vanilla outline
     is not duplicated.
+44. **KNOWN RISK — `Blacklist` (new 2026-11-05).** Auto-smash list over chat commands
+    (`.blacklist add/remove/dis/list`, names + range persist in module settings). The scan reuses
+    `UltraAura.smash` — same `PositionAndOnGround(false)` teleport profile, so strict anticheats
+    flag every smash exactly like UltraAura. One smash per `Attack Delay` ticks while the module
+    is on; setting `Attack Delay` near 0 turns it into a continuous packet wall (no client-side
+    limiter beyond the delay). Only one victim per attempt, no multi-target.
 
 ## Fix priority (suggested)
 

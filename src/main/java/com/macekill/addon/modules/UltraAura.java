@@ -193,12 +193,25 @@ public class UltraAura extends Module {
             return;
         }
 
-        this.updatePositions(this.target);
-
         if (this.timer < this.attackDelay.get()) return;
-        if (this.mc.getNetworkHandler() == null) return;
+        this.smash(this.target);
+    }
 
+    /**
+     * One complete UltraAura smash against a specific entity, reused by other modules
+     * (Blacklist): approach packets (PAPER single position or SPIGOT stepped path),
+     * optional weapon switch, the attack packet, silent-swap restore, return packets,
+     * and position snap back. The ServerType / Steps / Switch / Swap Mode / Weapon
+     * settings come from this module's own configuration.
+     *
+     * @return true when the attack packet was actually sent
+     */
+    public boolean smash(Entity entity) {
+        if (entity == null || this.mc.player == null || this.mc.getNetworkHandler() == null) return false;
+
+        this.target = entity;
         this.targetFound = true;
+        this.updatePositions(entity);
 
         this.sendApproachPackets();
         this.mc.player.setPosition(this.targetPos);
@@ -207,7 +220,7 @@ public class UltraAura extends Module {
             this.swapToWeapon();
         }
 
-        this.mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(this.target, false));
+        this.mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(entity, false));
         this.mc.player.swingHand(Hand.MAIN_HAND);
 
         if (this.silentSwap) {
@@ -218,6 +231,7 @@ public class UltraAura extends Module {
         this.mc.player.setPosition(this.startPos);
 
         this.timer = 0;
+        return true;
     }
 
     private boolean isValidTarget(Entity entity) {

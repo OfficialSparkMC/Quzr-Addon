@@ -79,7 +79,12 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-05 — corrected `MaceAttect` Cave Safe for 1.21.11: `onPlayerMove` calls
+*Last verified: 2026-11-05 — added `Blacklist` module + `.blacklist` command
+(`add/remove/dis/list`, default range 60 blocks, entries persist in module settings): while the
+module is on, every `Attack Delay` ticks it smashes blacklisted players in range through the new
+public `UltraAura.smash(Entity)` — a behavior-identical extraction of UltraAura's own attack
+sequence, so there is no second copy of the combat code. Ban profile = UltraAura (problems.md #44).
+Also on 2026-11-05: corrected `MaceAttect` Cave Safe for 1.21.11: `onPlayerMove` calls
 `onLanding()` on every upward move packet, so up/down cycles cannot stack fall. The cave path now
 scans destinations down from 22 blocks (`isEntityNotCollidingWithBlocks` checks the endpoint, not
 the path, so roofs can be pierced into an air pocket) and sends 4 no-op padding packets before each

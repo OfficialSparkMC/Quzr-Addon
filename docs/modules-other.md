@@ -48,7 +48,7 @@ mutation is impossible — the rebuild is public-API only. Do not run together w
 
 ## Combat / reach (ported 2026-11-02)
 
-### UltraAura — `modules/UltraAura.java` (422 lines)
+### UltraAura — `modules/UltraAura.java` (424 lines)
 `Configuration` group: `Attack Delay(20, 0-60)`, `Distance(50, 0-150)`, `Steps(8.5, 1-20)`,
 `Lock Target(off)`, `Ignore targets on water(off)`, `Entities(only attackable, PLAYER)`,
 `ServerType(PAPER)` `{SPIGOT, PAPER}`, `Switch(off)`, `Swap Mode(SILENT)` `{SILENT, NORMAL}`,
@@ -65,6 +65,25 @@ optional water skip. `getInfoString()` = target name.
 Port fix: `silentSwap` is initialized from the `Swap Mode` default — vicore only updated it in the
 setting callback, so the default `SILENT` never restored the weapon. The `MaceTotemFail`
 name-lookup is kept from the original; it is a no-op in this addon.
+Refactor 2026-11-05: the whole attack sequence moved into one public
+`smash(Entity)` method (behavior unchanged) so `Blacklist` can reuse it instead of
+copying the code; `onTick.Post` just calls `smash(this.target)` after its timer.
+
+### Blacklist — `modules/Blacklist.java` (229 lines)
+`Names(StringList, empty)`, `Scan Distance(60, 0-256, slider 0-128)`, `Attack Delay(20, 0-60)`,
+`Ignore Friends(on)`. Command `commands/BlacklistCommand.java` (`.blacklist`): `add <player>` /
+`remove <player>` / `dis <value>` / `list` — it mutates the module settings only, so entries and
+range persist through Meteor's module save.
+`TickEvent.Post` once per `Attack Delay`: first living, non-spectator, non-creative player in
+`mc.world.getPlayers()` whose name matches a `Names` entry case-insensitively, within
+`Scan Distance` of its bounding box (`PlayerUtils.isWithin` on the box clamp, same concept as
+UltraAura's `isValidTarget`), and passing the friend filter when `Ignore Friends` is on →
+`UltraAura.smash(player)` + a chat line. No own combat logic: the packets (`PAPER` two
+`PositionAndOnGround`, `SPIGOT` stepped path), the `Switch`/`Swap Mode`/`Weapon` handling and the
+candidate checks come from the UltraAura module, which may stay disabled. Works offline for names
+not yet logged in; attacks start when they actually enter range. **Ban risk:** same teleport
+profile as UltraAura — every smash is `PositionAndOnGround(false)` movement the server did
+not ask for; see `problems.md` #44.
 
 ### InfiniteReach — `modules/InfiniteReach.java` (309 lines)
 `entities(on)`, `entity-reach(210, min5)`, `blocks(on)`, `block-reach(210, min5)`,

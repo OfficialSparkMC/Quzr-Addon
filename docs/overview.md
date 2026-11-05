@@ -18,7 +18,7 @@
 | Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
 | Registration | `MaceKillAddon.onInitialize()` adds 26 modules (`MaceKillAddon.java:51-91`) |
 
-## Module table (26 modules + 1 command)
+## Module table (27 modules + 2 commands)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
@@ -30,6 +30,7 @@
 | `MaceBreakerPro` | `modules/MaceBreakerPro.java` | Axe+mace double-hit on `AttackEntityEvent` to break shields |
 | `SpearKill` | `modules/SpearKill.java` | Spear Blink (packet queue) / Lunge (charged dash) |
 | `UltraAura` | `modules/UltraAura.java` | TP aura: closest-angle target, packet teleport in → attack → teleport back |
+| `Blacklist` | `modules/Blacklist.java` | Auto-smashes `.blacklist` names within `Scan Distance` (default 60) using UltraAura's smash code |
 | `ArrowKiller` | `modules/ArrowKiller.java` | Teleports bow/trident shots onto the target (needs `AntiPop` for the fall) |
 | `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) + far-block hover box |
 
@@ -86,7 +87,7 @@ Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,Ta
 
 ## Warnings
 
-1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `UltraAura`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
+1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `UltraAura`, `Blacklist`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
    `Speed`, `MassTpa`, `AutoMineModule` (fly) all send abnormal packet bursts. Use only on test servers.
 2. **Desync risk.** Many modules move the *server* via packets but never update the client
    (or vice versa). See `problems.md` § desync.

@@ -1,5 +1,6 @@
 package com.macekill.addon;
 
+import com.macekill.addon.commands.BlacklistCommand;
 import com.macekill.addon.commands.TpCommand;
 // import com.macekill.addon.modules.AdvancedNoFall;
 import com.macekill.addon.modules.AntiCreeper;
@@ -15,6 +16,7 @@ import com.macekill.addon.modules.NearestPlayerHUD;
 import com.macekill.addon.modules.Rise;
 import com.macekill.addon.modules.SpeedModule;
 import com.macekill.addon.modules.AutoShulkerBox;
+import com.macekill.addon.modules.Blacklist;
 import com.macekill.addon.modules.AutoTpaReject;
 import com.macekill.addon.modules.SpearKill;
 import com.macekill.addon.modules.TpMace;
@@ -62,6 +64,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new Hitback());
         Modules.get().add(new MassTpa());
         Modules.get().add(new UltraAura());
+        Modules.get().add(new Blacklist());
         Modules.get().add(new ArrowKiller());
         Modules.get().add(new InfiniteReach());
 
@@ -91,6 +94,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new AutoTpaReject());
 
         Commands.add(new TpCommand());
+        Commands.add(new BlacklistCommand());
 
         LOG.info("Qazr Addons initialized successfully! ({} modules)", Modules.get().getGroup(CATEGORY).size());
     }
