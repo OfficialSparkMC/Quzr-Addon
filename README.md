@@ -15,7 +15,7 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 - MaceBreakerPro — axe + mace combo that breaks shields
 - UltraAura — teleports to the player closest to your crosshair, smashes them and teleports back
 - ArrowKiller — teleports bow/trident shots onto the target (enable AntiPop)
-- InfiniteReach — attack entities and use/break blocks far away, with separate entity/block reach and a far-block hover box
+- InfiniteReach — attack entities and use/break blocks far away, with separate entity/block reach and a far-block hover box (far breaks show Minecraft's breaking animation, custom texture packs included)
 
 **Movement**
 - PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat

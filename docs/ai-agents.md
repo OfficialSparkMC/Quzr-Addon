@@ -79,7 +79,14 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-05 — added `Blacklist` module + `.blacklist` command
+*Last verified: 2026-11-08 — `InfiniteReach` far-break path now renders Minecraft's own
+breaking animation: after the START packet and on every `updateBreakProgress` step it calls
+`mc.world.setBlockBreakingInfo(mc.player.getId(), pos, stage)` (same call vanilla uses for the
+local player and via `BlockBreakingProgressS2CPacket` for remote ones; stage
+`progress > 0 ? (int)(progress*10) : -1` clamped 0..9, `-1` clears in `resetBreaking`). Cracks
+read `destroy_stage_0..9` from the block atlas, so custom breaking textures work; no packets
+added (`problems.md #40` ban profile unchanged).
+Also on 2026-11-05: added `Blacklist` module + `.blacklist` command
 (`add/remove/dis/list`, default range 60 blocks, entries persist in module settings): while the
 module is on, every `Attack Delay` ticks it smashes blacklisted players in range through the new
 public `UltraAura.smash(Entity)` — a behavior-identical extraction of UltraAura's own attack
