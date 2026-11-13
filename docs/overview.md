@@ -32,7 +32,7 @@
 | `UltraAura` | `modules/UltraAura.java` | TP aura: closest-angle target, packet teleport in → attack → teleport back |
 | `Blacklist` | `modules/Blacklist.java` | Auto-smashes `.blacklist` names within `Scan Distance` (default 60) using UltraAura's smash code |
 | `ArrowKiller` | `modules/ArrowKiller.java` | Teleports bow/trident shots onto the target (needs `AntiPop` for the fall) |
-| `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) + far-block hover box |
+| `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) + far-block hover box; far breaks show vanilla destroy-stage cracks |
 
 > Classes `MaceAura`, `MaceMissLite`, `XinTpMace`, `MaceDMG` and `AntiAirMiss` still exist on disk but
 > their `Modules.get().add(...)` lines are commented out in `MaceKillAddon.java:54-59` — they cannot be

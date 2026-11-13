@@ -85,7 +85,7 @@ not yet logged in; attacks start when they actually enter range. **Ban risk:** s
 profile as UltraAura — every smash is `PositionAndOnGround(false)` movement the server did
 not ask for; see `problems.md` #44.
 
-### InfiniteReach — `modules/InfiniteReach.java` (309 lines)
+### InfiniteReach — `modules/InfiniteReach.java` (353 lines)
 `entities(on)`, `entity-reach(210, min5)`, `blocks(on)`, `block-reach(210, min5)`,
 `hover-box(on)`, `hover-color(SettingColor(0,255,0,60))`, `Debug(off)`.
 `TickEvent.Post` edge-detects the attack/use keys. Attack click: with `entities` on, entity raycast
@@ -104,6 +104,17 @@ block path with `PlayerInteractBlockC2SPacket`. Turning `blocks` off, releasing 
 outline, ShapeMode.Both, 0)` when the hit point is beyond the vanilla 4.5-block reach (near blocks
 are skipped so the vanilla outline is not duplicated). The box follows the camera, so it also works
 in third person/freecam; it only draws what the ray actually hits within the configured range.
+
+Far-break **crack overlay** (2026-11-05): the break loop feeds Minecraft's own breaking
+animation by calling `mc.world.setBlockBreakingInfo(mc.player.getId(), pos, stage)` right after
+the START packet and inside `updateBreakProgress` — the same call vanilla makes locally
+(`ClientPlayerInteractionManager.updateBlockBreakingProgress` ends with it,
+`getBlockBreakingProgress()` = `progress > 0 ? (int)(progress*10) : -1`) and remotely
+(`BlockBreakingProgressS2CPacket` → `ClientWorld.setBlockBreakingInfo`). `hideCrack()` sends
+stage `-1` (the renderer's removal path, keyed by entity id only) in `resetBreaking`, which runs
+on release/target change/finish/module-off. Stages map to `destroy_stage_0..9` in the block
+atlas, so custom breaking textures from resource packs are used automatically. Client-side
+rendering only — no packets added, the server sees the exact same break loop as before.
 
 ### ArrowKiller — `modules/ArrowKiller.java` (736 lines)
 vicore port. `Affected Projectiles(BOW, TRIDENT)` (the list filter only allows those two; the legacy
