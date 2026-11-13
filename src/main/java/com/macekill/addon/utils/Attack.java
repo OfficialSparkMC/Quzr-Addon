@@ -2,11 +2,11 @@ package com.macekill.addon.utils;
 
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.network.protocol.game.ServerboundAttackPacket;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
 
@@ -26,12 +26,12 @@ public final class Attack {
      */
     public static void attack(Entity target, boolean useMace, int attackHeight, boolean autoEquipMace) {
         if (target == null || !target.isAlive()) return;
-        if (MeteorClient.mc.player == null || MeteorClient.mc.getNetworkHandler() == null) return;
+        if (MeteorClient.mc.player == null || MeteorClient.mc.getConnection() == null) return;
 
-        Vec3d originalPos = MeteorClient.mc.player.getEntityPos();
-        Vec3d targetPos = target.getEntityPos().add(0, 0.2, 0);
+        Vec3 originalPos = MeteorClient.mc.player.position();
+        Vec3 targetPos = target.position().add(0, 0.2, 0);
 
-        List<Vec3d> positions = List.of(
+        List<Vec3> positions = List.of(
             targetPos,
             targetPos.add(0, attackHeight, 0),
             targetPos,
@@ -57,15 +57,15 @@ public final class Attack {
     }
 
     private static void sendAttack(Entity target) {
-        MeteorClient.mc.getNetworkHandler().sendPacket(
-            PlayerInteractEntityC2SPacket.attack(target, MeteorClient.mc.player.isSneaking()));
+        MeteorClient.mc.getConnection().send(
+            new ServerboundAttackPacket(target.getId()));
     }
 
     private static void equipMace() {
         if (isHoldingMace()) return;
 
         for (int i = 0; i < 9; i++) {
-            ItemStack stack = MeteorClient.mc.player.getInventory().getStack(i);
+            ItemStack stack = MeteorClient.mc.player.getInventory().getItem(i);
             if (stack.getItem() == Items.MACE) {
                 InvUtils.swap(i, false);
                 return;
@@ -75,7 +75,7 @@ public final class Attack {
 
     private static boolean isHoldingMace() {
         if (MeteorClient.mc.player == null) return false;
-        return MeteorClient.mc.player.getMainHandStack().getItem() == Items.MACE
-            || MeteorClient.mc.player.getOffHandStack().getItem() == Items.MACE;
+        return MeteorClient.mc.player.getMainHandItem().getItem() == Items.MACE
+            || MeteorClient.mc.player.getOffhandItem().getItem() == Items.MACE;
     }
 }

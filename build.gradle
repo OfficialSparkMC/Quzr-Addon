@@ -1,5 +1,7 @@
+
 plugins {
-    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'maven-publish'
 }
 
 version = project.mod_version
@@ -13,55 +15,58 @@ repositories {
     mavenCentral()
 
     maven {
-        name = 'meteor-maven-releases'
+        url = 'https://maven.fabricmc.net/'
+    }
+
+    maven {
         url = 'https://maven.meteordev.org/releases'
     }
 
     maven {
-        name = 'meteor-maven-snapshots'
         url = 'https://maven.meteordev.org/snapshots'
     }
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    minecraft "com.mojang:minecraft:${minecraft_version}"
 
-    // Local compile-only Meteor/Orbit jars (see docs/build.md). Filenames use versions from gradle.properties.
-    // TODO: replace with maven.meteordev.org coordinates when network builds are available.
-    modCompileOnly files("libs/MeteorClient-${project.minecraft_version}-${project.meteor_version}.jar")
-    compileOnly files('libs/orbit-0.2.4.jar')
+    // Fabric Loader
+    compileOnly "net.fabricmc:fabric-loader:${loader_version}"
+
+    // Meteor Client 26.3
+    compileOnly files("libs/meteor-client-26.3-15.jar")
+
+    // Orbit
+    compileOnly files("libs/orbit-0.2.4.jar")
 }
+
 processResources {
     inputs.property "version", project.version
+
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }
 }
 
-def targetJavaVersion = 21
-tasks.withType(JavaCompile).configureEach {
-    it.options.encoding = "UTF-8"
-    it.options.release.set(targetJavaVersion)
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
-    withSourcesJar()
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = "UTF-8"
 }
 
 tasks.named('test') {
-    // src/test also holds the plain-Java CaveBurstSimulation proof harness (no JUnit);
-    // Gradle 9 otherwise fails when a test source set contains no discoverable tests.
+    // src/test also holds the plain-Java CaveBurstSimulation proof harness (no JUnit).
     failOnNoDiscoveredTests = false
 }
 
-// Deterministic proof for the Cave Safe packet sequence (no Minecraft runtime needed).
 // Run with: ./gradlew caveBurstSimulation
 tasks.register('caveBurstSimulation', JavaExec) {
     group = 'verification'
-    description = 'Runs the 1.21.11 cave climb/mace/totem simulation proof.'
+    description = 'Runs the cave climb/mace/totem simulation proof.'
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.macekill.addon.modules.macekill.CaveBurstSimulation'

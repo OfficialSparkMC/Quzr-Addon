@@ -9,7 +9,7 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 /**
  * AdvancedNoFall - takes 0 fall damage without touching mace-smash damage.
@@ -57,21 +57,21 @@ public class AdvancedNoFall extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
         // No damage possible, or states where spoofing hurts more than it helps.
-        if (mc.player.isCreative() || mc.player.isSpectator() || mc.player.hasVehicle()) {
+        if (mc.player.isCreative() || mc.player.isSpectator() || mc.player.isPassenger()) {
             wasFalling = false;
             return;
         }
-        if (mc.player.isOnGround()) {
+        if (mc.player.onGround()) {
             wasFalling = false;
             return;
         }
-        if (pauseOnElytra.get() && mc.player.isGliding()) return;
+        if (pauseOnElytra.get() && mc.player.isFallFlying()) return;
 
         boolean trigger = mc.player.fallDistance > fallThreshold.get();
         if (!trigger && fastFall.get()) {
-            trigger = mc.player.getVelocity().y < -0.7;
+            trigger = mc.player.getDeltaMovement().y < -0.7;
         }
         if (!trigger) {
             wasFalling = false;
@@ -86,8 +86,8 @@ public class AdvancedNoFall extends Module {
         double y = mc.player.getY();
         double z = mc.player.getZ();
         for (int i = 0; i < packets.get(); i++) {
-            mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, true, false));
+            mc.getConnection().send(
+                new ServerboundMovePlayerPacket.Pos(x, y, z, true, false));
         }
     }
 

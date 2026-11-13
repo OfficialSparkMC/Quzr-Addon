@@ -6,10 +6,10 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.ChatMessageC2SPacket;
-import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
-import net.minecraft.text.Text;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.protocol.game.ServerboundChatPacket;
+import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,7 +90,7 @@ public class AutoGGModule extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
 
         // Refresh nearby players once every second
         if (scanCooldown <= 0) {
@@ -116,10 +116,10 @@ public class AutoGGModule extends Module {
 
         double rangeSquared = range.get() * range.get();
 
-        for (PlayerEntity player : mc.world.getPlayers()) {
+        for (Player player : mc.level.players()) {
             if (player == mc.player) continue;
 
-            if (mc.player.squaredDistanceTo(player) > rangeSquared) {
+            if (mc.player.distanceToSqr(player) > rangeSquared) {
                 continue;
             }
 
@@ -132,9 +132,9 @@ public class AutoGGModule extends Module {
     @EventHandler
     private void onPacketSend(PacketEvent.Send event) {
         if (processing || skipChatModify) return;
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null || mc.getConnection() == null) return;
 
-        if (event.packet instanceof ChatMessageC2SPacket chatPacket) {
+        if (event.packet instanceof ServerboundChatPacket chatPacket) {
             String prefix = chatPrefix.get();
             String suffix = chatSuffix.get();
 
@@ -142,7 +142,7 @@ public class AutoGGModule extends Module {
                 return;
             }
 
-            String originalMessage = chatPacket.chatMessage();
+            String originalMessage = chatPacket.message();
             String modifiedMessage =
                 parseColors(prefix) +
                 originalMessage +
@@ -150,8 +150,8 @@ public class AutoGGModule extends Module {
 
             processing = true;
 
-            event.cancel();
-            mc.getNetworkHandler().sendChatMessage(modifiedMessage);
+            event.setCancelled(true);
+            mc.getConnection().sendChat(modifiedMessage);
 
             processing = false;
         }
@@ -161,10 +161,10 @@ public class AutoGGModule extends Module {
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
         if (nearbyPlayers.isEmpty()) return;
 
-        if (event.packet instanceof GameMessageS2CPacket packet) {
+        if (event.packet instanceof ClientboundSystemChatPacket packet) {
             String message = packet.content().getString();
             String localPlayerName = mc.player.getName().getString();
 
@@ -218,23 +218,15 @@ public class AutoGGModule extends Module {
         skipChatModify = true;
 
         // Display kill notification
-        if (mc.inGameHud != null) {
-            mc.inGameHud.setTitle(
-                Text.literal("§cKilled §e" + playerName)
-            );
-        }
-
         // Add local notification to chat
         if (mc.player != null) {
-            mc.player.sendMessage(
-                Text.literal("§e[AutoGG] §a" + message),
-                false
-            );
+            mc.player.sendSystemMessage(
+                Component.literal("§e[AutoGG] §a" + message));
         }
 
         // Send GG message to public chat
-        if (mc.getNetworkHandler() != null) {
-            mc.getNetworkHandler().sendChatMessage(message);
+        if (mc.getConnection() != null) {
+            mc.getConnection().sendChat(message);
         }
 
         skipChatModify = false;
