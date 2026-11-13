@@ -125,7 +125,7 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | UltraAura | `TickEvent.Pre` (target list), `TickEvent.Post` (attack timer) | closest-angle target → packet TP in → attack → TP back |
 | Blacklist | `TickEvent.Post` (attack timer) | `.blacklist` names in `Scan Distance` → `UltraAura.smash(player)` (shared code, UltraAura may be off) |
 | ArrowKiller | `TickEvent.Pre`/`Post`, `PacketEvent.Send` (priority 200), `Render3DEvent` | predict target / charge bow; intercept use/release → TP to target → replay → TP back; optional boxes |
-| InfiniteReach | `TickEvent.Post`, `Render3DEvent` + attack/use key edges | entity raycast (if `entities`) → attack; else block raycast (if `blocks`) → interact/break; hover box for far blocks |
+| InfiniteReach | `TickEvent.Post`, `Render3DEvent` + attack/use key edges | entity raycast (if `entities`) → attack; else block raycast (if `blocks`) → interact/break; hover box for far blocks; break loop drives vanilla cracks via `ClientWorld.setBlockBreakingInfo` |
 | AntiPop | `PacketEvent.Send` (move packets) | rebuild packet with `onGround=false` and resend |
 | SpearKill Blink | `TickEvent.Pre` + `PacketEvent.Send` (move pkts) | queue moves → flush on charge |
 | SpearKill Lunge | `TickEvent.Pre` | VClip above → charge → release |

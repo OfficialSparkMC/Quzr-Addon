@@ -49,6 +49,7 @@ public class InfiniteReach extends Module {
     private BlockState currentBlockState = null;
     private double breakProgress = 0.0;
     private boolean hasStartedBreaking = false;
+    private boolean crackShown = false;
 
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
 
@@ -198,6 +199,7 @@ public class InfiniteReach extends Module {
                 }
 
                 hasStartedBreaking = true;
+                showCrack();
             }
         }
     }
@@ -219,10 +221,51 @@ public class InfiniteReach extends Module {
         int slot = bestSlot != -1 ? bestSlot : mc.player.getInventory().getSelectedSlot();
         double breakDelta = BlockUtils.getBreakDelta(slot, currentBlockState);
         breakProgress += breakDelta;
+        showCrack();
 
         if (breakProgress >= 1.0) {
             finishBreaking();
         }
+    }
+
+    // ==================== far-break crack overlay ====================
+
+    /**
+     * Shows Minecraft's own block-breaking overlay on the far block. Vanilla uses the
+     * exact same call twice: locally ({@code ClientPlayerInteractionManager
+     * .updateBlockBreakingProgress} ends with {@code client.world.setBlockBreakingInfo(
+     * player.getId(), pos, getBlockBreakingProgress())}), and remotely
+     * ({@code BlockBreakingProgressS2CPacket} → {@code ClientWorld.setBlockBreakingInfo}).
+     * Nobody broadcasts a break packet for this far-break loop, so the world call is made
+     * directly with the own entity id — the same id vanilla uses for the local player, so
+     * it can never collide with another entity's crack nor stack with near-break cracks.
+     *
+     * <p>The stage decision mirrors {@code getBlockBreakingProgress()}:
+     * {@code progress > 0 ? (int)(progress * 10) : -1}, clamped to the 0..9 window the
+     * renderer accepts (stage {@code < 0 || > 9} removes a crack). Stages render from
+     * {@code destroy_stage_0..9} in Minecraft's block atlas, so any resource pack with
+     * custom breaking textures applies automatically.
+     */
+    private void showCrack() {
+        if (mc.player == null || mc.world == null || currentBreakingBlock == null) return;
+
+        int stage = breakProgress > 0.0 ? (int) (breakProgress * 10.0) : -1;
+        if (stage > 9) stage = 9;
+        mc.world.setBlockBreakingInfo(mc.player.getId(), currentBreakingBlock, stage);
+        crackShown = stage >= 0;
+    }
+
+    /**
+     * Removes the crack overlay. The renderer's removal path is keyed by entity id only
+     * (it ignores the passed position once the stage is out of range), so this is also
+     * safe right after the target block changed.
+     */
+    private void hideCrack() {
+        if (!crackShown) return;
+        crackShown = false;
+        if (mc.world == null || mc.player == null || mc.getNetworkHandler() == null) return;
+        mc.world.setBlockBreakingInfo(
+            mc.player.getId(), currentBreakingBlock != null ? currentBreakingBlock : BlockPos.ORIGIN, -1);
     }
 
     private void finishBreaking() {
@@ -243,6 +286,7 @@ public class InfiniteReach extends Module {
     }
 
     private void resetBreaking() {
+        hideCrack();
         currentBreakingBlock = null;
         currentBreakingDirection = null;
         currentBlockState = null;
