@@ -2,7 +2,7 @@ package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
 import com.macekill.addon.modules.macekill.Combat;
-import com.macekill.addon.modules.macekill.InvHelper;
+import com.macekill.addon.modules.macekill.Inventory;
 import com.macekill.addon.modules.macekill.Movement;
 import com.macekill.addon.modules.macekill.SortPriority;
 import com.macekill.addon.modules.macekill.Targeting;
@@ -18,17 +18,17 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.passive.AnimalEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.Items;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 
 /**
  * 重锤导弹精简版 — MaceMissLite
@@ -189,7 +189,7 @@ public class MaceMissLite extends Module {
     private int attackIndex;
     private int delayTicks;
     private Phase phase = Phase.IDLE;
-    private Vec3 originalPos;
+    private Vec3d originalPos;
     private Combat.BypassRunner bypassRunner;
 
     private enum Phase { IDLE, DELAY }
@@ -211,7 +211,7 @@ public class MaceMissLite extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null) return;
+        if (mc.player == null || mc.world == null) return;
 
         switch (phase) {
             case IDLE -> {
@@ -246,9 +246,9 @@ public class MaceMissLite extends Module {
         List<LivingEntity> validTargets = new ArrayList<>();
         double rangeSq = range.get() * range.get();
 
-        for (Entity e : mc.level.entitiesForRendering()) {
+        for (Entity e : mc.world.getEntities()) {
             if (!(e instanceof LivingEntity le) || !le.isAlive() || le == mc.player) continue;
-            if (mc.player.distanceToSqr(le) > rangeSq) continue;
+            if (mc.player.squaredDistanceTo(le) > rangeSq) continue;
             if (!targetCheck(le)) continue;
             validTargets.add(le);
         }
@@ -257,14 +257,14 @@ public class MaceMissLite extends Module {
 
         validTargets.sort((a, b) -> switch (sortPriority.get()) {
             case DISTANCE ->
-                Double.compare(mc.player.distanceToSqr(a), mc.player.distanceToSqr(b));
+                Double.compare(mc.player.squaredDistanceTo(a), mc.player.squaredDistanceTo(b));
             case HEALTH ->
                 Float.compare(a.getHealth(), b.getHealth());
             case ANGLE -> {
-                Vec3 look = mc.player.getViewVector(1.0f);
-                Vec3 eye = mc.player.getEyePosition();
-                double aDot = look.dot(a.getEyePosition().subtract(eye).normalize());
-                double bDot = look.dot(b.getEyePosition().subtract(eye).normalize());
+                Vec3d look = mc.player.getRotationVec(1.0f);
+                Vec3d eye = mc.player.getEyePos();
+                double aDot = look.dotProduct(a.getEyePos().subtract(eye).normalize());
+                double bDot = look.dotProduct(b.getEyePos().subtract(eye).normalize());
                 yield Double.compare(bDot, aDot);
             }
         });
@@ -272,24 +272,24 @@ public class MaceMissLite extends Module {
     }
 
     private boolean targetCheck(LivingEntity entity) {
-        if (entity instanceof Player p) {
+        if (entity instanceof PlayerEntity p) {
             if (p.isCreative() || p.isSpectator() || !Friends.get().shouldAttack(p)) return false;
             return targetPlayers.get();
         }
         if (autoAttackEntity.get()) return true;
-        if (entity instanceof Monster) return targetHostiles.get();
-        if (entity instanceof Animal) return targetAnimals.get();
+        if (entity instanceof HostileEntity) return targetHostiles.get();
+        if (entity instanceof AnimalEntity) return targetAnimals.get();
         return false;
     }
 
     // ========== 攻击流程 ==========
 
     private void doAura() {
-        if (currentTarget == null || mc.getConnection() == null) return;
+        if (currentTarget == null || mc.getNetworkHandler() == null) return;
 
-        originalPos = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
-        if (bypassTotem.get() && currentTarget instanceof Player p
+        if (bypassTotem.get() && currentTarget instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             int totems = totemsToPop.get();
             if (detectTotem.get()) totems = Math.min(totems, countTotems(p));
@@ -306,7 +306,7 @@ public class MaceMissLite extends Module {
             return;
         }
 
-        if (destroyArmor.get() && currentTarget instanceof Player p && !isNaked(p)) {
+        if (destroyArmor.get() && currentTarget instanceof PlayerEntity p && !isNaked(p)) {
             doDestroyArmor();
         } else {
             doTpAura(killHeights.get());
@@ -321,12 +321,12 @@ public class MaceMissLite extends Module {
         List<Double> heights = Combat.parseHeights(rawHeights);
         if (heights.isEmpty()) heights.add(20.0);
 
-        int oldSlot = InvHelper.switchToMace(mc);
+        int oldSlot = Inventory.switchToMace(mc);
         if (oldSlot == -1) return;
 
         try {
-            Vec3 targetPos = Targeting.predictPosition(mc, currentTarget, predict.get(), predictTicks.get());
-            Vec3 basePos = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            Vec3d targetPos = Targeting.predictPosition(mc, currentTarget, predict.get(), predictTicks.get());
+            Vec3d basePos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
             for (int i = 0; i < heights.size(); i++) {
                 double h = heights.get(i);
@@ -336,23 +336,23 @@ public class MaceMissLite extends Module {
 
                 BlockPos vclipHole = Combat.findVclipHole(mc,
                         mc.player.getX(), mc.player.getY(), mc.player.getZ(), h);
-                Vec3 vclipPos = Vec3.atBottomCenterOf(vclipHole);
+                Vec3d vclipPos = Vec3d.ofBottomCenter(vclipHole);
 
                 Movement.doTpTo(mc, vclipPos, moveDistance.get(), false);
                 Movement.sendMovePacket(mc, targetPos.x, targetPos.y + 0.5, targetPos.z);
                 Movement.sendMovePacket(mc, basePos.x, basePos.y, basePos.z);
 
-                if (swingHand.get()) mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+                if (swingHand.get()) mc.player.swingHand(Hand.MAIN_HAND);
                 Movement.attackEntity(mc, currentTarget);
             }
         } finally {
-            InvHelper.switchBack(mc, oldSlot);
+            Inventory.switchBack(mc, oldSlot);
         }
     }
 
-    private Vec3 applyDv(Vec3 pos, double offset) {
+    private Vec3d applyDv(Vec3d pos, double offset) {
         double angle = Math.random() * Math.PI * 2;
-        return new Vec3(
+        return new Vec3d(
                 pos.x + Math.cos(angle) * offset,
                 pos.y,
                 pos.z + Math.sin(angle) * offset);
@@ -364,21 +364,21 @@ public class MaceMissLite extends Module {
         return forceIgnore.get();
     }
 
-    private boolean isNaked(Player player) {
+    private boolean isNaked(PlayerEntity player) {
         return Combat.needsArmorDestroy(player, ignoreValue.get()) == false;
         // needsArmorDestroy returns count > ignoreValue → 需要破甲
         // 所以 !needsArmorDestroy = 护甲 <= ignoreValue = 已经破甲 → isNaked
     }
 
-    private boolean targetHasTotem(Player player) {
+    private boolean targetHasTotem(PlayerEntity player) {
         return countTotems(player) > 0;
     }
 
-    private int countTotems(Player player) {
+    private int countTotems(PlayerEntity player) {
         int n = 0;
-        Inventory inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (inv.getItem(i).is(Items.TOTEM_OF_UNDYING)) n++;
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
         }
         return n;
     }
@@ -399,7 +399,7 @@ public class MaceMissLite extends Module {
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (!renderBox.get() || currentTarget == null) return;
-        AABB box = currentTarget.getBoundingBox();
+        Box box = currentTarget.getBoundingBox();
         event.renderer.box(box, boxColor.get(), boxColor.get(), ShapeMode.Both, 0);
     }
 
@@ -410,8 +410,8 @@ public class MaceMissLite extends Module {
             return "Totem Bypass";
         }
         if (phase == Phase.DELAY) return "CD " + delayTicks;
-        String name = currentTarget instanceof Player p ? p.getName().getString()
-                : currentTarget.getType().getDescription().getString();
+        String name = currentTarget instanceof PlayerEntity p ? p.getName().getString()
+                : currentTarget.getType().getName().getString();
         return name;
     }
 

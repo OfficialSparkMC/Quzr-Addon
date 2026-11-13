@@ -7,10 +7,10 @@ import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
-import net.minecraft.network.protocol.game.ClientboundDamageEventPacket;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.s2c.play.EntityDamageS2CPacket;
 
 import static com.macekill.addon.MaceKillAddon.CATEGORY;
 
@@ -57,19 +57,19 @@ public class Hitback extends Module {
 
     @EventHandler
     private void onDamagePacket(PacketEvent.Receive event) {
-        if (!(event.packet instanceof ClientboundDamageEventPacket packet)) return;
-        if (mc.player == null || mc.level == null) return;
+        if (!(event.packet instanceof EntityDamageS2CPacket packet)) return;
+        if (mc.player == null || mc.world == null) return;
         if (packet.entityId() != mc.player.getId()) return;
 
         int attackerId = packet.sourceCauseId();
         if (attackerId <= 0) return;
 
-        Entity attacker = mc.level.getEntity(attackerId);
+        Entity attacker = mc.world.getEntityById(attackerId);
         if (attacker == null || attacker == mc.player) return;
-        if (onlyPlayers.get() && !(attacker instanceof Player)) return;
-        if (ignoreFriends.get() && attacker instanceof Player p && Friends.get().isFriend(p)) return;
+        if (onlyPlayers.get() && !(attacker instanceof PlayerEntity)) return;
+        if (ignoreFriends.get() && attacker instanceof PlayerEntity p && Friends.get().isFriend(p)) return;
         // Server drops attacks beyond survival reach; skip instead of flagging anticheat.
-        if (mc.player.distanceToSqr(attacker) > 4.5 * 4.5) return;
+        if (mc.player.squaredDistanceTo(attacker) > 4.5 * 4.5) return;
 
         if (cd > 0) return;
         cd = cooldown.get();
@@ -77,9 +77,9 @@ public class Hitback extends Module {
     }
 
     private void hitBack(Entity attacker) {
-        if (mc.player == null || mc.getConnection() == null || attacker == null) return;
-        Runnable attack = () -> mc.getConnection().send(
-            new ServerboundAttackPacket(attacker.getId())
+        if (mc.player == null || mc.getNetworkHandler() == null || attacker == null) return;
+        Runnable attack = () -> mc.getNetworkHandler().sendPacket(
+            PlayerInteractEntityC2SPacket.attack(attacker, mc.player.isSneaking())
         );
 
         if (rotate.get()) {

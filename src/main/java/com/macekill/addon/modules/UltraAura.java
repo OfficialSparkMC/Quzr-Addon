@@ -23,22 +23,22 @@ import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EntityTypes;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.MaceItem;
-import net.minecraft.world.item.TridentItem;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.tags.ItemTags;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.util.Mth;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.MaceItem;
+import net.minecraft.item.TridentItem;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.registry.tag.FluidTags;
+import net.minecraft.registry.tag.ItemTags;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 
 /**
  * UltraAura (ported from vicore) — teleports next to a target, attacks it, and teleports back.
@@ -68,8 +68,8 @@ public class UltraAura extends Module {
     public final List<Entity> targets = new ArrayList<>();
 
     private int timer;
-    private Vec3 startPos;
-    private Vec3 targetPos;
+    private Vec3d startPos;
+    private Vec3d targetPos;
     private Entity target;
     private boolean targetFound;
     private boolean swapped;
@@ -121,7 +121,7 @@ public class UltraAura extends Module {
                 .name("Entities")
                 .description("Entities to attack")
                 .onlyAttackable()
-                .defaultValue(EntityTypes.PLAYER)
+                .defaultValue(EntityType.PLAYER)
                 .build());
 
         this.serverType = this.sgGeneral.add(new EnumSetting.Builder<ServerType>()
@@ -181,7 +181,7 @@ public class UltraAura extends Module {
     private void onTick(TickEvent.Post event) {
         this.timer++;
 
-        if (this.mc.player == null || this.mc.level == null) return;
+        if (this.mc.player == null || this.mc.world == null) return;
 
         this.target = this.target != null && this.lockTarget.get() ? this.target : this.getFirstTarget();
 
@@ -207,28 +207,28 @@ public class UltraAura extends Module {
      * @return true when the attack packet was actually sent
      */
     public boolean smash(Entity entity) {
-        if (entity == null || this.mc.player == null || this.mc.getConnection() == null) return false;
+        if (entity == null || this.mc.player == null || this.mc.getNetworkHandler() == null) return false;
 
         this.target = entity;
         this.targetFound = true;
         this.updatePositions(entity);
 
         this.sendApproachPackets();
-        this.mc.player.setPos(this.targetPos);
+        this.mc.player.setPosition(this.targetPos);
 
         if (this.autoSwitch.get() && !this.isMaceTotemFailHandlingSwitch()) {
             this.swapToWeapon();
         }
 
-        this.mc.getConnection().send(new ServerboundAttackPacket(entity.getId()));
-        this.mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+        this.mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(entity, false));
+        this.mc.player.swingHand(Hand.MAIN_HAND);
 
         if (this.silentSwap) {
             this.restoreWeapon();
         }
 
         this.sendReturnPackets();
-        this.mc.player.setPos(this.startPos);
+        this.mc.player.setPosition(this.startPos);
 
         this.timer = 0;
         return true;
@@ -238,22 +238,22 @@ public class UltraAura extends Module {
         if (this.mc.player == null) return false;
         if (!(entity instanceof LivingEntity living)) return false;
         if (entity == this.mc.player || entity == this.mc.getCameraEntity()) return false;
-        if (living.isDeadOrDying() || !living.isAlive()) return false;
+        if (living.isDead() || !living.isAlive()) return false;
         if (!this.entities.get().contains(entity.getType())) return false;
 
-        AABB box = entity.getBoundingBox();
-        double x = Mth.clamp(this.mc.player.getX(), box.minX, box.maxX);
-        double y = Mth.clamp(this.mc.player.getY(), box.minY, box.maxY);
-        double z = Mth.clamp(this.mc.player.getZ(), box.minZ, box.maxZ);
+        Box box = entity.getBoundingBox();
+        double x = MathHelper.clamp(this.mc.player.getX(), box.minX, box.maxX);
+        double y = MathHelper.clamp(this.mc.player.getY(), box.minY, box.maxY);
+        double z = MathHelper.clamp(this.mc.player.getZ(), box.minZ, box.maxZ);
 
         if (!PlayerUtils.isWithin(x, y, z, this.targetRange.get())) return false;
 
-        if (entity instanceof Player player) {
+        if (entity instanceof PlayerEntity player) {
             if (player.isCreative()) return false;
             if (!Friends.get().shouldAttack(player)) return false;
 
             if (this.ignoreWater.get()
-                    && mc.level.getBlockState(player.blockPosition()).getFluidState().is(FluidTags.WATER)) {
+                    && player.getBlockStateAtPos().getFluidState().isIn(FluidTags.WATER)) {
                 return false;
             }
         }
@@ -290,8 +290,8 @@ public class UltraAura extends Module {
     }
 
     private void updatePositions(Entity entity) {
-        this.targetPos = entity.position();
-        this.startPos = this.mc.player.position();
+        this.targetPos = entity.getEntityPos();
+        this.startPos = this.mc.player.getEntityPos();
     }
 
     private boolean hasPositions() {
@@ -307,8 +307,8 @@ public class UltraAura extends Module {
     }
 
     private void sendPosition(double x, double y, double z) {
-        this.mc.getConnection().send(
-                new ServerboundMovePlayerPacket.Pos(x, y, z, true, false));
+        this.mc.getNetworkHandler().sendPacket(
+                new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, true, false));
     }
 
     /**
@@ -319,16 +319,16 @@ public class UltraAura extends Module {
      * @param stepSize     maximum distance covered by one packet
      * @param stopDistance distance to stop short of the destination
      */
-    private void sendPath(Vec3 from, Vec3 to, double stepSize, int stopDistance) {
+    private void sendPath(Vec3d from, Vec3d to, double stepSize, int stopDistance) {
         if (from == null || to == null) return;
 
-        Vec3 delta = to.subtract(from);
+        Vec3d delta = to.subtract(from);
         double distance = delta.length();
-        Vec3 end = from.add(delta.normalize().scale(distance - stopDistance));
+        Vec3d end = from.add(delta.normalize().multiply(distance - stopDistance));
 
         double packetCount = Math.ceil(distance / stepSize);
         for (int i = 1; i <= packetCount; i++) {
-            Vec3 position = from.lerp(end, i / packetCount);
+            Vec3d position = from.lerp(end, i / packetCount);
             this.sendPosition(position.x, position.y, position.z);
         }
     }
@@ -358,12 +358,12 @@ public class UltraAura extends Module {
 
     private boolean isWeapon(ItemStack stack) {
         return switch (this.weapon.get()) {
-            case AXE -> stack.is(ItemTags.AXES);
-            case SWORD -> stack.is(ItemTags.SWORDS);
+            case AXE -> stack.getItem() instanceof AxeItem;
+            case SWORD -> stack.isIn(ItemTags.SWORDS);
             case MACE -> stack.getItem() instanceof MaceItem;
             case TRIDENT -> stack.getItem() instanceof TridentItem;
-            case ALL -> stack.is(ItemTags.AXES)
-                    || stack.is(ItemTags.SWORDS)
+            case ALL -> stack.getItem() instanceof AxeItem
+                    || stack.isIn(ItemTags.SWORDS)
                     || stack.getItem() instanceof MaceItem
                     || stack.getItem() instanceof TridentItem;
             case ANY -> true;

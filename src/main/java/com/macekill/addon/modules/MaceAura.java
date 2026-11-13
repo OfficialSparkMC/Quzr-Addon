@@ -9,19 +9,19 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Items;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 
 import java.util.*;
 
@@ -34,7 +34,7 @@ import java.util.*;
  * - 偏移攻击：水平/垂直偏移，不精确站在目标头顶
  * - 高度递增：每次攻击递增高度，生成不同落点
  * - 垃圾包：每个高度发送多个移动包扰乱反作弊
- * - BlockPos.MutableBlockPos：减少 GC 压力
+ * - BlockPos.Mutable：减少 GC 压力
  */
 public class MaceAura extends Module {
     private int maceSwapBackSlot = -1;
@@ -94,7 +94,7 @@ public class MaceAura extends Module {
 
     /* ========== 状态 ========== */
     private final Map<BlockPos, Boolean> positionCache = new HashMap<>();
-    private final BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
+    private final BlockPos.Mutable mutablePos = new BlockPos.Mutable();
     private int remainingCooldown;
     private int totemAttackIndex;
 
@@ -118,7 +118,7 @@ public class MaceAura extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null) return;
+        if (mc.player == null || mc.world == null) return;
         if (remainingCooldown > 0) { remainingCooldown--; return; }
 
         LivingEntity target = findNearestTarget();
@@ -136,17 +136,17 @@ public class MaceAura extends Module {
     // ========== 目标查找 ==========
 
     private LivingEntity findNearestTarget() {
-        if (mc.level == null || mc.player == null) return null;
+        if (mc.world == null || mc.player == null) return null;
         double rangeSq = range.get() * range.get();
         LivingEntity best = null;
         double bestDist = Double.MAX_VALUE;
 
-        for (Entity e : mc.level.entitiesForRendering()) {
+        for (Entity e : mc.world.getEntities()) {
             if (!(e instanceof LivingEntity le) || !le.isAlive() || le == mc.player) continue;
-            double distSq = mc.player.distanceToSqr(le);
+            double distSq = mc.player.squaredDistanceTo(le);
             if (distSq > rangeSq) continue;
-            if (onlyPlayers.get() && !(le instanceof Player)) continue;
-            if (le instanceof Player p) {
+            if (onlyPlayers.get() && !(le instanceof PlayerEntity)) continue;
+            if (le instanceof PlayerEntity p) {
                 if (p.isCreative() || p.isSpectator() || !Friends.get().shouldAttack(p)) continue;
             }
             if (distSq < bestDist) { bestDist = distSq; best = le; }
@@ -157,16 +157,16 @@ public class MaceAura extends Module {
     // ========== 攻击执行 ==========
 
     private boolean executeAttack(LivingEntity target) {
-        if (mc.getConnection() == null) return false;
+        if (mc.getNetworkHandler() == null) return false;
 
         // 切换到重锤
         int oldSlot = switchToMace();
         if (oldSlot == -1) return false;
 
         try {
-            Vec3 originalPos = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            Vec3d originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
-            if (bypassTotem.get() && target instanceof Player) {
+            if (bypassTotem.get() && target instanceof PlayerEntity) {
                 // 图腾绕过：多轮递增高度攻击
                 return executeTotemBypass(target, originalPos);
             } else {
@@ -178,14 +178,14 @@ public class MaceAura extends Module {
         }
     }
 
-    private boolean executeTotemBypass(LivingEntity target, Vec3 originalPos) {
+    private boolean executeTotemBypass(LivingEntity target, Vec3d originalPos) {
         int count = attackCount.get();
 
         // AutoTotem re-equips between ticks, so every strictly-escalating hit MUST land in a
         // single smash (one executeTotemBypass call). Spread the heights across the REAL
         // headroom above the target so each hit deals strictly more damage (critical in caves
         // / under a roof - otherwise they all collapse onto the ceiling and only pop one totem).
-        int clearance = getMaxHeightAbovePlayer(new Vec3(target.getX(), target.getY(), target.getZ()), 319);
+        int clearance = getMaxHeightAbovePlayer(new Vec3d(target.getX(), target.getY(), target.getZ()), 319);
         List<String> all = Combat.totemBypassHeights(count - 1, clearance);
         if (all.isEmpty()) {
             error("Not enough headroom above target for a mace smash (need open space / taller cave)");
@@ -202,14 +202,14 @@ public class MaceAura extends Module {
         return true;
     }
 
-    private boolean executeKill(LivingEntity target, Vec3 originalPos, int height) {
+    private boolean executeKill(LivingEntity target, Vec3d originalPos, int height) {
         return doSingleAttack(target, originalPos, height);
     }
 
-    private boolean doSingleAttack(LivingEntity target, Vec3 originalPos, int height) {
-        if (mc.getConnection() == null) return false;
+    private boolean doSingleAttack(LivingEntity target, Vec3d originalPos, int height) {
+        if (mc.getNetworkHandler() == null) return false;
 
-        Vec3 targetPos = new Vec3(target.getX(), target.getY(), target.getZ());
+        Vec3d targetPos = new Vec3d(target.getX(), target.getY(), target.getZ());
         if (useOffset.get()) {
             targetPos = getOffset(targetPos);
         }
@@ -219,16 +219,16 @@ public class MaceAura extends Module {
         if (safeHeight < 2) {
             return false; // 头顶是实心屋顶、没有起跳空间 -> 不攻击，避免卡在天上
         }
-        Vec3 jumpPos = new Vec3(targetPos.x, targetPos.y + safeHeight, targetPos.z);
+        Vec3d jumpPos = new Vec3d(targetPos.x, targetPos.y + safeHeight, targetPos.z);
 
         // 升空 + 发垃圾包
-        sendMovePacketWithSpam(new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ()), jumpPos);
+        sendMovePacketWithSpam(new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ()), jumpPos);
 
         // 下落
-        Vec3 attackPos = new Vec3(targetPos.x, targetPos.y + 0.5, targetPos.z);
+        Vec3d attackPos = new Vec3d(targetPos.x, targetPos.y + 0.5, targetPos.z);
         sendMovePacketWithSpam(jumpPos, attackPos);
 
-        if (swingArm.get()) mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+        if (swingArm.get()) mc.player.swingHand(Hand.MAIN_HAND);
         attackEntity(target);
 
         return true;
@@ -237,19 +237,19 @@ public class MaceAura extends Module {
     // ========== 位置计算 ==========
 
     /** 获取偏移后的位置 */
-    private Vec3 getOffset(Vec3 pos) {
+    private Vec3d getOffset(Vec3d pos) {
         double hOff = horizontalOffset.get();
         double yOff = yOffset.get();
         // 随机水平方向
         double angle = Math.random() * Math.PI * 2;
-        return new Vec3(
+        return new Vec3d(
                 pos.x + Math.cos(angle) * hOff,
                 pos.y + yOff,
                 pos.z + Math.sin(angle) * hOff);
     }
 
     /** 计算目标上方最大安全高度（从目标向上扫描，遇到实心屋顶即停，绝不穿顶到屋外天空） */
-    private int getMaxHeightAbovePlayer(Vec3 targetPos, int maxHeight) {
+    private int getMaxHeightAbovePlayer(Vec3d targetPos, int maxHeight) {
         int bx = (int) Math.floor(targetPos.x);
         int bz = (int) Math.floor(targetPos.z);
         int by = (int) Math.floor(targetPos.y);
@@ -270,18 +270,18 @@ public class MaceAura extends Module {
     }
 
     private boolean isSafePosition(BlockPos pos) {
-        return positionCache.computeIfAbsent(pos.immutable(), p -> {
-            BlockState state = mc.level.getBlockState(p);
+        return positionCache.computeIfAbsent(pos.toImmutable(), p -> {
+            BlockState state = mc.world.getBlockState(p);
             // 空气或树叶（可穿过树叶升到树冠上方的天空）才视为安全；液体/蛛网/实心方块不安全
-            return (state.isAir() || state.getBlock() instanceof net.minecraft.world.level.block.LeavesBlock)
+            return (state.isAir() || state.getBlock() instanceof net.minecraft.block.LeavesBlock)
                     && state.getFluidState().isEmpty()
-                    && !state.is(Blocks.COBWEB);
+                    && !state.isOf(Blocks.COBWEB);
         });
     }
 
     // ========== 发包 ==========
 
-    private void sendMovePacketWithSpam(Vec3 from, Vec3 to) {
+    private void sendMovePacketWithSpam(Vec3d from, Vec3d to) {
         double dist = from.distanceTo(to);
         int steps = Math.max(1, (int) Math.ceil(dist / 8.0));
         double stepX = (to.x - from.x) / steps;
@@ -293,35 +293,35 @@ public class MaceAura extends Module {
             double x = from.x + stepX * i;
             double y = from.y + stepY * i;
             double z = from.z + stepZ * i;
-            mc.getConnection().send(
-                    new ServerboundMovePlayerPacket.Pos(x, y, z, false, false));
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
             // 发垃圾包
             for (int s = 0; s < spam; s++) {
-                mc.getConnection().send(
-                        new ServerboundMovePlayerPacket.Pos(x, y, z, false, false));
+                mc.getNetworkHandler().sendPacket(
+                        new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
             }
         }
     }
 
     private void attackEntity(Entity target) {
-        if (mc.getConnection() == null) return;
-        mc.getConnection().send(
-                new ServerboundAttackPacket(target.getId()));
+        if (mc.getNetworkHandler() == null) return;
+        mc.getNetworkHandler().sendPacket(
+                PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
     }
 
     // ========== 物品切换 ==========
 
     private int switchToMace() {
         if (mc.player == null) return -1;
-        Inventory inv = mc.player.getInventory();
+        PlayerInventory inv = mc.player.getInventory();
         int cur = getSelectedSlot();
         maceSwapBackSlot = -1;
-        if (inv.getItem(cur).getItem() == Items.MACE) return cur;
+        if (inv.getStack(cur).getItem() == Items.MACE) return cur;
         for (int i = 0; i < 9; i++) {
-            if (inv.getItem(i).getItem() != Items.MACE) continue;
+            if (inv.getStack(i).getItem() != Items.MACE) continue;
             if (i != cur) {
                 setSelectedSlot(i);
-                mc.getConnection().send(new ServerboundSetCarriedItemPacket(i));
+                mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
             }
             return cur;
         }
@@ -343,7 +343,7 @@ public class MaceAura extends Module {
             return;
         }
         setSelectedSlot(slot);
-        mc.getConnection().send(new ServerboundSetCarriedItemPacket(slot));
+        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(slot));
     }
 
     private int getSelectedSlot() {

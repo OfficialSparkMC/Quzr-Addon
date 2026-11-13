@@ -9,7 +9,7 @@ import com.macekill.addon.MaceKillAddon;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.mixininterface.IServerboundMovePlayerPacket;
+import meteordevelopment.meteorclient.mixininterface.IPlayerMoveC2SPacket;
 import meteordevelopment.meteorclient.renderer.ShapeMode;
 import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.DoubleSetting;
@@ -23,33 +23,32 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EntityTypes;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.BowItem;
-import net.minecraft.world.item.EggItem;
-import net.minecraft.world.item.EnderpearlItem;
-import net.minecraft.world.item.ExperienceBottleItem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.LingeringPotionItem;
-import net.minecraft.world.item.SnowballItem;
-import net.minecraft.world.item.SplashPotionItem;
-import net.minecraft.world.item.TridentItem;
-import net.minecraft.world.item.WindChargeItem;
-import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
-import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.core.Direction;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityType;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.BowItem;
+import net.minecraft.item.EggItem;
+import net.minecraft.item.EnderPearlItem;
+import net.minecraft.item.ExperienceBottleItem;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.item.LingeringPotionItem;
+import net.minecraft.item.SnowballItem;
+import net.minecraft.item.SplashPotionItem;
+import net.minecraft.item.TridentItem;
+import net.minecraft.item.WindChargeItem;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.VehicleMoveC2SPacket;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 
 /**
  * ArrowKiller (ported from vicore).
@@ -100,7 +99,7 @@ public class ArrowKiller extends Module {
     private int bowChargeTicks;
     private boolean previousBow;
     private Entity target;
-    private final List<Vec3> predictedPositions;
+    private final List<Vec3d> predictedPositions;
     private boolean processingPacket;
     private boolean replayingAction;
 
@@ -138,7 +137,7 @@ public class ArrowKiller extends Module {
                 .name("Entities")
                 .description("Entities to target.")
                 .onlyAttackable()
-                .defaultValue(EntityTypes.PLAYER)
+                .defaultValue(EntityType.PLAYER)
                 .build());
 
         this.ignoreFriends = this.sgTarget.add(new BoolSetting.Builder()
@@ -278,12 +277,12 @@ public class ArrowKiller extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (!this.predictMovement.get() || this.target == null || this.mc.level == null) return;
+        if (!this.predictMovement.get() || this.target == null || this.mc.world == null) return;
 
         this.predictedPositions.clear();
 
-        for (Entity entity : this.mc.level.entitiesForRendering()) {
-            if (entity instanceof Player player && player.equals(this.target)) {
+        for (Entity entity : this.mc.world.getEntities()) {
+            if (entity instanceof PlayerEntity player && player.equals(this.target)) {
                 this.addPredictedPosition(player);
             }
         }
@@ -294,9 +293,9 @@ public class ArrowKiller extends Module {
         if (!this.predictMovement.get() || !this.renderPredictBoxes.get()) return;
         if (this.predictedPositions.isEmpty() || this.mc.player == null) return;
 
-        for (Vec3 position : this.predictedPositions) {
+        for (Vec3d position : this.predictedPositions) {
             event.renderer.box(
-                    this.mc.player.getDimensions(this.mc.player.getPose()).makeBoundingBox(position),
+                    this.mc.player.getDimensions(this.mc.player.getPose()).getBoxAt(position),
                     new Color(143, 85, 34, 110),
                     new Color(143, 85, 34, 255),
                     ShapeMode.Both,
@@ -309,12 +308,12 @@ public class ArrowKiller extends Module {
         this.refreshTimer++;
         this.target = this.findTarget();
 
-        if (!this.bowMachinegun.get() || this.mc.player == null || this.mc.gameMode == null) {
+        if (!this.bowMachinegun.get() || this.mc.player == null || this.mc.interactionManager == null) {
             return;
         }
 
-        boolean holdingBow = this.mc.player.getMainHandItem().getItem() instanceof BowItem
-                || this.mc.player.getOffhandItem().getItem() instanceof BowItem;
+        boolean holdingBow = this.mc.player.getMainHandStack().getItem() instanceof BowItem
+                || this.mc.player.getOffHandStack().getItem() instanceof BowItem;
 
         if (holdingBow && !this.previousBow) {
             this.bowChargeTicks = 0;
@@ -343,22 +342,22 @@ public class ArrowKiller extends Module {
 
     @EventHandler(priority = 200)
     private void onPacketSend(PacketEvent.Send event) {
-        if (this.mc.player == null || this.mc.level == null || this.mc.getConnection() == null) return;
+        if (this.mc.player == null || this.mc.world == null || this.mc.getNetworkHandler() == null) return;
 
-        if (event.packet instanceof ServerboundUseItemPacket useItem) {
-            ItemStack stack = useItem.hand() == InteractionHand.MAIN_HAND
-                    ? this.mc.player.getMainHandItem()
-                    : this.mc.player.getOffhandItem();
+        if (event.packet instanceof PlayerInteractItemC2SPacket useItem) {
+            ItemStack stack = useItem.getHand() == Hand.MAIN_HAND
+                    ? this.mc.player.getMainHandStack()
+                    : this.mc.player.getOffHandStack();
             Item item = stack.getItem();
 
             if (this.isAffectedProjectile(item)) {
                 if (this.processingPacket) return;
 
                 this.processingPacket = true;
-                event.setCancelled(true);
+                event.cancel();
 
                 try {
-                    this.teleportAndUse(useItem.hand());
+                    this.teleportAndUse(useItem.getHand());
                 } finally {
                     this.processingPacket = false;
                 }
@@ -368,36 +367,36 @@ public class ArrowKiller extends Module {
             }
         }
 
-        if (event.packet instanceof ServerboundPlayerActionPacket action) {
+        if (event.packet instanceof PlayerActionC2SPacket action) {
             if (this.replayingAction) return;
-            if (action.getAction() != ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM) return;
+            if (action.getAction() != PlayerActionC2SPacket.Action.RELEASE_USE_ITEM) return;
 
-            Item mainHand = this.mc.player.getMainHandItem().getItem();
-            Item offHand = this.mc.player.getOffhandItem().getItem();
+            Item mainHand = this.mc.player.getMainHandStack().getItem();
+            Item offHand = this.mc.player.getOffHandStack().getItem();
 
             if (!this.isChargedWeapon(mainHand) && !this.isChargedWeapon(offHand)) return;
 
             this.bowCharging = false;
-            event.setCancelled(true);
+            event.cancel();
             this.teleportAndRelease(action.getAction());
         }
     }
 
     private Entity findTarget() {
-        if (this.mc.level == null || this.mc.player == null) return null;
+        if (this.mc.world == null || this.mc.player == null) return null;
 
         Entity best = null;
         double bestDistance = Double.MAX_VALUE;
 
-        for (Entity entity : this.mc.level.entitiesForRendering()) {
+        for (Entity entity : this.mc.world.getEntities()) {
             if (!this.isValidTarget(entity)) continue;
-            if (entity instanceof Player player
+            if (entity instanceof PlayerEntity player
                     && Friends.get().isFriend(player)
                     && this.ignoreFriends.get()) {
                 continue;
             }
 
-            double distance = entity.distanceToSqr(this.mc.player);
+            double distance = entity.squaredDistanceTo(this.mc.player);
 
             if (distance < bestDistance) {
                 bestDistance = distance;
@@ -416,10 +415,10 @@ public class ArrowKiller extends Module {
                 && entity != this.mc.player;
     }
 
-    private void addPredictedPosition(Player player) {
+    private void addPredictedPosition(PlayerEntity player) {
         if (Friends.get().isFriend(player) && this.ignoreFriends.get()) return;
 
-        Vec3 predicted = this.predictPosition(player);
+        Vec3d predicted = this.predictPosition(player);
 
         if (predicted != null) {
             this.predictedPositions.add(predicted);
@@ -429,21 +428,21 @@ public class ArrowKiller extends Module {
     /**
      * Extrapolates the last client-side movement for the configured number of ticks.
      */
-    private Vec3 predictPosition(Player player) {
-        Vec3 current = player.position();
-        Vec3 delta = current.subtract(player.oldPosition());
+    private Vec3d predictPosition(PlayerEntity player) {
+        Vec3d current = player.getEntityPos();
+        Vec3d delta = current.subtract(player.getLastRenderPos());
 
-        if (player.onGround()) {
-            delta = new Vec3(delta.x, 0.0, delta.z);
+        if (player.isOnGround()) {
+            delta = new Vec3d(delta.x, 0.0, delta.z);
         }
 
-        return current.add(delta.scale(this.predictTicks.get()));
+        return current.add(delta.multiply(this.predictTicks.get()));
     }
 
     private void releaseBow() {
-        this.mc.getConnection().send(new ServerboundPlayerActionPacket(
-                ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM,
-                BlockPos.ZERO,
+        this.mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                PlayerActionC2SPacket.Action.RELEASE_USE_ITEM,
+                BlockPos.ORIGIN,
                 Direction.DOWN,
                 this.mc.player.getInventory().getSelectedSlot()));
 
@@ -483,7 +482,7 @@ public class ArrowKiller extends Module {
     private boolean isAffectedProjectile(Item item) {
         List<Item> selected = this.affectedProjectiles.get();
 
-        return (item instanceof EnderpearlItem && selected.contains(Items.ENDER_PEARL))
+        return (item instanceof EnderPearlItem && selected.contains(Items.ENDER_PEARL))
                 || (item instanceof SplashPotionItem && selected.contains(Items.SPLASH_POTION))
                 || (item instanceof LingeringPotionItem && selected.contains(Items.LINGERING_POTION))
                 || (item instanceof ExperienceBottleItem && selected.contains(Items.EXPERIENCE_BOTTLE))
@@ -498,7 +497,7 @@ public class ArrowKiller extends Module {
     }
 
     private boolean isWithinRange(Entity entity) {
-        Entity source = this.mc.player.isPassenger() ? this.mc.player.getVehicle() : this.mc.player;
+        Entity source = this.mc.player.hasVehicle() ? this.mc.player.getVehicle() : this.mc.player;
 
         return entity.isAlive() && source.distanceTo(entity) <= this.maxTeleportDistance.get();
     }
@@ -506,26 +505,26 @@ public class ArrowKiller extends Module {
     /**
      * Teleports to the target, uses the item, then teleports back to the saved position.
      */
-    private void teleportAndUse(InteractionHand hand) {
+    private void teleportAndUse(Hand hand) {
         if (this.target == null || !this.isWithinRange(this.target)) return;
 
-        Entity source = this.mc.player.isPassenger() ? this.mc.player.getVehicle() : this.mc.player;
-        Vec3 start = source.position();
+        Entity source = this.mc.player.hasVehicle() ? this.mc.player.getVehicle() : this.mc.player;
+        Vec3d start = source.getEntityPos();
 
-        if (this.mc.player.distanceToSqr(this.target)
+        if (this.mc.player.squaredDistanceTo(this.target)
                 > this.maxTeleportDistance.get() * this.maxTeleportDistance.get()) {
             return;
         }
 
-        AABB box = this.target.getBoundingBox();
-        Vec3 targetCenter = new Vec3(box.getCenter().x, box.maxY, box.getCenter().z);
+        Box box = this.target.getBoundingBox();
+        Vec3d targetCenter = new Vec3d(box.getCenter().x, box.maxY, box.getCenter().z);
         double height = this.currentHeight();
 
-        Vec3 predicted = this.predictedOrTarget(targetCenter);
-        Vec3 from = start.add(0.0, height, 0.0);
-        Vec3 to = predicted.add(0.0, height, 0.0);
-        Vec3 above = predicted.add(0.0, this.aboveTargetOffset.get(), 0.0);
-        Vec3 safeStart = this.findSafeStart(start);
+        Vec3d predicted = this.predictedOrTarget(targetCenter);
+        Vec3d from = start.add(0.0, height, 0.0);
+        Vec3d to = predicted.add(0.0, height, 0.0);
+        Vec3d above = predicted.add(0.0, this.aboveTargetOffset.get(), 0.0);
+        Vec3d safeStart = this.findSafeStart(start);
 
         if (!this.arePointsClear(from, to, above, to, from, safeStart)) {
             if (this.chatFeedback) this.error("One of the teleports are blocked.");
@@ -541,11 +540,11 @@ public class ArrowKiller extends Module {
         this.teleport(source, to);
         this.teleport(source, above);
 
-        float yaw = this.mc.player.getYRot();
+        float yaw = this.mc.player.getYaw();
 
         for (int i = 0; i < this.interactAmount.get(); i++) {
-            this.mc.getConnection().send(
-                    new ServerboundUseItemPacket(hand, 0, yaw, 90.0f));
+            this.mc.getNetworkHandler().sendPacket(
+                    new PlayerInteractItemC2SPacket(hand, 0, yaw, 90.0f));
         }
 
         this.teleport(source, to);
@@ -553,32 +552,32 @@ public class ArrowKiller extends Module {
         this.teleport(source, start);
         this.teleport(source, safeStart);
 
-        source.setPos(safeStart);
+        source.setPosition(safeStart);
     }
 
     /**
      * Teleports, replays the released action, then teleports back.
      */
-    private void teleportAndRelease(ServerboundPlayerActionPacket.Action action) {
+    private void teleportAndRelease(PlayerActionC2SPacket.Action action) {
         if (this.target == null || !this.isWithinRange(this.target)) return;
 
-        Entity source = this.mc.player.isPassenger() ? this.mc.player.getVehicle() : this.mc.player;
-        Vec3 start = source.position();
+        Entity source = this.mc.player.hasVehicle() ? this.mc.player.getVehicle() : this.mc.player;
+        Vec3d start = source.getEntityPos();
 
-        if (this.mc.player.distanceToSqr(this.target)
+        if (this.mc.player.squaredDistanceTo(this.target)
                 > this.maxTeleportDistance.get() * this.maxTeleportDistance.get()) {
             return;
         }
 
-        AABB box = this.target.getBoundingBox();
-        Vec3 targetCenter = new Vec3(box.getCenter().x, box.maxY, box.getCenter().z);
+        Box box = this.target.getBoundingBox();
+        Vec3d targetCenter = new Vec3d(box.getCenter().x, box.maxY, box.getCenter().z);
         double height = this.currentHeight();
 
-        Vec3 predicted = this.predictedOrTarget(targetCenter);
-        Vec3 from = start.add(0.0, height, 0.0);
-        Vec3 to = predicted.add(0.0, height, 0.0);
-        Vec3 above = predicted.add(0.0, this.aboveTargetOffset.get(), 0.0);
-        Vec3 safeStart = this.findSafeStart(start);
+        Vec3d predicted = this.predictedOrTarget(targetCenter);
+        Vec3d from = start.add(0.0, height, 0.0);
+        Vec3d to = predicted.add(0.0, height, 0.0);
+        Vec3d above = predicted.add(0.0, this.aboveTargetOffset.get(), 0.0);
+        Vec3d safeStart = this.findSafeStart(start);
 
         if (!this.arePointsClear(from, to, above, to, from, safeStart)) {
             if (this.chatFeedback) this.error("One of the teleports are blocked.");
@@ -597,9 +596,9 @@ public class ArrowKiller extends Module {
         this.teleport(source, safeStart);
     }
 
-    private Vec3 predictedOrTarget(Vec3 fallback) {
+    private Vec3d predictedOrTarget(Vec3d fallback) {
         if (this.predictMovement.get() && !this.predictedPositions.isEmpty()) {
-            Vec3 predicted = this.predictedPositions.getFirst();
+            Vec3d predicted = this.predictedPositions.getFirst();
             this.predictedPositions.clear();
             return predicted;
         }
@@ -612,38 +611,38 @@ public class ArrowKiller extends Module {
             if (source == this.mc.player) {
                 // AntiPop rewrites this to onGround=false; the original keeps the prime
                 // packet onGround=true to reset any previous fall before the teleport.
-                this.mc.getConnection().send(
-                        new ServerboundMovePlayerPacket.StatusOnly(true, this.mc.player.horizontalCollision));
+                this.mc.getNetworkHandler().sendPacket(
+                        new PlayerMoveC2SPacket.OnGroundOnly(true, this.mc.player.horizontalCollision));
             } else {
-                this.mc.getConnection().send(ServerboundMoveVehiclePacket.fromEntity(source));
+                this.mc.getNetworkHandler().sendPacket(VehicleMoveC2SPacket.fromVehicle(source));
             }
         }
     }
 
-    private void teleport(Entity entity, Vec3 position) {
+    private void teleport(Entity entity, Vec3d position) {
         if (entity == this.mc.player) {
-            ServerboundMovePlayerPacket.Pos packet =
-                    new ServerboundMovePlayerPacket.Pos(
+            PlayerMoveC2SPacket.PositionAndOnGround packet =
+                    new PlayerMoveC2SPacket.PositionAndOnGround(
                             position.x,
                             position.y,
                             position.z,
                             false,
                             this.mc.player.horizontalCollision);
 
-            ((IServerboundMovePlayerPacket) packet).meteor$setTag(MOVE_PACKET_TAG);
-            this.mc.getConnection().send(packet);
+            ((IPlayerMoveC2SPacket) packet).meteor$setTag(MOVE_PACKET_TAG);
+            this.mc.getNetworkHandler().sendPacket(packet);
         } else {
-            this.mc.getConnection().send(ServerboundMoveVehiclePacket.fromEntity(entity));
+            this.mc.getNetworkHandler().sendPacket(VehicleMoveC2SPacket.fromVehicle(entity));
         }
 
-        entity.setPos(position);
+        entity.setPosition(position);
     }
 
     /** Replays the action without re-entering this module. */
-    private void replayAction(ServerboundPlayerActionPacket.Action action) {
+    private void replayAction(PlayerActionC2SPacket.Action action) {
         this.replayingAction = true;
-        this.mc.getConnection().send(
-                new ServerboundPlayerActionPacket(action, BlockPos.ZERO, Direction.DOWN, 0));
+        this.mc.getNetworkHandler().sendPacket(
+                new PlayerActionC2SPacket(action, BlockPos.ORIGIN, Direction.DOWN, 0));
         this.replayingAction = false;
     }
 
@@ -651,35 +650,35 @@ public class ArrowKiller extends Module {
      * Returns {@code true} when the given point is obstructed by lava, a collision
      * shape, or a collidable entity.
      */
-    private boolean isObstructed(Vec3 point) {
-        if (this.mc.level == null) return true;
-        if (!this.mc.level.hasChunkAt(BlockPos.containing(point))) return true;
+    private boolean isObstructed(Vec3d point) {
+        if (this.mc.world == null) return true;
+        if (!this.mc.world.isPosLoaded(BlockPos.ofFloored(point))) return true;
 
-        Entity source = this.mc.player.isPassenger() ? this.mc.player.getVehicle() : this.mc.player;
-        AABB box = source.getBoundingBox().move(
+        Entity source = this.mc.player.hasVehicle() ? this.mc.player.getVehicle() : this.mc.player;
+        Box box = source.getBoundingBox().offset(
                 point.x - source.getX(),
                 point.y - source.getY(),
                 point.z - source.getZ());
 
-        for (BlockPos pos : BlockPos.betweenClosed(
-                BlockPos.containing(box.minX, box.minY, box.minZ),
-                BlockPos.containing(box.maxX, box.maxY, box.maxZ))) {
-            BlockState state = this.mc.level.getBlockState(pos);
+        for (BlockPos pos : BlockPos.iterate(
+                BlockPos.ofFloored(box.minX, box.minY, box.minZ),
+                BlockPos.ofFloored(box.maxX, box.maxY, box.maxZ))) {
+            BlockState state = this.mc.world.getBlockState(pos);
 
-            if (state.is(Blocks.LAVA)) return true;
-            if (!state.getCollisionShape(this.mc.level, pos).isEmpty()) return true;
+            if (state.isOf(Blocks.LAVA)) return true;
+            if (!state.getCollisionShape(this.mc.world, pos).isEmpty()) return true;
         }
 
-        for (Entity entity : this.mc.level.getEntities(source, box)) {
-            if (entity.canBeCollidedWith(entity)) return true;
+        for (Entity entity : this.mc.world.getOtherEntities(source, box)) {
+            if (entity.isCollidable(entity)) return true;
         }
 
         return false;
     }
 
     /** True when every point is clear. */
-    private boolean arePointsClear(Vec3... points) {
-        for (Vec3 point : points) {
+    private boolean arePointsClear(Vec3d... points) {
+        for (Vec3d point : points) {
             if (this.isObstructed(point)) return false;
         }
 
@@ -687,13 +686,13 @@ public class ArrowKiller extends Module {
     }
 
     /** True when the line between both points is clear. */
-    private boolean isLineClear(Vec3 from, Vec3 to) {
+    private boolean isLineClear(Vec3d from, Vec3d to) {
         if (this.isObstructed(from) || this.isObstructed(to)) return false;
 
         int steps = Math.max(10, (int) (from.distanceTo(to) * 2.5));
 
         for (int i = 1; i < steps; i++) {
-            Vec3 point = from.lerp(to, (double) i / steps);
+            Vec3d point = from.lerp(to, (double) i / steps);
 
             if (this.isObstructed(point)) return false;
         }
@@ -702,11 +701,11 @@ public class ArrowKiller extends Module {
     }
 
     /** Picks a nearby non-obstructed start position. */
-    private Vec3 findSafeStart(Vec3 start) {
+    private Vec3d findSafeStart(Vec3d start) {
         double horizontal = this.horizontalOffset.get();
         double vertical = this.yOffsetFirst.get();
 
-        List<Vec3> candidates = new ArrayList<>(List.of(
+        List<Vec3d> candidates = new ArrayList<>(List.of(
                 start.add(horizontal, vertical, 0.0),
                 start.add(-horizontal, vertical, 0.0),
                 start.add(0.0, vertical, horizontal),
@@ -718,11 +717,11 @@ public class ArrowKiller extends Module {
 
         Collections.shuffle(candidates);
 
-        for (Vec3 candidate : candidates) {
+        for (Vec3d candidate : candidates) {
             if (!this.isObstructed(candidate)) return candidate;
         }
 
-        Vec3 center = start.add(0.0, vertical, 0.0);
+        Vec3d center = start.add(0.0, vertical, 0.0);
 
         if (!this.isObstructed(center)) return center;
 

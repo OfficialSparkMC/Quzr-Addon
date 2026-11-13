@@ -6,14 +6,14 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Items;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.level.GameType;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.text.Text;
+import net.minecraft.util.Hand;
+import net.minecraft.world.GameMode;
 
 public class MaceDMG extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -87,11 +87,11 @@ public class MaceDMG extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        Minecraft mc = Minecraft.getInstance();
-        Player player = mc.player;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        PlayerEntity player = mc.player;
 
-        if (player == null || mc.level == null) return;
-        if (mc.gameMode.getPlayerMode() == GameType.SPECTATOR) return;
+        if (player == null || mc.world == null) return;
+        if (mc.interactionManager.getCurrentGameMode() == GameMode.SPECTATOR) return;
 
         // 自动切换重锤
         if (autoSwitch.get() && !isHoldingMace(player)) {
@@ -105,14 +105,14 @@ public class MaceDMG extends Module {
 
         if (globalDetection.get()) {
             // 全局模式: 检测攻击冷却是否刚刚重置(任何来源的攻击)
-            float currentCooldown = player.getAttackStrengthScale(0);
+            float currentCooldown = player.getAttackCooldownProgress(0);
             if (lastCooldown > 0.5f && currentCooldown < 0.01f) {
                 shouldAttack = true;
             }
             lastCooldown = currentCooldown;
         } else {
             // 手动模式: 仅当玩家按下攻击键
-            if (mc.options.keyAttack.consumeClick()) {
+            if (mc.options.attackKey.wasPressed()) {
                 shouldAttack = true;
             }
         }
@@ -129,9 +129,9 @@ public class MaceDMG extends Module {
         performMaceDMG(mc);
     }
 
-    private void performMaceDMG(Minecraft mc) {
-        Player player = mc.player;
-        if (player == null || mc.getConnection() == null) return;
+    private void performMaceDMG(MinecraftClient mc) {
+        PlayerEntity player = mc.player;
+        if (player == null || mc.getNetworkHandler() == null) return;
         double height = fakeHeight.get();
 
         // 5包攻击序列: 4正常(onGround=true) + 1高空(onGround=false) + fallDistance归零
@@ -146,10 +146,10 @@ public class MaceDMG extends Module {
         }
     }
 
-    private void sendFakeY(Minecraft mc, double offset) {
-        if (mc.player == null || mc.getConnection() == null) return;
-        mc.getConnection().send(
-            new ServerboundMovePlayerPacket.Pos(
+    private void sendFakeY(MinecraftClient mc, double offset) {
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        mc.getNetworkHandler().sendPacket(
+            new PlayerMoveC2SPacket.PositionAndOnGround(
                 mc.player.getX(), mc.player.getY() + offset, mc.player.getZ(),
                 true, mc.player.horizontalCollision
             )
@@ -157,54 +157,54 @@ public class MaceDMG extends Module {
     }
 
     /** 高空包: onGround=false, 让服务器记录坠落距离用于重锤伤害计算 */
-    private void sendFakeY_air(Minecraft mc, double offset) {
-        if (mc.player == null || mc.getConnection() == null) return;
-        mc.getConnection().send(
-            new ServerboundMovePlayerPacket.Pos(
+    private void sendFakeY_air(MinecraftClient mc, double offset) {
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
+        mc.getNetworkHandler().sendPacket(
+            new PlayerMoveC2SPacket.PositionAndOnGround(
                 mc.player.getX(), mc.player.getY() + offset, mc.player.getZ(),
                 false, mc.player.horizontalCollision
             )
         );
     }
 
-    private boolean isHoldingMace(Player player) {
-        return player.getMainHandItem().is(Items.MACE)
-            || player.getOffhandItem().is(Items.MACE);
+    private boolean isHoldingMace(PlayerEntity player) {
+        return player.getMainHandStack().isOf(Items.MACE)
+            || player.getOffHandStack().isOf(Items.MACE);
     }
 
-    private void switchToMace(Minecraft mc) {
-        Player player = mc.player;
-        if (player.getMainHandItem().is(Items.MACE)) return;
-        if (player.getOffhandItem().is(Items.MACE)) return;
+    private void switchToMace(MinecraftClient mc) {
+        PlayerEntity player = mc.player;
+        if (player.getMainHandStack().isOf(Items.MACE)) return;
+        if (player.getOffHandStack().isOf(Items.MACE)) return;
 
         for (int i = 0; i < 9; i++) {
-            if (player.getInventory().getItem(i).is(Items.MACE)) {
+            if (player.getInventory().getStack(i).isOf(Items.MACE)) {
                 setSelectedSlot(player, i);
                 return;
             }
         }
 
         for (int i = 9; i < 36; i++) {
-            if (player.getInventory().getItem(i).is(Items.MACE)) {
-                int syncId = player.inventoryMenu.containerId;
+            if (player.getInventory().getStack(i).isOf(Items.MACE)) {
+                int syncId = player.playerScreenHandler.syncId;
                 int selected = getSelectedSlot(player);
-                mc.gameMode.handleContainerInput(syncId, i, selected, net.minecraft.world.inventory.ContainerInput.SWAP, player);
+                mc.interactionManager.clickSlot(syncId, i, selected, net.minecraft.screen.slot.SlotActionType.SWAP, player);
                 return;
             }
         }
     }
 
-    private void setSelectedSlot(Player player, int slot) {
+    private void setSelectedSlot(PlayerEntity player, int slot) {
         if (player == null || slot < 0 || slot > 8) return;
         player.getInventory().setSelectedSlot(slot);
     }
 
-    private int getSelectedSlot(Player player) {
+    private int getSelectedSlot(PlayerEntity player) {
         if (player == null) return 0;
         return player.getInventory().getSelectedSlot();
     }
 
     private void info(String msg) {
-            ChatUtils.sendMsg(Component.literal("§8[§bMaceDMG§8] §f" + msg));
+            ChatUtils.sendMsg(Text.literal("§8[§bMaceDMG§8] §f" + msg));
     }
 }

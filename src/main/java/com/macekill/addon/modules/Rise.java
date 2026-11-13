@@ -5,7 +5,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
 public class Rise extends Module {
 
@@ -36,7 +36,7 @@ public class Rise extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
         if (delayTicks > 0) { delayTicks--; return; }
 
@@ -47,11 +47,11 @@ public class Rise extends Module {
         // 每tick发送10组上下抖动包
         for (int i = 0; i < 10; i++) {
             // 上升包
-            mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
                     posX, posY + height.get(), posZ, false, false));
 
             // 回落包
-            mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
+            mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
                     posX, posY, posZ, false, false));
         }
 

@@ -5,8 +5,8 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.multiplayer.PlayerInfo;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.entity.player.PlayerEntity;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,19 +67,19 @@ public class MassTpa extends Module {
     private void buildQueue() {
         queue.clear();
         done = false;
-        if (mc.player == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
 
-        Collection<PlayerInfo> entries = mc.getConnection().getOnlinePlayers();
+        Collection<PlayerListEntry> entries = mc.getNetworkHandler().getPlayerList();
         String self = mc.player.getName().getString();
 
         java.util.Set<String> friendNames = new java.util.HashSet<>();
-        if (ignoreFriends.get() && mc.level != null) {
-            for (Player p : mc.level.players()) {
+        if (ignoreFriends.get() && mc.world != null) {
+            for (PlayerEntity p : mc.world.getPlayers()) {
                 if (Friends.get().isFriend(p)) friendNames.add(p.getName().getString());
             }
         }
 
-        for (PlayerInfo entry : entries) {
+        for (PlayerListEntry entry : entries) {
             String name = entry.getProfile().name();
             if (name == null || name.isEmpty()) continue;
             if (name.equals(self)) continue;
@@ -97,7 +97,7 @@ public class MassTpa extends Module {
             return;
         }
         String name = queue.remove(0);
-        mc.getConnection().sendCommand("tpa " + name);
+        mc.getNetworkHandler().sendChatCommand("tpa " + name);
         if (feedback.get()) info("Sent TPA to %s", name);
     }
 

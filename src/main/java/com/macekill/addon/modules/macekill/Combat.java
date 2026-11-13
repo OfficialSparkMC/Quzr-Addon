@@ -2,22 +2,22 @@ package com.macekill.addon.modules.macekill;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.LeavesBlock;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.block.LeavesBlock;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 
 public final class Combat {
     private Combat() {}
 
-    public static boolean executeAttack(Minecraft mc, Config config,
-                                        LivingEntity target, Vec3 targetPos) {
-        if (target == null || mc.getConnection() == null) {
+    public static boolean executeAttack(MinecraftClient mc, Config config,
+                                        LivingEntity target, Vec3d targetPos) {
+        if (target == null || mc.getNetworkHandler() == null) {
             return true;
         }
 
@@ -36,56 +36,56 @@ public final class Combat {
             heights.add(20.0);
         }
 
-        int oldSlot = InvHelper.switchToMace(mc);
+        int oldSlot = Inventory.switchToMace(mc);
         if (oldSlot == -1) {
             return armorDestroyed;
         }
 
         try {
-            Vec3 basePos = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+            Vec3d basePos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
 
             for (double h : heights) {
                 BlockPos vclipHole = findVclipHole(mc,
                     mc.player.getX(), mc.player.getY(), mc.player.getZ(), h);
-                Vec3 vclipPos = Vec3.atBottomCenterOf(vclipHole);
+                Vec3d vclipPos = Vec3d.ofBottomCenter(vclipHole);
 
                 Movement.doTpTo(mc, vclipPos, config.moveDistance(), config.syncClientPos());
                 Movement.sendMovePacket(mc, targetPos.x, targetPos.y + 0.5, targetPos.z);
                 Movement.sendMovePacket(mc, basePos.x, basePos.y, basePos.z);
 
                 if (config.swingHand()) {
-                    mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+                    mc.player.swingHand(Hand.MAIN_HAND);
                 }
                 Movement.attackEntity(mc, target);
             }
         } finally {
             if (config.autoTotem()) {
-                int totemSlot = InvHelper.findTotemSlot(mc);
+                int totemSlot = Inventory.findTotemSlot(mc);
                 if (totemSlot != -1) {
-                    InvHelper.setSelectedSlot(mc.player.getInventory(), totemSlot);
+                    Inventory.setSelectedSlot(mc.player.getInventory(), totemSlot);
                     Movement.sendSlotPacket(mc, totemSlot);
                 } else {
-                    InvHelper.switchBack(mc, oldSlot);
+                    Inventory.switchBack(mc, oldSlot);
                 }
             } else {
-                InvHelper.switchBack(mc, oldSlot);
+                Inventory.switchBack(mc, oldSlot);
             }
         }
         return armorDestroyed;
     }
 
-    public static int worldTop(Minecraft mc) {
-        if (mc != null && mc.level != null) {
+    public static int worldTop(MinecraftClient mc) {
+        if (mc != null && mc.world != null) {
             try {
-                return mc.level.getMaxY();
+                return mc.world.getTopYInclusive();
             } catch (Exception ignored) {}
         }
         return 319;
     }
 
-    public static BlockPos findVclipHole(Minecraft mc,
+    public static BlockPos findVclipHole(MinecraftClient mc,
                                          double x, double y, double z, double vclip) {
-        BlockPos base = BlockPos.containing(x, y, z);
+        BlockPos base = BlockPos.ofFloored(x, y, z);
         if (vclip <= 0.0) {
             return base;
         }
@@ -99,7 +99,7 @@ public final class Combat {
         // Scan UP from the player. The first non-safe block (a solid roof) is the ceiling.
         // We must never teleport through it into the disconnected sky above, or the fall back
         // down through the roof gets rejected by the server and the player is stranded in the sky.
-        BlockPos.MutableBlockPos mutable = new BlockPos.MutableBlockPos();
+        BlockPos.Mutable mutable = new BlockPos.Mutable();
         for (int cy = by + 1; cy <= top; cy++) {
             mutable.set(bx, cy, bz);
             if (!vclipSafe(mc, mutable)) {
@@ -115,22 +115,22 @@ public final class Combat {
 
     // A vclip destination must be an air block (or leaves: we can teleport straight
     // through foliage to reach clear sky above a tree canopy), with no fluid/cobweb.
-    private static boolean vclipSafe(Minecraft mc, BlockPos pos) {
-        if (mc.level == null) return false;
-        BlockState state = mc.level.getBlockState(pos);
-        if (state.isAir() && state.getFluidState().isEmpty() && !state.is(Blocks.COBWEB)) {
+    private static boolean vclipSafe(MinecraftClient mc, BlockPos pos) {
+        if (mc.world == null) return false;
+        BlockState state = mc.world.getBlockState(pos);
+        if (state.isAir() && state.getFluidState().isEmpty() && !state.isOf(Blocks.COBWEB)) {
             return true;
         }
         return state.getBlock() instanceof LeavesBlock;
     }
 
     public static boolean needsArmorDestroy(LivingEntity entity, int ignoreArmorValue) {
-        if (!(entity instanceof Player player)) {
+        if (!(entity instanceof PlayerEntity player)) {
             return false;
         }
         int count = 0;
         for (int i = 36; i <= 39; i++) {
-            if (player.getInventory().getItem(i).isEmpty()) continue;
+            if (player.getInventory().getStack(i).isEmpty()) continue;
             count++;
         }
         return count > ignoreArmorValue;
@@ -152,7 +152,7 @@ public final class Combat {
 
     // Available vertical headroom (in blocks) directly above the target before a solid
     // roof is hit. In a cave this is small; in open sky it is large.
-    public static int getVclipClearance(Minecraft mc, LivingEntity target) {
+    public static int getVclipClearance(MinecraftClient mc, LivingEntity target) {
         if (mc == null || target == null) return 0;
         BlockPos hole = findVclipHole(mc, target.getX(), target.getY(), target.getZ(), worldTop(mc));
         return hole.getY() - (int) Math.floor(target.getY());

@@ -10,21 +10,22 @@ import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.network.protocol.game.ServerboundAttackPacket;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
-import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +35,7 @@ import java.util.List;
  * 支持图腾绕过、静默切换、空气检测、最大伤害钳制
  */
 public class TpMace extends Module {
+    private static Field entityIdField;
 
     // ==================== 设置组 ====================
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -201,7 +203,7 @@ public class TpMace extends Module {
     private Phase phase = Phase.IDLE;
     private int delayTicks;
     private int attackCount;
-    private Vec3 originalPos;
+    private Vec3d originalPos;
     private double lastSentX, lastSentY, lastSentZ;
     private LivingEntity target;
     private int originalSlot = -1;
@@ -238,7 +240,7 @@ public class TpMace extends Module {
     @Override
     public void onDeactivate() {
         // Restore a swapped-in mace before clearing state, otherwise the inventory is left rearranged.
-        if (maceSwapBackSlot >= 0 && originalSlot >= 0 && mc.player != null && mc.gameMode != null) {
+        if (maceSwapBackSlot >= 0 && originalSlot >= 0 && mc.player != null && mc.interactionManager != null) {
             InvUtils.move().from(originalSlot).to(maceSwapBackSlot);
             maceSwapBackSlot = -1;
         }
@@ -268,7 +270,7 @@ public class TpMace extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null) return;
+        if (mc.player == null || mc.world == null) return;
 
         switch (phase) {
             case IDLE -> tickIdle();
@@ -309,13 +311,13 @@ public class TpMace extends Module {
         }
 
         if (!checkAndSwapWeapon()) return;
-        originalPos = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         lastSentY = originalPos.y;
         attackCount = 0;
         preHealth = target.getHealth() + target.getAbsorptionAmount();
 
         try {
-            if (totemBypass.get() && target instanceof Player p
+            if (totemBypass.get() && target instanceof PlayerEntity p
                     && (!detectTotem.get() || targetHasTotem(p) || isChainedTarget(p))) {
                 // Sustained chain: the burst already ran on this target and it survived
                 // (stacked totems past a damage cap / dropped packets) — one lethal single
@@ -345,7 +347,7 @@ public class TpMace extends Module {
                 checkMaceDurability(all.size());
                 // One column scan for the whole burst (per-hit rescans cost ~1M block
                 // lookups for a 198-burst and always return the same column mid-tick).
-                Vec3 burstColumn = all.isEmpty() ? null
+                Vec3d burstColumn = all.isEmpty() ? null
                     : findDropColumn(target, all.get(all.size() - 1));
                 boolean first = true;
                 for (double h : all) {
@@ -416,8 +418,8 @@ public class TpMace extends Module {
 
     // column: pre-scanned drop column for bursts (null = scan now). The world does not change
     // mid-tick, so one scan serves the whole burst and saves ~1M block lookups on 198-bursts.
-    private void attackOnce(LivingEntity target, double height, boolean primeFall, Vec3 column) {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null || height < 1) return;
+    private void attackOnce(LivingEntity target, double height, boolean primeFall, Vec3d column) {
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null || height < 1) return;
 
         // Pierce straight up through any roof. Position packets are NOT collision-checked, so the
         // player teleports through solid blocks. The drop runs in a column whose ATTACK position
@@ -426,14 +428,14 @@ public class TpMace extends Module {
         // the smash deals no bonus. See findDropColumn.
         double ty = target.getY();
         double tpY = Math.min(ty + height, Combat.worldTop(mc) - 1);
-        Vec3 drop = column != null ? column : findDropColumn(target, height);
+        Vec3d drop = column != null ? column : findDropColumn(target, height);
         double tx = drop.x, tz = drop.z, attackY = drop.y;
 
         if (rotate.get()) {
             float yaw = getYawTo(target);
             float pitch = getPitchTo(target);
-            mc.getConnection().send(
-                    new ServerboundMovePlayerPacket.Rot(yaw, pitch, false, false));
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, false, false));
         }
 
         // Prime the fake fall: report onGround=false (rotation-only, same position). This is what
@@ -442,8 +444,8 @@ public class TpMace extends Module {
         // primeFall is set (first hit of a burst) to save packets.
         if (primeFall) {
             for (int i = 0; i < fallPackets.get(); i++) {
-                mc.getConnection().send(
-                        new ServerboundMovePlayerPacket.Rot(mc.player.getYRot(), mc.player.getXRot(), false, false));
+                mc.getNetworkHandler().sendPacket(
+                        new PlayerMoveC2SPacket.LookAndOnGround(mc.player.getYaw(), mc.player.getPitch(), false, false));
             }
         }
 
@@ -459,8 +461,8 @@ public class TpMace extends Module {
         //   past it to the first clear Y below (a thin skip, well under the move cap). No sampled
         //   position is ever inside a block and no single packet exceeds the cap, so the full fall
         //   height is preserved even under a solid ceiling.
-        Vec3 start = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        stepMove(start, new Vec3(tx, tpY, tz));
+        Vec3d start = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        stepMove(start, new Vec3d(tx, tpY, tz));
         stepMoveDown(tx, tpY, attackY, tz);
         lastSentX = tx;
         lastSentY = attackY;
@@ -472,7 +474,7 @@ public class TpMace extends Module {
     // Interpolate a move from->to in steps no larger than moveDistance on any axis. Used for both the
     // vertical VClip and the horizontal teleport to the target, so no single packet exceeds the
     // server's per-packet move cap.
-    private void stepMove(Vec3 from, Vec3 to) {
+    private void stepMove(Vec3d from, Vec3d to) {
         double step = Math.min(moveDistance.get(), 99);
         double dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z;
         double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
@@ -482,8 +484,8 @@ public class TpMace extends Module {
             double x = from.x + dx * t;
             double y = from.y + dy * t;
             double z = from.z + dz * t;
-            mc.getConnection().send(
-                    new ServerboundMovePlayerPacket.Pos(x, y, z, false, false));
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
             lastSentX = x;
             lastSentY = y;
             lastSentZ = z;
@@ -514,8 +516,8 @@ public class TpMace extends Module {
             } else {
                 y = next;
             }
-            mc.getConnection().send(
-                    new ServerboundMovePlayerPacket.Pos(x, y, z, false, false));
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, false));
             lastSentX = x;
             lastSentY = y;
             lastSentZ = z;
@@ -533,7 +535,7 @@ public class TpMace extends Module {
         for (int bx = bx0; bx <= bx1; bx++) {
             for (int by = by0; by <= by1; by++) {
                 for (int bz = bz0; bz <= bz1; bz++) {
-                    if (!mc.level.getBlockState(new BlockPos(bx, by, bz)).isAir()) return true;
+                    if (!mc.world.getBlockState(new BlockPos(bx, by, bz)).isAir()) return true;
                 }
             }
         }
@@ -556,7 +558,7 @@ public class TpMace extends Module {
     // blocks of the target center). Phase 2 is what makes 2-high tunnels work — the old
     // fixed ty+1.1 put the head inside the ceiling, the server reset the fall, and every
     // hit dealt no bonus. Falls back to the target column if nothing is free (best effort).
-    private Vec3 findDropColumn(LivingEntity target, double height) {
+    private Vec3d findDropColumn(LivingEntity target, double height) {
         double ty = target.getY();
         int topY = (int) Math.floor(Math.min(ty + height, Combat.worldTop(mc) - 1));
         int botY = (int) Math.floor(ty + 1);
@@ -570,15 +572,15 @@ public class TpMace extends Module {
                 int x = cx + dx, z = cz + dz;
                 boolean clear = true;
                 for (int y = botY; y <= topY; y++) {
-                    if (!mc.level.getBlockState(new BlockPos(x, y, z)).isAir()) {
+                    if (!mc.world.getBlockState(new BlockPos(x, y, z)).isAir()) {
                         clear = false;
                         break;
                     }
                 }
-                if (clear) return new Vec3(x + 0.5, findAttackY(x + 0.5, z + 0.5, target), z + 0.5);
+                if (clear) return new Vec3d(x + 0.5, findAttackY(x + 0.5, z + 0.5, target), z + 0.5);
             }
         }
-        Vec3 best = null;
+        Vec3d best = null;
         double bestScore = Double.MAX_VALUE;
         for (int dx = -3; dx <= 3; dx++) {
             for (int dz = -3; dz <= 3; dz++) {
@@ -589,17 +591,17 @@ public class TpMace extends Module {
                 // Target's own column first, then nearest; higher attack Y wins ties
                 // (shorter descent, closer to the drop path).
                 double score = Math.hypot(dx, dz) * 10 - ay * 0.001;
-                if (score < bestScore) { bestScore = score; best = new Vec3(x + 0.5, ay, z + 0.5); }
+                if (score < bestScore) { bestScore = score; best = new Vec3d(x + 0.5, ay, z + 0.5); }
             }
         }
         if (best != null) return best;
-        return new Vec3(target.getX(), ty + 1.1, target.getZ());
+        return new Vec3d(target.getX(), ty + 1.1, target.getZ());
     }
 
     // Highest free-hitbox Y within attack reach of the target, or -1 if none.
     // Scans top-down so the winner is the highest valid spot (shortest descent).
     private double findAttackY(double x, double z, LivingEntity target) {
-        double cx = target.getX(), cy = target.getY() + target.getBbHeight() * 0.5, cz = target.getZ();
+        double cx = target.getX(), cy = target.getY() + target.getHeight() * 0.5, cz = target.getZ();
         for (double y = target.getY() + 2.5; y >= target.getY() - 1.0; y -= 0.5) {
             if (hitboxBlocked(x, y, z)) continue;
             double dx = x - cx, dy = (y + 0.9) - cy, dz = z - cz;
@@ -612,10 +614,10 @@ public class TpMace extends Module {
     private void sendAttack(LivingEntity target) {
         // The mace selection (client vs server) is handled in checkAndSwapWeapon; the attack always
         // uses whatever the SERVER currently has selected, so we just send the hit here.
-        mc.getConnection().send(new ServerboundAttackPacket(target.getId()));
+        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
 
         if (swingHand.get()) {
-            mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+            mc.player.swingHand(Hand.MAIN_HAND);
         }
     }
 
@@ -660,24 +662,24 @@ public class TpMace extends Module {
 
             for (int i = 1; i <= steps; i++) {
                 double y = fromY + total * i / steps;
-                mc.getConnection().send(
-                        new ServerboundMovePlayerPacket.Pos(originalPos.x, y, originalPos.z, false, false));
+                mc.getNetworkHandler().sendPacket(
+                        new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, y, originalPos.z, false, false));
             }
 
             // Final landing packet.
-            mc.getConnection().send(
-                    new ServerboundMovePlayerPacket.Pos(originalPos.x, originalPos.y, originalPos.z, true, false));
+            mc.getNetworkHandler().sendPacket(
+                    new PlayerMoveC2SPacket.PositionAndOnGround(originalPos.x, originalPos.y, originalPos.z, true, false));
 
             // Snap the local client back as well, in case the server forced a teleport during the attack.
             if (mc.player != null) {
-                mc.player.setPos(originalPos.x, originalPos.y, originalPos.z);
+                mc.player.setPosition(originalPos.x, originalPos.y, originalPos.z);
             }
         } else if (mc.player != null) {
             // We did not return (e.g. a successful hit with Return-to-Start off). The position packets
             // moved the SERVER to the smash spot but the client was never updated, so client and server
             // disagree - which makes block break/place (and every interaction) fail. Snap the client to
             // the server's final position so they stay in sync.
-            mc.player.setPos(lastSentX, lastSentY, lastSentZ);
+            mc.player.setPosition(lastSentX, lastSentY, lastSentZ);
         }
 
         resetState();
@@ -686,7 +688,7 @@ public class TpMace extends Module {
     private void resetState() {
         // Safety net — the burst path already reverts immediately after the last hit.
         revertSilentSwap();
-        if (maceSwapBackSlot >= 0 && mc.player != null && mc.gameMode != null) {
+        if (maceSwapBackSlot >= 0 && mc.player != null && mc.interactionManager != null) {
             swapMace(maceSwapBackSlot, originalSlot);
             maceSwapBackSlot = -1;
         }
@@ -709,8 +711,8 @@ public class TpMace extends Module {
     // instead of waiting for resetState() after the 3-tick RETURN_DELAY (during which the
     // server held the mace while the client showed the original item).
     private void revertSilentSwap() {
-        if (silentRevertSlot >= 0 && mc.getConnection() != null) {
-            mc.getConnection().send(new ServerboundSetCarriedItemPacket(silentRevertSlot));
+        if (silentRevertSlot >= 0 && mc.getNetworkHandler() != null) {
+            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(silentRevertSlot));
             silentRevertSlot = -1;
         }
     }
@@ -736,26 +738,26 @@ public class TpMace extends Module {
     // Remaining durability of the mace we are smashing with (MAX_VALUE if unassessable).
     private int maceDurabilityLeft() {
         if (mc.player == null) return Integer.MAX_VALUE;
-        Inventory inv = mc.player.getInventory();
+        PlayerInventory inv = mc.player.getInventory();
         ItemStack mace = null;
-        if (maceSlot >= 0 && maceSlot < inv.getContainerSize() && inv.getItem(maceSlot).is(Items.MACE)) {
-            mace = inv.getItem(maceSlot);
-        } else if (inv.getItem(inv.getSelectedSlot()).is(Items.MACE)) {
-            mace = inv.getItem(inv.getSelectedSlot());
+        if (maceSlot >= 0 && maceSlot < inv.size() && inv.getStack(maceSlot).isOf(Items.MACE)) {
+            mace = inv.getStack(maceSlot);
+        } else if (inv.getStack(inv.getSelectedSlot()).isOf(Items.MACE)) {
+            mace = inv.getStack(inv.getSelectedSlot());
         } else {
             for (int i = 0; i < 9; i++) {
-                if (inv.getItem(i).is(Items.MACE)) { mace = inv.getItem(i); break; }
+                if (inv.getStack(i).isOf(Items.MACE)) { mace = inv.getStack(i); break; }
             }
         }
-        if (mace == null || !mace.isDamageableItem()) return Integer.MAX_VALUE;
-        return mace.getMaxDamage() - mace.getDamageValue();
+        if (mace == null || !mace.isDamageable()) return Integer.MAX_VALUE;
+        return mace.getMaxDamage() - mace.getDamage();
     }
 
     // An armed sustained chain continues even when no totem is currently VISIBLE on the
     // target: the client never receives a full enemy inventory (main-inventory totems are
     // protocol-invisible, Detect Totem only ever sees hands), so detection goes blind once
     // hands empty — but we KNOW this target had stacked totems when the burst armed the chain.
-    private boolean isChainedTarget(Player p) {
+    private boolean isChainedTarget(PlayerEntity p) {
         return sustainedDrain.get() && p == sustainTarget && sustainLeft > 0
             && System.nanoTime() - sustainArmedAt <= SUSTAIN_TTL_NANOS;
     }
@@ -763,7 +765,7 @@ public class TpMace extends Module {
     // Sustained drain: one full-height lethal single per invuln window for stacked-totem
     // targets the burst couldn't finish. No escalation needed — each hit only must be
     // lethal on its own, so server damage caps and dropped packets can't stall it.
-    private void sustainedSingle(Player p) {
+    private void sustainedSingle(PlayerEntity p) {
         if (maceDurabilityLeft() < 3) {
             error("Mace almost broken — stopping sustained drain.");
             sustainTarget = null;
@@ -800,10 +802,10 @@ public class TpMace extends Module {
 
         if (!autoSwitch.get()) return true;
 
-        Inventory inv = mc.player.getInventory();
+        PlayerInventory inv = mc.player.getInventory();
 
         // 1) Already holding the mace in the selected hotbar slot.
-        if (inv.getItem(originalSlot).is(Items.MACE)) {
+        if (inv.getStack(originalSlot).isOf(Items.MACE)) {
             maceSlot = originalSlot;
             noMaceWarned = false;
             return true;
@@ -811,12 +813,12 @@ public class TpMace extends Module {
 
         // 2) Mace already in the hotbar -> select it.
         for (int i = 0; i < 9; i++) {
-            if (inv.getItem(i).is(Items.MACE)) {
+            if (inv.getStack(i).isOf(Items.MACE)) {
                 maceSlot = i;
                 noMaceWarned = false;
                 if (i != originalSlot) {
                     // Always tell the SERVER to select the mace so the smash actually uses it.
-                    mc.getConnection().send(new ServerboundSetCarriedItemPacket(i));
+                    mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(i));
                     if (silentSwap.get()) {
                         // Silent: keep the CLIENT view on the original slot, and remember to revert
                         // the server selection afterwards so the swap is never visible (and the player's
@@ -832,8 +834,8 @@ public class TpMace extends Module {
 
         // 3) Mace anywhere else (main inventory / offhand / armor) -> SWAP into the selected slot.
         int src = -1;
-        for (int i = 9; i < inv.getContainerSize(); i++) {
-            if (inv.getItem(i).is(Items.MACE)) {
+        for (int i = 9; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.MACE)) {
                 src = i;
                 break;
             }
@@ -850,8 +852,8 @@ public class TpMace extends Module {
         maceSlot = originalSlot;
         maceSwapBackSlot = src;
         // Make sure the server selects the slot that now holds the mace.
-        if (mc.getConnection() == null) return false;
-        mc.getConnection().send(new ServerboundSetCarriedItemPacket(originalSlot));
+        if (mc.getNetworkHandler() == null) return false;
+        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(originalSlot));
         noMaceWarned = false;
         return true;
     }
@@ -859,30 +861,30 @@ public class TpMace extends Module {
     // Swap the mace (any inventory slot) into the selected hotbar slot using a real click-slot SWAP,
     // which works even when the mace is not in the hotbar.
     private void swapMace(int invSlot, int hotbarSlot) {
-        if (mc.player == null || mc.gameMode == null) return;
+        if (mc.player == null || mc.interactionManager == null) return;
         if (hotbarSlot < 0 || hotbarSlot > 8) return;
-        if (invSlot < 0 || invSlot >= mc.player.getInventory().getContainerSize()) return;
+        if (invSlot < 0 || invSlot >= mc.player.getInventory().size()) return;
         int screenSlot = invSlot;
         if (invSlot >= 36 && invSlot <= 39) screenSlot = invSlot - 31; // armor -> 5..8
         else if (invSlot == 40) screenSlot = 45; // offhand
-        mc.gameMode.handleContainerInput(
-                mc.player.inventoryMenu.containerId, screenSlot, hotbarSlot, ContainerInput.SWAP, mc.player);
+        mc.interactionManager.clickSlot(
+                mc.player.playerScreenHandler.syncId, screenSlot, hotbarSlot, SlotActionType.SWAP, mc.player);
     }
 
     // ==================== 目标查找 ====================
 
     private LivingEntity findTarget() {
-        if (mc.level == null || mc.player == null) return null;
+        if (mc.world == null || mc.player == null) return null;
         LivingEntity best = null;
         double bestDist = Double.MAX_VALUE;
 
-        for (Entity e : mc.level.entitiesForRendering()) {
+        for (Entity e : mc.world.getEntities()) {
             if (!(e instanceof LivingEntity le)) continue;
-            if (le.isDeadOrDying()) continue;
+            if (le.isDead()) continue;
             if (le == mc.player) continue;
             if (!entityCheck(le)) continue;
 
-            double dist = mc.player.distanceToSqr(le);
+            double dist = mc.player.squaredDistanceTo(le);
             if (dist < bestDist) {
                 bestDist = dist;
                 best = le;
@@ -892,15 +894,15 @@ public class TpMace extends Module {
     }
 
     private boolean entityCheck(Entity entity) {
-        if (!(entity instanceof LivingEntity le) || le.isDeadOrDying()) return false;
+        if (!(entity instanceof LivingEntity le) || le.isDead()) return false;
         if (entity == mc.player) return false;
 
         double dist = mc.player.distanceTo(entity);
         if (dist > range.get()) return false;
 
-        if (!throughWalls.get() && !mc.player.hasLineOfSight(entity)) return false;
+        if (!throughWalls.get() && !mc.player.canSee(entity)) return false;
 
-        if (entity instanceof Player player) {
+        if (entity instanceof PlayerEntity player) {
             if (!players.get()) return false;
             if (player.isSpectator()) return false;
             if (Friends.get().isFriend(player)) return false;
@@ -945,16 +947,16 @@ public class TpMace extends Module {
      * 从 IMG 移植：从目标头顶向上扫描，找到安全可用的最大高度
      */
     private int getMaxHeightAbovePlayer(LivingEntity target) {
-        BlockPos targetPos = target.blockPosition();
+        BlockPos targetPos = target.getBlockPos();
         int maxH = maxPower.get() ? 170 : fallHeight.get();
 
         for (int yOffset = maxH; yOffset > 0; yOffset--) {
             BlockPos pos = new BlockPos(targetPos.getX(), targetPos.getY() + yOffset, targetPos.getZ());
-            BlockPos posAbove = pos.above();
+            BlockPos posAbove = pos.up();
 
             // 检查两个连续的空气方块
-            boolean safe = mc.level.getBlockState(pos).isAir()
-                    && mc.level.getBlockState(posAbove).isAir();
+            boolean safe = mc.world.getBlockState(pos).isAir()
+                    && mc.world.getBlockState(posAbove).isAir();
             if (safe) {
                 return yOffset;
             }
@@ -989,7 +991,7 @@ public class TpMace extends Module {
         return mc.player.getInventory().getSelectedSlot();
     }
 
-    private void setSelectedSlot(Inventory inv, int slot) {
+    private void setSelectedSlot(PlayerInventory inv, int slot) {
         if (inv == null || slot < 0 || slot > 8) return;
         inv.setSelectedSlot(slot);
     }
@@ -998,15 +1000,15 @@ public class TpMace extends Module {
         setSelectedSlot(mc.player.getInventory(), slot);
     }
 
-    private boolean targetHasTotem(Player player) {
+    private boolean targetHasTotem(PlayerEntity player) {
         return countTotems(player) > 0;
     }
 
-    private int countTotems(Player player) {
+    private int countTotems(PlayerEntity player) {
         int n = 0;
-        Inventory inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (inv.getItem(i).is(Items.TOTEM_OF_UNDYING)) n++;
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
         }
         return n;
     }
@@ -1030,7 +1032,7 @@ public class TpMace extends Module {
 
     @Override
     public String getInfoString() {
-        if (totemBypass.get() && target instanceof Player) return "Totem Bypass";
+        if (totemBypass.get() && target instanceof PlayerEntity) return "Totem Bypass";
         return target != null ? target.getName().getString() : "No target";
     }
 }

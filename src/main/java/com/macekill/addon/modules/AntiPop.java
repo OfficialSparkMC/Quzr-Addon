@@ -7,7 +7,7 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
 
 /**
  * AntiPop (ported from vicore).
@@ -15,7 +15,7 @@ import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
  * <p>Strips the {@code onGround} flag from every outgoing movement packet so the
  * server never sees the player touch the ground (avoids fall damage / landing effects).
  *
- * <p>1.21.11 port note: {@code ServerboundMovePlayerPacket}'s fields are {@code final}, so instead
+ * <p>1.21.11 port note: {@code PlayerMoveC2SPacket}'s fields are {@code final}, so instead
  * of mutating the packet through a mixin accessor (as the original did), the packet is
  * rebuilt with the same position/rotation/flags and {@code onGround = false}.
  */
@@ -34,11 +34,11 @@ public class AntiPop extends Module {
 
     @EventHandler
     private void onSendPacket(PacketEvent.Send event) {
-        if (!(event.packet instanceof ServerboundMovePlayerPacket packet)) return;
+        if (!(event.packet instanceof PlayerMoveC2SPacket packet)) return;
         if (!packet.isOnGround()) return;
-        if (mc.player == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
 
-        ServerboundMovePlayerPacket stripped = stripOnGround(packet);
+        PlayerMoveC2SPacket stripped = stripOnGround(packet);
 
         event.setCancelled(true);
         event.sendSilently(stripped);
@@ -46,23 +46,23 @@ public class AntiPop extends Module {
         if (logOnEffect.get()) info("onGround=%s", stripped.isOnGround());
     }
 
-    private ServerboundMovePlayerPacket stripOnGround(ServerboundMovePlayerPacket packet) {
+    private PlayerMoveC2SPacket stripOnGround(PlayerMoveC2SPacket packet) {
         double x = packet.getX(mc.player.getX());
         double y = packet.getY(mc.player.getY());
         double z = packet.getZ(mc.player.getZ());
-        float yaw = packet.getYRot(mc.player.getYRot());
-        float pitch = packet.getXRot(mc.player.getXRot());
+        float yaw = packet.getYaw(mc.player.getYaw());
+        float pitch = packet.getPitch(mc.player.getPitch());
         boolean horizontalCollision = packet.horizontalCollision();
 
-        if (packet.hasPosition() && packet.hasRotation()) {
-            return new ServerboundMovePlayerPacket.PosRot(x, y, z, yaw, pitch, false, horizontalCollision);
+        if (packet.changesPosition() && packet.changesLook()) {
+            return new PlayerMoveC2SPacket.Full(x, y, z, yaw, pitch, false, horizontalCollision);
         }
-        if (packet.hasPosition()) {
-            return new ServerboundMovePlayerPacket.Pos(x, y, z, false, horizontalCollision);
+        if (packet.changesPosition()) {
+            return new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, false, horizontalCollision);
         }
-        if (packet.hasRotation()) {
-            return new ServerboundMovePlayerPacket.Rot(yaw, pitch, false, horizontalCollision);
+        if (packet.changesLook()) {
+            return new PlayerMoveC2SPacket.LookAndOnGround(yaw, pitch, false, horizontalCollision);
         }
-        return new ServerboundMovePlayerPacket.StatusOnly(false, horizontalCollision);
+        return new PlayerMoveC2SPacket.OnGroundOnly(false, horizontalCollision);
     }
 }
