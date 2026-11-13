@@ -8,8 +8,8 @@ import meteordevelopment.meteorclient.settings.StringSetting;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.text.Text;
 
 public class AutoTpaReject extends Module {
     // The ONLY phrase that triggers a deny: the message must END with this, preceded by the
@@ -32,7 +32,7 @@ public class AutoTpaReject extends Module {
 
     @EventHandler
     private void onMessage(ReceiveMessageEvent event) {
-        if (mc.player == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.getNetworkHandler() == null) return;
 
         String raw = event.getMessage().getString();
         String stripped = stripCodes(raw);
@@ -57,9 +57,9 @@ public class AutoTpaReject extends Module {
         String cmd = denyCommand.get();
         cmd = cmd.replace("{player}", player);
         if (cmd.startsWith("/")) cmd = cmd.substring(1);
-        if (!cmd.isEmpty()) mc.getConnection().sendCommand(cmd);
+        if (!cmd.isEmpty()) mc.getNetworkHandler().sendChatCommand(cmd);
 
-        ChatUtils.sendMsg(Component.literal("§c[AutoTpaReject] §fDenied TPA request"
+        ChatUtils.sendMsg(Text.literal("§c[AutoTpaReject] §fDenied TPA request"
                 + (player.isEmpty() ? "." : " from " + player + ".")));
     }
 

@@ -9,9 +9,9 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.Vec3d;
 
 /**
  * PlayerTp - one-shot teleport to the nearest player.
@@ -44,32 +44,32 @@ public class PlayerTp extends Module {
 
     @Override
     public void onActivate() {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null) {
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) {
             toggle();
             return;
         }
-        Player target = findNearest();
+        PlayerEntity target = findNearest();
         if (target == null) {
             error("No player in range.");
             toggle();
             return;
         }
-        teleportTo(new Vec3(target.getX(), target.getY(), target.getZ()));
+        teleportTo(new Vec3d(target.getX(), target.getY(), target.getZ()));
         lastTarget = target.getName().getString();
         info("Teleported to %s", lastTarget);
         toggle();
     }
 
     /** Nearest attackable player inside Range, or null. */
-    private Player findNearest() {
-        if (mc.level == null || mc.player == null) return null;
+    private PlayerEntity findNearest() {
+        if (mc.world == null || mc.player == null) return null;
         double rangeSq = range.get() * range.get();
-        Player best = null;
+        PlayerEntity best = null;
         double bestDist = Double.MAX_VALUE;
-        for (Player p : mc.level.players()) {
+        for (PlayerEntity p : mc.world.getPlayers()) {
             if (p == mc.player || !p.isAlive() || p.isSpectator()) continue;
             if (ignoreFriends.get() && !Friends.get().shouldAttack(p)) continue;
-            double d = mc.player.distanceToSqr(p);
+            double d = mc.player.squaredDistanceTo(p);
             if (d > rangeSq || d >= bestDist) continue;
             bestDist = d;
             best = p;
@@ -82,9 +82,9 @@ public class PlayerTp extends Module {
      * collision-checked). Updates the client too so both sides stay in sync.
      * Safe to call from the .tp command (client thread).
      */
-    public static void teleportTo(Vec3 dest) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.getConnection() == null || dest == null) return;
+    public static void teleportTo(Vec3d dest) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.player == null || mc.getNetworkHandler() == null || dest == null) return;
         PlayerTp m = Modules.get().get(PlayerTp.class);
         double step = m != null ? Math.max(1.0, m.moveDistance.get()) : 8.0;
         Movement.doTpTo(mc, dest, step, true);

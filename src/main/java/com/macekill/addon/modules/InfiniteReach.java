@@ -17,21 +17,21 @@ import meteordevelopment.meteorclient.utils.render.color.Color;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.client.Camera;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket;
-import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.EntityHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.level.ClipContext;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.client.render.Camera;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.ItemEntity;
+import net.minecraft.network.packet.c2s.play.PlayerActionC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInteractBlockC2SPacket;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 
 /**
  * InfiniteReach (ported from brew-addon 1.21.8).
@@ -114,9 +114,9 @@ public class InfiniteReach extends Module {
         super(MaceKillAddon.CATEGORY, "inf-reach", "Lets you interact with blocks and entities far away.");
     }
 
-    private double getTargetDistance(Vec3 target) {
+    private double getTargetDistance(Vec3d target) {
         if (mc.player == null) return 0;
-        return mc.player.getEyePosition().distanceTo(target);
+        return mc.player.getEyePos().distanceTo(target);
     }
 
     /**
@@ -136,7 +136,7 @@ public class InfiniteReach extends Module {
         Entity target = entityHit.getEntity();
         if (target == null || target instanceof ItemEntity) return false;
 
-        double distance = getTargetDistance(target.position());
+        double distance = getTargetDistance(target.getEntityPos());
         if (distance <= VANILLA_REACH || distance > entityReach.get()) return false;
 
         if (debug.get()) {
@@ -147,55 +147,55 @@ public class InfiniteReach extends Module {
     }
 
     private void interact() {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
         HitResult hitResult = HitResults.getCrosshairTarget(mc.player, blockReach.get(), false, entity -> true);
         if (hitResult instanceof BlockHitResult blockHit) {
             BlockPos target = blockHit.getBlockPos();
-            if (getTargetDistance(Vec3.atCenterOf(target)) <= VANILLA_REACH) return;
+            if (getTargetDistance(Vec3d.ofCenter(target)) <= VANILLA_REACH) return;
 
-            Vec3 hitPos = Vec3.atCenterOf(target);
-            BlockHitResult blockHitResult = new BlockHitResult(hitPos, blockHit.getDirection(), target, false);
-            Block block = mc.level.getBlockState(blockHitResult.getBlockPos()).getBlock();
+            Vec3d hitPos = Vec3d.ofCenter(target);
+            BlockHitResult blockHitResult = new BlockHitResult(hitPos, blockHit.getSide(), target, false);
+            Block block = mc.world.getBlockState(blockHitResult.getBlockPos()).getBlock();
 
-            Vec3 originalPos = mc.player.position();
+            Vec3d originalPos = mc.player.getEntityPos();
 
             if (debug.get()) {
                 info("Interacting with " + block.getName().getString() + " at distance " + getTargetDistance(hitPos));
             }
-            Movement.teleport(Vec3.atCenterOf(target).add(0, 2, 0), false, false);
-            mc.getConnection().send(new ServerboundUseItemOnPacket(InteractionHand.MAIN_HAND, blockHitResult, 0));
+            Movement.teleport(target.toCenterPos().add(0, 2, 0), false, false);
+            mc.getNetworkHandler().sendPacket(new PlayerInteractBlockC2SPacket(Hand.MAIN_HAND, blockHitResult, 0));
             Movement.teleport(originalPos, true, false);
         }
     }
 
     private void breakBlock() {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
         HitResult hitResult = HitResults.getCrosshairTarget(mc.player, blockReach.get(), false, entity -> true);
         if (hitResult instanceof BlockHitResult blockHit) {
             BlockPos target = blockHit.getBlockPos();
-            if (getTargetDistance(Vec3.atCenterOf(target)) <= VANILLA_REACH) return;
+            if (getTargetDistance(Vec3d.ofCenter(target)) <= VANILLA_REACH) return;
 
             if (currentBreakingBlock == null || !currentBreakingBlock.equals(target)) {
                 resetBreaking();
                 currentBreakingBlock = target;
-                currentBreakingDirection = blockHit.getDirection();
-                currentBlockState = mc.level.getBlockState(target);
+                currentBreakingDirection = blockHit.getSide();
+                currentBlockState = mc.world.getBlockState(target);
                 breakProgress = 0.0;
                 hasStartedBreaking = false;
             }
 
             if (!hasStartedBreaking) {
-                Vec3 originalPos = mc.player.position();
+                Vec3d originalPos = mc.player.getEntityPos();
 
-                Movement.teleport(Vec3.atCenterOf(target).add(0, 2, 0), false, false);
-                mc.getConnection().send(new ServerboundPlayerActionPacket(
-                    ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, target, currentBreakingDirection));
+                Movement.teleport(target.toCenterPos().add(0, 2, 0), false, false);
+                mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+                    PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, target, currentBreakingDirection));
                 Movement.teleport(originalPos, true, true);
                 if (debug.get()) {
-                    info("Sent startBreaking packet for " + mc.level.getBlockState(target).getBlock().getName().getString()
-                        + " at distance " + getTargetDistance(Vec3.atCenterOf(target)));
+                    info("Sent startBreaking packet for " + mc.world.getBlockState(target).getBlock().getName().getString()
+                        + " at distance " + getTargetDistance(Vec3d.ofCenter(target)));
                 }
 
                 hasStartedBreaking = true;
@@ -211,7 +211,7 @@ public class InfiniteReach extends Module {
         int bestSlot = -1;
 
         for (int i = 0; i < 9; i++) {
-            double score = (double) mc.player.getInventory().getItem(i).getDestroySpeed(currentBlockState);
+            double score = (double) mc.player.getInventory().getStack(i).getMiningSpeedMultiplier(currentBlockState);
             if (score > bestScore) {
                 bestScore = score;
                 bestSlot = i;
@@ -269,17 +269,17 @@ public class InfiniteReach extends Module {
     }
 
     private void finishBreaking() {
-        if (currentBreakingBlock == null || mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        if (currentBreakingBlock == null || mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
-        Vec3 originalPos = mc.player.position();
+        Vec3d originalPos = mc.player.getEntityPos();
 
-        Movement.teleport(Vec3.atCenterOf(currentBreakingBlock).add(0, 2, 0), false, false);
-        mc.getConnection().send(new ServerboundPlayerActionPacket(
-            ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, currentBreakingBlock, currentBreakingDirection));
+        Movement.teleport(currentBreakingBlock.toCenterPos().add(0, 2, 0), false, false);
+        mc.getNetworkHandler().sendPacket(new PlayerActionC2SPacket(
+            PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, currentBreakingBlock, currentBreakingDirection));
         Movement.teleport(originalPos, true, false);
         if (debug.get()) {
-            info("Sent stopBreaking packet for " + mc.level.getBlockState(currentBreakingBlock).getBlock().getName().getString()
-                + " at distance " + getTargetDistance(Vec3.atCenterOf(currentBreakingBlock)));
+            info("Sent stopBreaking packet for " + mc.world.getBlockState(currentBreakingBlock).getBlock().getName().getString()
+                + " at distance " + getTargetDistance(Vec3d.ofCenter(currentBreakingBlock)));
         }
 
         resetBreaking();
@@ -296,20 +296,20 @@ public class InfiniteReach extends Module {
 
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        if (!blocks.get() || !hoverBox.get() || mc.player == null || mc.level == null) return;
+        if (!blocks.get() || !hoverBox.get() || mc.player == null || mc.world == null) return;
 
-        Camera camera = mc.gameRenderer.mainCamera();
-        Vec3 start = camera.position();
-        Vec3 end = start.add(Vec3.directionFromRotation(camera.xRot(), camera.yRot())
-            .scale(blockReach.get()));
+        Camera camera = mc.gameRenderer.getCamera();
+        Vec3d start = camera.getCameraPos();
+        Vec3d end = start.add(Vec3d.fromPolar(camera.getPitch(), camera.getYaw())
+            .multiply(blockReach.get()));
 
-        HitResult hit = mc.level.clip(new ClipContext(
-            start, end, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, mc.player));
+        HitResult hit = mc.world.raycast(new RaycastContext(
+            start, end, RaycastContext.ShapeType.OUTLINE, RaycastContext.FluidHandling.NONE, mc.player));
         if (!(hit instanceof BlockHitResult blockHit) || hit.getType() != HitResult.Type.BLOCK) return;
 
         BlockPos pos = blockHit.getBlockPos();
         // Only highlight blocks the module can actually act on (beyond vanilla reach).
-        if (getTargetDistance(blockHit.getLocation()) <= VANILLA_REACH) return;
+        if (getTargetDistance(blockHit.getPos()) <= VANILLA_REACH) return;
 
         Color side = hoverColor.get();
         Color line = new Color(side.r, side.g, side.b, 255);
@@ -318,10 +318,10 @@ public class InfiniteReach extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.level == null) return;
+        if (mc.player == null || mc.world == null) return;
 
-        boolean attackKeyIsPressed = mc.options.keyAttack.isDown();
-        boolean interactKeyIsPressed = mc.options.keyUse.isDown();
+        boolean attackKeyIsPressed = mc.options.attackKey.isPressed();
+        boolean interactKeyIsPressed = mc.options.useKey.isPressed();
 
         if (attackKeyIsPressed && !attackKeyWasPressed) {
             onAttackClick();

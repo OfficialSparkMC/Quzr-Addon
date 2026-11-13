@@ -7,18 +7,18 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.Minecraft;
-import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.core.Holder;
-import net.minecraft.resources.Identifier;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.PotionContentsComponent;
+import net.minecraft.entity.effect.StatusEffect;
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.registry.Registry;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +39,7 @@ import java.util.Optional;
  *   luck, unluck, bad_omen, hero_of_the_village, darkness
  */
 public class CustomPotionModule extends Module {
-    private final Minecraft mc = Minecraft.getInstance();
+    private final MinecraftClient mc = MinecraftClient.getInstance();
 
     public enum PotionType {
         REGULAR, SPLASH, LINGERING
@@ -111,8 +111,8 @@ public class CustomPotionModule extends Module {
 
     @Override
     public void onActivate() {
-        if (mc.player == null || mc.level == null) { toggle(); return; }
-        if (!mc.player.getAbilities().instabuild) {
+        if (mc.player == null || mc.world == null) { toggle(); return; }
+        if (!mc.player.getAbilities().creativeMode) {
             CreativeGiveUtil.warn("Creative mode required!"); toggle(); return;
         }
         CreativeGiveUtil.resetError();
@@ -123,7 +123,7 @@ public class CustomPotionModule extends Module {
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (!continuous.get() || mc.player == null) return;
-        if (!mc.player.getAbilities().instabuild) { toggle(); return; }
+        if (!mc.player.getAbilities().creativeMode) { toggle(); return; }
         generateAndGive();
     }
 
@@ -138,7 +138,7 @@ public class CustomPotionModule extends Module {
         ItemStack stack = new ItemStack(baseItem, count.get());
 
         // 解析效果列表
-        List<MobEffectInstance> effects = new ArrayList<>();
+        List<StatusEffectInstance> effects = new ArrayList<>();
         for (String entry : potionEffects.get()) {
             if (entry == null) continue;
             String s = entry.trim();
@@ -163,9 +163,9 @@ public class CustomPotionModule extends Module {
             try {
                 Identifier effId = Identifier.tryParse(idStr.contains(":") ? idStr : "minecraft:" + idStr);
                 if (effId == null) { CreativeGiveUtil.warn("Unknown effect ID: " + idStr); continue; }
-                Optional<Holder.Reference<MobEffect>> ref = statusEffectRegistry().get(effId);
+                Optional<RegistryEntry.Reference<StatusEffect>> ref = statusEffectRegistry().getEntry(effId);
                 if (ref.isEmpty()) { CreativeGiveUtil.warn("Effect not found: " + idStr); continue; }
-                effects.add(new MobEffectInstance(ref.get(), durationTicks, amplifier, false, true));
+                effects.add(new StatusEffectInstance(ref.get(), durationTicks, amplifier, false, true));
             } catch (Exception e) {
                 CreativeGiveUtil.warn("Effect failed [" + idStr + "]: " + e.getMessage());
             }
@@ -175,21 +175,21 @@ public class CustomPotionModule extends Module {
             CreativeGiveUtil.warn("No effects added!"); return;
         }
 
-        // 组装 PotionContents (照搬 Wurst: Optional<potion>, Optional<customColor>, List<customEffects>, Optional<customName>)
+        // 组装 PotionContentsComponent (照搬 Wurst: Optional<potion>, Optional<customColor>, List<customEffects>, Optional<customName>)
         SettingColor sc = potionColor.get();
-        // 转换: SettingColor (r,g,b) -> MC ARGB int (0xAARRGGBB), PotionContents 使用纯 RGB int
+        // 转换: SettingColor (r,g,b) -> MC ARGB int (0xAARRGGBB), PotionContentsComponent 使用纯 RGB int
         int rgb = (sc.r << 16) | (sc.g << 8) | sc.b;
         Optional<Integer> color = customColor.get() ? Optional.of(rgb) : Optional.empty();
-        PotionContents contents = new PotionContents(
+        PotionContentsComponent contents = new PotionContentsComponent(
             Optional.empty(),         // 不使用原版药水类型
             color,                    // 自定义颜色
             effects,                  // 自定义效果
             Optional.empty()          // 不使用自定义药水名
         );
-        stack.set(DataComponents.POTION_CONTENTS, contents);
+        stack.set(DataComponentTypes.POTION_CONTENTS, contents);
 
         if (customName.get()) {
-            stack.set(DataComponents.CUSTOM_NAME, parseName(nameText.get()));
+            stack.set(DataComponentTypes.CUSTOM_NAME, parseName(nameText.get()));
         }
 
         if (CreativeGiveUtil.give(stack)) {
@@ -198,40 +198,41 @@ public class CustomPotionModule extends Module {
     }
 
     /** 解析 & 或 § 颜色代码为带样式的 Text (italic=false 确保显示) */
-    private net.minecraft.network.chat.Component parseName(String raw) {
-        if (raw == null || raw.isEmpty()) return net.minecraft.network.chat.Component.literal("");
-        net.minecraft.network.chat.MutableComponent out = net.minecraft.network.chat.Component.empty();
+    private net.minecraft.text.Text parseName(String raw) {
+        if (raw == null || raw.isEmpty()) return net.minecraft.text.Text.literal("");
+        net.minecraft.text.MutableText out = net.minecraft.text.Text.empty();
         StringBuilder buf = new StringBuilder();
-        net.minecraft.network.chat.Style curStyle = net.minecraft.network.chat.Style.EMPTY.withItalic(false);
+        net.minecraft.text.Style curStyle = net.minecraft.text.Style.EMPTY.withItalic(false);
         for (int i = 0; i < raw.length(); i++) {
             char c = raw.charAt(i);
             if ((c == '&' || c == '§') && i + 1 < raw.length()) {
                 if (buf.length() > 0) {
-                    out.append(net.minecraft.network.chat.Component.literal(buf.toString()).setStyle(curStyle));
+                    out.append(net.minecraft.text.Text.literal(buf.toString()).setStyle(curStyle));
                     buf.setLength(0);
                 }
                 char code = Character.toLowerCase(raw.charAt(++i));
-                net.minecraft.ChatFormatting f = net.minecraft.ChatFormatting.getByCode(code);
+                net.minecraft.util.Formatting f = net.minecraft.util.Formatting.byCode(code);
                 if (f != null) {
-                    if (f == net.minecraft.ChatFormatting.BOLD) curStyle = curStyle.withBold(!curStyle.isBold());
-                    else if (f == net.minecraft.ChatFormatting.ITALIC) curStyle = curStyle.withItalic(!curStyle.isItalic());
-                    else if (f == net.minecraft.ChatFormatting.UNDERLINE) curStyle = curStyle.withUnderlined(!curStyle.isUnderlined());
-                    else if (f == net.minecraft.ChatFormatting.STRIKETHROUGH) curStyle = curStyle.withStrikethrough(!curStyle.isStrikethrough());
-                    else if (f == net.minecraft.ChatFormatting.OBFUSCATED) curStyle = curStyle.withObfuscated(!curStyle.isObfuscated());
-                    else if (net.minecraft.network.chat.TextColor.fromLegacyFormat(f) != null) curStyle = curStyle.withColor(net.minecraft.network.chat.TextColor.fromLegacyFormat(f));
+                    if (f == net.minecraft.util.Formatting.BOLD) curStyle = curStyle.withBold(!curStyle.isBold());
+                    else if (f == net.minecraft.util.Formatting.ITALIC) curStyle = curStyle.withItalic(!curStyle.isItalic());
+                    else if (f == net.minecraft.util.Formatting.UNDERLINE) curStyle = curStyle.withUnderline(!curStyle.isUnderlined());
+                    else if (f == net.minecraft.util.Formatting.STRIKETHROUGH) curStyle = curStyle.withStrikethrough(!curStyle.isStrikethrough());
+                    else if (f == net.minecraft.util.Formatting.OBFUSCATED) curStyle = curStyle.withObfuscated(!curStyle.isObfuscated());
+                    else if (f.isColor()) curStyle = curStyle.withColor(net.minecraft.text.TextColor.fromFormatting(f));
                 }
             } else {
                 buf.append(c);
             }
         }
         if (buf.length() > 0) {
-            out.append(net.minecraft.network.chat.Component.literal(buf.toString()).setStyle(curStyle));
+            out.append(net.minecraft.text.Text.literal(buf.toString()).setStyle(curStyle));
         }
         return out;
     }
 
     @SuppressWarnings("unchecked")
-    private Registry<MobEffect> statusEffectRegistry() {
-        return mc.level.registryAccess().lookupOrThrow(Registries.MOB_EFFECT);
+    private Registry<StatusEffect> statusEffectRegistry() {
+        return (Registry<StatusEffect>) (Registry<?>) mc.world.getRegistryManager()
+            .getOptional(RegistryKeys.STATUS_EFFECT).orElseThrow();
     }
 }

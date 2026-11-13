@@ -2,7 +2,7 @@ package com.macekill.addon.modules;
 
 import com.macekill.addon.MaceKillAddon;
 import com.macekill.addon.modules.macekill.Combat;
-import com.macekill.addon.modules.macekill.InvHelper;
+import com.macekill.addon.modules.macekill.Inventory;
 import com.macekill.addon.modules.macekill.Movement;
 import com.macekill.addon.modules.macekill.Targeting;
 import java.util.ArrayList;
@@ -12,13 +12,13 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.Items;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.Vec3d;
 
 /**
  * 新TP重锤 — xintpmace
@@ -106,7 +106,7 @@ public class XinTpMace extends Module {
 
     // 状态
     private int cooldownTicks;
-    private Vec3 originalPos;
+    private Vec3d originalPos;
     private Combat.BypassRunner bypassRunner;
     private LivingEntity bypassTarget;
 
@@ -123,19 +123,19 @@ public class XinTpMace extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
 
         if (cooldownTicks > 0) { cooldownTicks--; return; }
 
         LivingEntity target = findTarget();
         if (target == null) return;
 
-        originalPos = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-        Vec3 predicted = Targeting.predictPosition(mc, target, true, predictTicks.get());
+        originalPos = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+        Vec3d predicted = Targeting.predictPosition(mc, target, true, predictTicks.get());
 
         boolean draining = false;
         List<String> rawHeights = heights.get();
-        if (bypassTotem.get() && target instanceof Player p
+        if (bypassTotem.get() && target instanceof PlayerEntity p
                 && (!detectTotem.get() || targetHasTotem(p))) {
             draining = true;
             int totems = totemsToPop.get();
@@ -152,7 +152,7 @@ public class XinTpMace extends Module {
             rawHeights = all;
         }
 
-        int oldSlot = InvHelper.switchToMace(mc);
+        int oldSlot = Inventory.switchToMace(mc);
         if (oldSlot == -1) return;
 
         try {
@@ -171,19 +171,19 @@ public class XinTpMace extends Module {
                 if (h < 5) continue;
 
                 // VClip 起跳
-                Vec3 current = new Vec3(mc.player.getX(), mc.player.getY(), mc.player.getZ());
-                Vec3 jumpPos = new Vec3(predicted.x, predicted.y + h, predicted.z);
+                Vec3d current = new Vec3d(mc.player.getX(), mc.player.getY(), mc.player.getZ());
+                Vec3d jumpPos = new Vec3d(predicted.x, predicted.y + h, predicted.z);
                 Movement.doTpTo(mc, jumpPos, maxStep.get(), false);
 
                 // 下落并攻击
-                Vec3 attackPos = new Vec3(predicted.x, predicted.y + 0.5, predicted.z);
+                Vec3d attackPos = new Vec3d(predicted.x, predicted.y + 0.5, predicted.z);
                 Movement.sendMovePacket(mc, attackPos.x, attackPos.y, attackPos.z);
 
-                if (swingHand.get()) mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+                if (swingHand.get()) mc.player.swingHand(Hand.MAIN_HAND);
                 Movement.attackEntity(mc, target);
             }
         } finally {
-            InvHelper.switchBack(mc, oldSlot);
+            Inventory.switchBack(mc, oldSlot);
         }
 
         // 返回原位
@@ -197,17 +197,17 @@ public class XinTpMace extends Module {
     }
 
     private LivingEntity findTarget() {
-        if (mc.level == null || mc.player == null) return null;
+        if (mc.world == null || mc.player == null) return null;
         double rangeSq = range.get() * range.get();
         LivingEntity best = null;
         double bestDist = Double.MAX_VALUE;
 
-        for (Entity e : mc.level.entitiesForRendering()) {
+        for (Entity e : mc.world.getEntities()) {
             if (!(e instanceof LivingEntity le) || !le.isAlive() || le == mc.player) continue;
-            double distSq = mc.player.distanceToSqr(le);
+            double distSq = mc.player.squaredDistanceTo(le);
             if (distSq > rangeSq) continue;
-            if (onlyPlayers.get() && !(le instanceof Player)) continue;
-            if (le instanceof Player p) {
+            if (onlyPlayers.get() && !(le instanceof PlayerEntity)) continue;
+            if (le instanceof PlayerEntity p) {
                 if (p.isCreative() || p.isSpectator() || !Friends.get().shouldAttack(p)) continue;
             }
             if (distSq < bestDist) { bestDist = distSq; best = le; }
@@ -224,15 +224,15 @@ public class XinTpMace extends Module {
         return "Ready";
     }
 
-    private boolean targetHasTotem(Player player) {
+    private boolean targetHasTotem(PlayerEntity player) {
         return countTotems(player) > 0;
     }
 
-    private int countTotems(Player player) {
+    private int countTotems(PlayerEntity player) {
         int n = 0;
-        Inventory inv = player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) {
-            if (inv.getItem(i).is(Items.TOTEM_OF_UNDYING)) n++;
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.size(); i++) {
+            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
         }
         return n;
     }

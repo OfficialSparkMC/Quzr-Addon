@@ -6,8 +6,8 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.network.protocol.game.ClientboundSystemChatPacket;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.network.packet.s2c.play.GameMessageS2CPacket;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -314,7 +314,7 @@ public class AutoMsgModule extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.level == null) {
+        if (mc.player == null || mc.world == null) {
             return;
         }
 
@@ -356,7 +356,7 @@ public class AutoMsgModule extends Module {
 
     @EventHandler
     private void onPacketReceive(PacketEvent.Receive event) {
-        if (mc.level == null || mc.player == null) {
+        if (mc.world == null || mc.player == null) {
             return;
         }
 
@@ -364,7 +364,7 @@ public class AutoMsgModule extends Module {
             return;
         }
 
-        if (!(event.packet instanceof ClientboundSystemChatPacket packet)) {
+        if (!(event.packet instanceof GameMessageS2CPacket packet)) {
             return;
         }
 
@@ -440,7 +440,7 @@ public class AutoMsgModule extends Module {
     }
 
     private void sendMessage() {
-        if (mc.getConnection() == null || mc.player == null) {
+        if (mc.getNetworkHandler() == null || mc.player == null) {
             return;
         }
 
@@ -484,10 +484,10 @@ public class AutoMsgModule extends Module {
         if (message.startsWith("/")) {
             String cmd = message.substring(1);
             if (!cmd.isEmpty()) {
-                mc.getConnection().sendCommand(cmd);
+                mc.getNetworkHandler().sendChatCommand(cmd);
             }
         } else {
-            mc.getConnection().sendChat(message);
+            mc.getNetworkHandler().sendChatMessage(message);
         }
     }
 
@@ -525,26 +525,26 @@ public class AutoMsgModule extends Module {
     // Remove players from the told set once they are gone (left the server) or moved out of the
     // tell-once range, so they get messaged again on their next appearance.
     private void pruneTold() {
-        if (!tellOnce.get() || mc.level == null || mc.player == null) {
+        if (!tellOnce.get() || mc.world == null || mc.player == null) {
             return;
         }
 
         double rangeSq = tellOnceRange.get() * tellOnceRange.get();
         Iterator<String> it = toldPlayers.iterator();
         while (it.hasNext()) {
-            Player p = findPlayerByName(it.next());
-            if (p == null || mc.player.distanceToSqr(p) > rangeSq) {
+            PlayerEntity p = findPlayerByName(it.next());
+            if (p == null || mc.player.squaredDistanceTo(p) > rangeSq) {
                 it.remove();
             }
         }
     }
 
-    private Player findPlayerByName(String name) {
-        if (mc.level == null) {
+    private PlayerEntity findPlayerByName(String name) {
+        if (mc.world == null) {
             return null;
         }
 
-        for (Player player : mc.level.players()) {
+        for (PlayerEntity player : mc.world.getPlayers()) {
             if (player.getName().getString().equals(name)) {
                 return player;
             }
@@ -554,20 +554,20 @@ public class AutoMsgModule extends Module {
     }
 
     private String getNearestPlayerName() {
-        if (mc.level == null || mc.player == null) {
+        if (mc.world == null || mc.player == null) {
             return "";
         }
 
-        Player nearestPlayer = null;
+        PlayerEntity nearestPlayer = null;
         double closestDistance = Double.MAX_VALUE;
 
-        for (Player player : mc.level.players()) {
+        for (PlayerEntity player : mc.world.getPlayers()) {
             if (player == mc.player) {
                 continue;
             }
 
             double distance =
-                mc.player.distanceToSqr(player);
+                mc.player.squaredDistanceTo(player);
 
             if (distance < closestDistance) {
                 closestDistance = distance;
@@ -581,13 +581,13 @@ public class AutoMsgModule extends Module {
     }
 
     private String getRandomPlayerName() {
-        if (mc.level == null || mc.player == null) {
+        if (mc.world == null || mc.player == null) {
             return "";
         }
 
-        List<Player> players = new ArrayList<>();
+        List<PlayerEntity> players = new ArrayList<>();
 
-        for (Player player : mc.level.players()) {
+        for (PlayerEntity player : mc.world.getPlayers()) {
             if (player != mc.player) {
                 players.add(player);
             }
@@ -605,7 +605,7 @@ public class AutoMsgModule extends Module {
 
     // ==================== Message Author Detection ====================
 
-    private String getMessageAuthor(ClientboundSystemChatPacket packet) {
+    private String getMessageAuthor(GameMessageS2CPacket packet) {
         String message = packet.content().getString();
 
         // Detect standard Minecraft chat format:

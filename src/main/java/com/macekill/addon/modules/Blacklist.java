@@ -12,9 +12,9 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.util.Mth;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.MathHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -100,9 +100,9 @@ public class Blacklist extends Module {
         this.timer++;
 
         if (this.timer < this.attackDelay.get()) return;
-        if (this.mc.player == null || this.mc.level == null || this.mc.getConnection() == null) return;
+        if (this.mc.player == null || this.mc.world == null || this.mc.getNetworkHandler() == null) return;
 
-        Player victim = this.findBlacklisted();
+        PlayerEntity victim = this.findBlacklisted();
         if (victim == null) return;
 
         UltraAura ultra = Modules.get().get(UltraAura.class);
@@ -119,11 +119,11 @@ public class Blacklist extends Module {
     }
 
     /** First blacklisted, attackable, in-range player, or null. */
-    private Player findBlacklisted() {
+    private PlayerEntity findBlacklisted() {
         List<String> recorded = this.names.get();
         if (recorded.isEmpty()) return null;
 
-        for (Player player : this.mc.level.players()) {
+        for (PlayerEntity player : this.mc.world.getPlayers()) {
             if (player == this.mc.player) continue;
             if (!player.isAlive() || player.isSpectator() || player.isCreative()) continue;
 
@@ -146,11 +146,11 @@ public class Blacklist extends Module {
     }
 
     /** Same box-clamped distance concept as UltraAura's isValidTarget. */
-    private boolean withinScanRange(Player player) {
-        AABB box = player.getBoundingBox();
-        double x = Mth.clamp(this.mc.player.getX(), box.minX, box.maxX);
-        double y = Mth.clamp(this.mc.player.getY(), box.minY, box.maxY);
-        double z = Mth.clamp(this.mc.player.getZ(), box.minZ, box.maxZ);
+    private boolean withinScanRange(PlayerEntity player) {
+        Box box = player.getBoundingBox();
+        double x = MathHelper.clamp(this.mc.player.getX(), box.minX, box.maxX);
+        double y = MathHelper.clamp(this.mc.player.getY(), box.minY, box.maxY);
+        double z = MathHelper.clamp(this.mc.player.getZ(), box.minZ, box.maxZ);
         return PlayerUtils.isWithin(x, y, z, this.distance.get());
     }
 
@@ -203,13 +203,13 @@ public class Blacklist extends Module {
 
     /** Called by .blacklist dis; clamped by the setting's builder (0..MAX_DISTANCE). */
     public void setDistance(int value) {
-        this.distance.set(Mth.clamp(value, 0, MAX_DISTANCE));
+        this.distance.set(MathHelper.clamp(value, 0, MAX_DISTANCE));
     }
 
     /** Normalizes to an online player's spelling when one matches (ignoring case). */
     private String canonical(String request) {
-        if (this.mc != null && this.mc.level != null) {
-            for (Player player : this.mc.level.players()) {
+        if (this.mc != null && this.mc.world != null) {
+            for (PlayerEntity player : this.mc.world.getPlayers()) {
                 String name = player.getName().getString();
                 if (name.equalsIgnoreCase(request)) return name;
             }

@@ -5,24 +5,21 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.level.block.ShulkerBoxBlock;
-import net.minecraft.tags.ItemTags;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.network.protocol.game.*;
-import net.minecraft.world.inventory.ContainerInput;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
+import net.minecraft.network.packet.c2s.play.*;
+import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
+import net.minecraft.util.math.Vec3d;
 
 import java.util.*;
 
@@ -40,8 +37,34 @@ import java.util.*;
 public class AutoShulkerBox extends Module {
 
     /* ==================== 潜影盒全17种变体 ==================== */
+    private static final Set<Block> SHULKER_BOX_BLOCKS = Set.of(
+            Blocks.SHULKER_BOX,
+            Blocks.WHITE_SHULKER_BOX, Blocks.ORANGE_SHULKER_BOX,
+            Blocks.MAGENTA_SHULKER_BOX, Blocks.LIGHT_BLUE_SHULKER_BOX,
+            Blocks.YELLOW_SHULKER_BOX, Blocks.LIME_SHULKER_BOX,
+            Blocks.PINK_SHULKER_BOX, Blocks.GRAY_SHULKER_BOX,
+            Blocks.LIGHT_GRAY_SHULKER_BOX, Blocks.CYAN_SHULKER_BOX,
+            Blocks.PURPLE_SHULKER_BOX, Blocks.BLUE_SHULKER_BOX,
+            Blocks.BROWN_SHULKER_BOX, Blocks.GREEN_SHULKER_BOX,
+            Blocks.RED_SHULKER_BOX, Blocks.BLACK_SHULKER_BOX
+    );
 
+    private static final Set<Item> SHULKER_BOX_ITEMS = Set.of(
+            Items.SHULKER_BOX,
+            Items.WHITE_SHULKER_BOX, Items.ORANGE_SHULKER_BOX,
+            Items.MAGENTA_SHULKER_BOX, Items.LIGHT_BLUE_SHULKER_BOX,
+            Items.YELLOW_SHULKER_BOX, Items.LIME_SHULKER_BOX,
+            Items.PINK_SHULKER_BOX, Items.GRAY_SHULKER_BOX,
+            Items.LIGHT_GRAY_SHULKER_BOX, Items.CYAN_SHULKER_BOX,
+            Items.PURPLE_SHULKER_BOX, Items.BLUE_SHULKER_BOX,
+            Items.BROWN_SHULKER_BOX, Items.GREEN_SHULKER_BOX,
+            Items.RED_SHULKER_BOX, Items.BLACK_SHULKER_BOX
+    );
 
+    private static final Set<Item> PICKAXES = Set.of(
+            Items.WOODEN_PICKAXE, Items.STONE_PICKAXE, Items.IRON_PICKAXE,
+            Items.GOLDEN_PICKAXE, Items.DIAMOND_PICKAXE, Items.NETHERITE_PICKAXE
+    );
 
     /* ==================== 设置 ==================== */
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -75,8 +98,8 @@ public class AutoShulkerBox extends Module {
 
     @Override
     public void onActivate() {
-        if (mc.hitResult != null && mc.hitResult.getType() == HitResult.Type.BLOCK) {
-            targetPos = ((BlockHitResult) mc.hitResult).getBlockPos().above();
+        if (mc.crosshairTarget != null && mc.crosshairTarget.getType() == HitResult.Type.BLOCK) {
+            targetPos = ((BlockHitResult) mc.crosshairTarget).getBlockPos().up();
         }
         lastPickSlot = -1;
         wasPlacing = false;
@@ -86,20 +109,20 @@ public class AutoShulkerBox extends Module {
     public void onDeactivate() {
         targetPos = null;
         lastPickSlot = -1;
-        mc.gameMode.stopDestroyBlock();
-        mc.options.keyUse.setDown(false);
+        mc.interactionManager.cancelBlockBreaking();
+        mc.options.useKey.setPressed(false);
     }
 
     /* ==================== Tick 高速循环 ==================== */
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
         if (targetPos == null) return;
 
-        BlockState state = mc.level.getBlockState(targetPos);
+        BlockState state = mc.world.getBlockState(targetPos);
 
-        if (state.isAir() || state.canBeReplaced()) {
+        if (state.isAir() || state.isReplaceable()) {
             // —— 放置潜影盒 ——
             ensureShulkerBoxInHand();
             placeBlock();
@@ -122,17 +145,17 @@ public class AutoShulkerBox extends Module {
 
     /**
      * 放置：在 targetPos 放置潜影盒
-     * 面向下方方块顶部，发送 ServerboundUseItemOnPacket
+     * 面向下方方块顶部，发送 PlayerInteractBlockC2SPacket
      */
     private void placeBlock() {
-        if (mc.getConnection() == null) return;
+        if (mc.getNetworkHandler() == null) return;
         Direction face = Direction.UP;
-        BlockPos against = targetPos.below();
-        Vec3 hitVec = new Vec3(against.getX() + 0.5, against.getY() + 1.0, against.getZ() + 0.5);
+        BlockPos against = targetPos.down();
+        Vec3d hitVec = new Vec3d(against.getX() + 0.5, against.getY() + 1.0, against.getZ() + 0.5);
         BlockHitResult hitResult = new BlockHitResult(hitVec, face, against, false);
 
-        mc.getConnection().send(
-                new ServerboundUseItemOnPacket(InteractionHand.MAIN_HAND, hitResult, 0));
+        mc.getNetworkHandler().sendPacket(
+                new PlayerInteractBlockC2SPacket(Hand.MAIN_HAND, hitResult, 0));
     }
 
     /**
@@ -140,27 +163,27 @@ public class AutoShulkerBox extends Module {
      * Qazr 风格：额外发送 player.swingHand
      */
     private void breakBlock() {
-        if (mc.getConnection() == null) return;
+        if (mc.getNetworkHandler() == null) return;
         BlockPos pos = targetPos;
         Direction face = bestFace(pos);
 
-        mc.getConnection().send(
-                new ServerboundPlayerActionPacket(ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK, pos, face, 0));
-        mc.getConnection().send(
-                new ServerboundPlayerActionPacket(ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, pos, face, 0));
-        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
+        mc.getNetworkHandler().sendPacket(
+                new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.START_DESTROY_BLOCK, pos, face, 0));
+        mc.getNetworkHandler().sendPacket(
+                new PlayerActionC2SPacket(PlayerActionC2SPacket.Action.STOP_DESTROY_BLOCK, pos, face, 0));
+        mc.player.swingHand(Hand.MAIN_HAND);
     }
 
     /** 计算最佳攻击面（距离眼睛最近的方块面） */
     private Direction bestFace(BlockPos pos) {
-        Vec3 eye = mc.player.getEyePosition();
-        Vec3 center = Vec3.atCenterOf(pos);
-        Vec3 dir = center.subtract(eye).normalize();
+        Vec3d eye = mc.player.getEyePos();
+        Vec3d center = Vec3d.ofCenter(pos);
+        Vec3d dir = center.subtract(eye).normalize();
 
         Direction best = Direction.UP;
         double bestDot = -2;
         for (Direction d : Direction.values()) {
-            double dot = dir.dot(Vec3.atLowerCornerOf(d.getUnitVec3i()));
+            double dot = dir.dotProduct(Vec3d.of(d.getVector()));
             if (dot > bestDot) { bestDot = dot; best = d; }
         }
         return best;
@@ -170,17 +193,17 @@ public class AutoShulkerBox extends Module {
 
     /** 确保主手持有潜影盒：优先配置槽位，否则搜快捷栏，最后从背包移动 */
     private void ensureShulkerBoxInHand() {
-        if (isShulkerBox(mc.player.getMainHandItem())) return;
+        if (isShulkerBox(mc.player.getMainHandStack())) return;
 
         int slot = hotbarSlot.get();
-        if (isShulkerBox(mc.player.getInventory().getItem(slot))) {
+        if (isShulkerBox(mc.player.getInventory().getStack(slot))) {
             setSelectedSlot(slot);
             return;
         }
 
         // 搜快捷栏其他槽位
         for (int i = 0; i < 9; i++) {
-            if (isShulkerBox(mc.player.getInventory().getItem(i))) {
+            if (isShulkerBox(mc.player.getInventory().getStack(i))) {
                 setSelectedSlot(i);
                 return;
             }
@@ -188,7 +211,7 @@ public class AutoShulkerBox extends Module {
 
         // 从背包(9-35)移动到配置槽位
         for (int i = 9; i < 36; i++) {
-            if (isShulkerBox(mc.player.getInventory().getItem(i))) {
+            if (isShulkerBox(mc.player.getInventory().getStack(i))) {
                 swapSlots(i, slot);
                 setSelectedSlot(slot);
                 return;
@@ -198,8 +221,8 @@ public class AutoShulkerBox extends Module {
 
     /** 确保主手持有镐子：搜快捷栏第一个耐久 >= 阈值的镐子 */
     private void ensurePickaxeInHand() {
-        if (isPickaxe(mc.player.getMainHandItem().getItem())
-                && getDurability(mc.player.getMainHandItem()) >= durabilityThreshold.get()) {
+        if (isPickaxe(mc.player.getMainHandStack().getItem())
+                && getDurability(mc.player.getMainHandStack()) >= durabilityThreshold.get()) {
             return;
         }
 
@@ -207,7 +230,7 @@ public class AutoShulkerBox extends Module {
 
         // 复用上次位置
         if (lastPickSlot >= 0 && lastPickSlot < 9) {
-            ItemStack s = mc.player.getInventory().getItem(lastPickSlot);
+            ItemStack s = mc.player.getInventory().getStack(lastPickSlot);
             if (isPickaxe(s.getItem()) && getDurability(s) >= threshold) {
                 setSelectedSlot(lastPickSlot);
                 return;
@@ -216,7 +239,7 @@ public class AutoShulkerBox extends Module {
 
         // 遍历快捷栏
         for (int i = 0; i < 9; i++) {
-            ItemStack s = mc.player.getInventory().getItem(i);
+            ItemStack s = mc.player.getInventory().getStack(i);
             if (isPickaxe(s.getItem()) && getDurability(s) >= threshold) {
                 lastPickSlot = i;
                 setSelectedSlot(i);
@@ -231,18 +254,18 @@ public class AutoShulkerBox extends Module {
      */
     private void cycleShulkerBox() {
         int slot = hotbarSlot.get();
-        Inventory inv = mc.player.getInventory();
+        PlayerInventory inv = mc.player.getInventory();
 
-        if (isShulkerBox(inv.getItem(slot))) return;
+        if (isShulkerBox(inv.getStack(slot))) return;
 
         for (int i = 9; i < 36; i++) {
-            if (isShulkerBox(inv.getItem(i))) {
+            if (isShulkerBox(inv.getStack(i))) {
                 swapSlots(i, slot);
                 return;
             }
         }
         for (int i = 0; i < 9; i++) {
-            if (i != slot && isShulkerBox(inv.getItem(i))) {
+            if (i != slot && isShulkerBox(inv.getStack(i))) {
                 swapSlots(i, slot);
                 return;
             }
@@ -253,11 +276,11 @@ public class AutoShulkerBox extends Module {
      * 背包物品交换：ClickSlotC2SPacket SWAP
      */
     private void swapSlots(int from, int to) {
-        if (mc.getConnection() == null || mc.player == null) return;
+        if (mc.getNetworkHandler() == null || mc.player == null) return;
         try {
-            mc.gameMode.handleContainerInput(
-                    mc.player.inventoryMenu.containerId,
-                    from, to, ContainerInput.SWAP, mc.player);
+            mc.interactionManager.clickSlot(
+                    mc.player.playerScreenHandler.syncId,
+                    from, to, SlotActionType.SWAP, mc.player);
         } catch (Exception ignored) {}
     }
 
@@ -272,35 +295,35 @@ public class AutoShulkerBox extends Module {
         if (mc.player == null || slot < 0 || slot > 8) return;
         mc.player.getInventory().setSelectedSlot(slot);
         // Keep the server in sync, otherwise place/mine uses the wrong held item (ghost blocks / kick).
-        if (mc.getConnection() != null) {
-            mc.getConnection().send(
-                new net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket(slot));
+        if (mc.getNetworkHandler() != null) {
+            mc.getNetworkHandler().sendPacket(
+                new net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket(slot));
         }
     }
 
     // ==================== 判定 ====================
 
     private boolean isShulkerBox(ItemStack stack) {
-        return stack.getItem() instanceof BlockItem bi && bi.getBlock() instanceof ShulkerBoxBlock;
+        return SHULKER_BOX_ITEMS.contains(stack.getItem());
     }
 
     private boolean isShulkerBoxBlock(BlockState state) {
-        return state.getBlock() instanceof ShulkerBoxBlock;
+        return SHULKER_BOX_BLOCKS.contains(state.getBlock());
     }
 
     private boolean isPickaxe(Item item) {
-        return item.getDefaultInstance().is(ItemTags.PICKAXES);
+        return PICKAXES.contains(item);
     }
 
     private int getDurability(ItemStack stack) {
-        if (!stack.isDamageableItem()) return Integer.MAX_VALUE;
-        return stack.getMaxDamage() - stack.getDamageValue();
+        if (!stack.isDamageable()) return Integer.MAX_VALUE;
+        return stack.getMaxDamage() - stack.getDamage();
     }
 
     @Override
     public String getInfoString() {
         if (targetPos == null) return "No target";
-        BlockState s = mc.level != null ? mc.level.getBlockState(targetPos) : null;
+        BlockState s = mc.world != null ? mc.world.getBlockState(targetPos) : null;
         if (s == null) return targetPos.toShortString();
         return s.isAir() ? "Placing" : "Mining";
     }
