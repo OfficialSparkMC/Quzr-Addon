@@ -1,5 +1,7 @@
 plugins {
-    id 'fabric-loom' version '1.14-SNAPSHOT'
+    // 'net.fabricmc.fabric-loom' is loom's no-remap variant: Minecraft 26.3 ships
+    // unobfuscated (official Mojang names), so no mappings dependency and no remapping.
+    id 'net.fabricmc.fabric-loom' version '1.19-SNAPSHOT'
 }
 
 version = project.mod_version
@@ -25,13 +27,13 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // Local compile-only Meteor/Orbit jars (see docs/build.md). Filenames use versions from gradle.properties.
-    // TODO: replace with maven.meteordev.org coordinates when network builds are available.
-    modCompileOnly files("libs/MeteorClient-${project.minecraft_version}-${project.meteor_version}.jar")
-    compileOnly files('libs/orbit-0.2.4.jar')
+    // Meteor 26.3-SNAPSHOT comes from maven.meteordev.org/snapshots (no local jar needed on
+    // this branch). Minecraft 26.3 ships unobfuscated with official Mojang names and
+    // intermediary 0.0.0, so there is no mappings dependency and no mod remapping.
+    implementation "meteordevelopment:meteor-client:${project.meteor_version}"
+    compileOnly "meteordevelopment:orbit:0.2.4"
 }
 processResources {
     inputs.property "version", project.version
@@ -40,14 +42,17 @@ processResources {
     }
 }
 
-def targetJavaVersion = 21
+// Minecraft 26.3 runs on Java 25 (Meteor builds it with a JDK 25 toolchain). This machine has
+// no JDK 25, so the toolchain is JDK 27 and javac emits --release 25 bytecode, which is
+// exactly what the 26.3 runtime loads.
+def targetJavaVersion = 25
 tasks.withType(JavaCompile).configureEach {
     it.options.encoding = "UTF-8"
     it.options.release.set(targetJavaVersion)
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    toolchain.languageVersion = JavaLanguageVersion.of(27)
     withSourcesJar()
 }
 
@@ -61,7 +66,7 @@ tasks.named('test') {
 // Run with: ./gradlew caveBurstSimulation
 tasks.register('caveBurstSimulation', JavaExec) {
     group = 'verification'
-    description = 'Runs the 1.21.11 cave climb/mace/totem simulation proof.'
+    description = 'Runs the cave climb/mace/totem simulation proof (MC-independent).'
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.macekill.addon.modules.macekill.CaveBurstSimulation'
