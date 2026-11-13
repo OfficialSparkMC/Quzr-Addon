@@ -3,8 +3,8 @@ package com.macekill.addon.modules;
 import com.macekill.addon.MaceKillAddon;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * 最近玩家HUD — 在屏幕上显示最近玩家的名字和距离
@@ -27,17 +27,17 @@ public class NearestPlayerHUD extends Module {
 
     @Override
     public String getInfoString() {
-        if (mc.player == null || mc.world == null) return "None";
+        if (mc.player == null || mc.level == null) return "None";
 
         double rangeSq = range.get() * range.get();
-        PlayerEntity nearest = null;
+        Player nearest = null;
         double bestDist = Double.MAX_VALUE;
 
-        for (Entity e : mc.world.getEntities()) {
-            if (!(e instanceof PlayerEntity p)) continue;
+        for (Entity e : mc.level.entitiesForRendering()) {
+            if (!(e instanceof Player p)) continue;
             if (p == mc.player || !p.isAlive()) continue;
 
-            double distSq = mc.player.squaredDistanceTo(p);
+            double distSq = mc.player.distanceToSqr(p);
             if (distSq > rangeSq) continue;
 
             if (distSq < bestDist) {

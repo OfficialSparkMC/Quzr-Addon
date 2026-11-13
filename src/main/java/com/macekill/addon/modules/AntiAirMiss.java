@@ -6,9 +6,9 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 /**
  * Anti-air miss module.
@@ -45,7 +45,7 @@ public class AntiAirMiss extends Module {
 
     // ==================== State ====================
 
-    private PlayerEntity targetPlayer;
+    private Player targetPlayer;
 
     public AntiAirMiss() {
         super(
@@ -65,8 +65,8 @@ public class AntiAirMiss extends Module {
     @EventHandler
     private void onTick(TickEvent.Pre event) {
         if (mc.player == null ||
-            mc.world == null ||
-            mc.getNetworkHandler() == null) {
+            mc.level == null ||
+            mc.getConnection() == null) {
             return;
         }
 
@@ -83,8 +83,8 @@ public class AntiAirMiss extends Module {
         for (int step = 1; step <= 10; step++) {
             double y = originalY + (offset / 10.0) * step;
 
-            mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(
+            mc.getConnection().send(
+                new ServerboundMovePlayerPacket.Pos(
                     mc.player.getX(),
                     y,
                     mc.player.getZ(),
@@ -98,8 +98,8 @@ public class AntiAirMiss extends Module {
         for (int step = 1; step <= 10; step++) {
             double y = originalY + offset - (offset / 10.0) * step;
 
-            mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(
+            mc.getConnection().send(
+                new ServerboundMovePlayerPacket.Pos(
                     mc.player.getX(),
                     y,
                     mc.player.getZ(),
@@ -110,12 +110,12 @@ public class AntiAirMiss extends Module {
         }
 
         // Restore the original position.
-        mc.getNetworkHandler().sendPacket(
-            new PlayerMoveC2SPacket.PositionAndOnGround(
+        mc.getConnection().send(
+            new ServerboundMovePlayerPacket.Pos(
                 mc.player.getX(),
                 originalY,
                 mc.player.getZ(),
-                mc.player.isOnGround(),
+                mc.player.onGround(),
                 false
             )
         );
@@ -123,19 +123,19 @@ public class AntiAirMiss extends Module {
 
     // ==================== Target Selection ====================
 
-    private PlayerEntity findNearestPlayer() {
-        if (mc.world == null || mc.player == null) {
+    private Player findNearestPlayer() {
+        if (mc.level == null || mc.player == null) {
             return null;
         }
 
         double rangeSquared =
             detectionRange.get() * detectionRange.get();
 
-        PlayerEntity closestPlayer = null;
+        Player closestPlayer = null;
         double closestDistanceSquared = Double.MAX_VALUE;
 
-        for (Entity entity : mc.world.getEntities()) {
-            if (!(entity instanceof PlayerEntity player)) {
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (!(entity instanceof Player player)) {
                 continue;
             }
 
@@ -148,7 +148,7 @@ public class AntiAirMiss extends Module {
             }
 
             double distanceSquared =
-                mc.player.squaredDistanceTo(player);
+                mc.player.distanceToSqr(player);
 
             if (distanceSquared > rangeSquared) {
                 continue;

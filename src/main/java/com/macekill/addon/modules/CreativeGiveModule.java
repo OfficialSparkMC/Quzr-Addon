@@ -6,26 +6,27 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.AttributeModifierSlot;
-import net.minecraft.component.type.AttributeModifiersComponent;
-import net.minecraft.component.type.ItemEnchantmentsComponent;
-import net.minecraft.enchantment.Enchantment;
-import net.minecraft.entity.attribute.EntityAttribute;
-import net.minecraft.entity.attribute.EntityAttributeModifier;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.text.TextColor;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.entity.EquipmentSlotGroup;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.Holder;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.ChatFormatting;
+import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +38,7 @@ import java.util.Optional;
  * 附魔等级范围: 0 ~ Long.MAX_VALUE (64位)
  */
 public class CreativeGiveModule extends Module {
-    private final MinecraftClient mc = MinecraftClient.getInstance();
+    private final Minecraft mc = Minecraft.getInstance();
 
     public CreativeGiveModule() {
         super(MaceKillAddon.CATEGORY, "ItemGiver",
@@ -100,8 +101,8 @@ public class CreativeGiveModule extends Module {
 
     @Override
     public void onActivate() {
-        if (mc.player == null || mc.world == null) { toggle(); return; }
-        if (!mc.player.getAbilities().creativeMode) {
+        if (mc.player == null || mc.level == null) { toggle(); return; }
+        if (!mc.player.getAbilities().instabuild) {
             CreativeGiveUtil.warn("Creative mode required!"); toggle(); return;
         }
         CreativeGiveUtil.resetError();
@@ -112,7 +113,7 @@ public class CreativeGiveModule extends Module {
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (!continuous.get() || mc.player == null) return;
-        if (!mc.player.getAbilities().creativeMode) { toggle(); return; }
+        if (!mc.player.getAbilities().instabuild) { toggle(); return; }
         generateAndGive();
     }
 
@@ -126,7 +127,7 @@ public class CreativeGiveModule extends Module {
         ItemStack stack = new ItemStack(item, count.get());
 
         if (enableName.get()) {
-            stack.set(DataComponentTypes.CUSTOM_NAME, parseName(customName.get()));
+            stack.set(DataComponents.CUSTOM_NAME, parseName(customName.get()));
         }
 
         for (String entry : enchantments.get()) {
@@ -141,36 +142,36 @@ public class CreativeGiveModule extends Module {
         }
     }
 
-    /** 解析 & 或 § 颜色代码为带样式的 Text (italic=false 确保显示) */
-    private Text parseName(String raw) {
-        if (raw == null || raw.isEmpty()) return Text.literal("");
-        MutableText out = Text.empty();
+    /** 解析 & 或 § 颜色代码为带样式的 Component (italic=false 确保显示) */
+    private Component parseName(String raw) {
+        if (raw == null || raw.isEmpty()) return Component.literal("");
+        MutableComponent out = Component.empty();
         StringBuilder buf = new StringBuilder();
-        net.minecraft.text.Style curStyle = net.minecraft.text.Style.EMPTY.withItalic(false);
+        net.minecraft.network.chat.Style curStyle = net.minecraft.network.chat.Style.EMPTY.withItalic(false);
         for (int i = 0; i < raw.length(); i++) {
             char c = raw.charAt(i);
             // 同时支持 & 和 § 作为颜色前缀
             if ((c == '&' || c == '§') && i + 1 < raw.length()) {
                 if (buf.length() > 0) {
-                    out.append(Text.literal(buf.toString()).setStyle(curStyle));
+                    out.append(Component.literal(buf.toString()).setStyle(curStyle));
                     buf.setLength(0);
                 }
                 char code = Character.toLowerCase(raw.charAt(++i));
-                Formatting f = Formatting.byCode(code);
+                ChatFormatting f = ChatFormatting.getByCode(code);
                 if (f != null) {
-                    if (f == Formatting.BOLD) curStyle = curStyle.withBold(!curStyle.isBold());
-                    else if (f == Formatting.ITALIC) curStyle = curStyle.withItalic(!curStyle.isItalic());
-                    else if (f == Formatting.UNDERLINE) curStyle = curStyle.withUnderline(!curStyle.isUnderlined());
-                    else if (f == Formatting.STRIKETHROUGH) curStyle = curStyle.withStrikethrough(!curStyle.isStrikethrough());
-                    else if (f == Formatting.OBFUSCATED) curStyle = curStyle.withObfuscated(!curStyle.isObfuscated());
-                    else if (f.isColor()) curStyle = curStyle.withColor(TextColor.fromFormatting(f));
+                    if (f == ChatFormatting.BOLD) curStyle = curStyle.withBold(!curStyle.isBold());
+                    else if (f == ChatFormatting.ITALIC) curStyle = curStyle.withItalic(!curStyle.isItalic());
+                    else if (f == ChatFormatting.UNDERLINE) curStyle = curStyle.withUnderlined(!curStyle.isUnderlined());
+                    else if (f == ChatFormatting.STRIKETHROUGH) curStyle = curStyle.withStrikethrough(!curStyle.isStrikethrough());
+                    else if (f == ChatFormatting.OBFUSCATED) curStyle = curStyle.withObfuscated(!curStyle.isObfuscated());
+                    else if (TextColor.fromLegacyFormat(f) != null) curStyle = curStyle.withColor(TextColor.fromLegacyFormat(f));
                 }
             } else {
                 buf.append(c);
             }
         }
         if (buf.length() > 0) {
-            out.append(Text.literal(buf.toString()).setStyle(curStyle));
+            out.append(Component.literal(buf.toString()).setStyle(curStyle));
         }
         return out;
     }
@@ -191,15 +192,15 @@ public class CreativeGiveModule extends Module {
         try {
             Identifier enchId = Identifier.tryParse(id.contains(":") ? id : "minecraft:" + id);
             if (enchId == null) { CreativeGiveUtil.warn("Unknown enchant ID: " + id); return; }
-            Optional<RegistryEntry.Reference<Enchantment>> ref = enchantmentRegistry().getEntry(enchId);
+            Optional<Holder.Reference<Enchantment>> ref = enchantmentRegistry().get(enchId);
             if (ref.isEmpty()) { CreativeGiveUtil.warn("Enchant not found: " + id); return; }
 
             int safeLevel = (int) Math.min(level, Integer.MAX_VALUE);
-            ItemEnchantmentsComponent current = stack.getOrDefault(
-                DataComponentTypes.ENCHANTMENTS, ItemEnchantmentsComponent.DEFAULT);
-            ItemEnchantmentsComponent.Builder builder = new ItemEnchantmentsComponent.Builder(current);
-            builder.add(ref.get(), safeLevel);
-            stack.set(DataComponentTypes.ENCHANTMENTS, builder.build());
+            ItemEnchantments current = stack.getOrDefault(
+                DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+            ItemEnchantments.Mutable builder = new ItemEnchantments.Mutable(current);
+            builder.set(ref.get(), safeLevel);
+            stack.set(DataComponents.ENCHANTMENTS, builder.toImmutable());
         } catch (Exception e) {
             CreativeGiveUtil.warn("Enchant failed [" + id + "]: " + e.getMessage());
         }
@@ -222,42 +223,40 @@ public class CreativeGiveModule extends Module {
         try {
             Identifier attrId = Identifier.tryParse(id.contains(":") ? id : "minecraft:" + id);
             if (attrId == null) { CreativeGiveUtil.warn("Unknown attribute ID: " + id); return; }
-            Optional<RegistryEntry.Reference<EntityAttribute>> ref = attributeRegistry().getEntry(attrId);
+            Optional<Holder.Reference<Attribute>> ref = attributeRegistry().get(attrId);
             if (ref.isEmpty()) { CreativeGiveUtil.warn("Attribute not found: " + id); return; }
 
-            EntityAttributeModifier modifier = new EntityAttributeModifier(
-                Identifier.of("qazr1234", "mod_" + System.nanoTime()),
+            AttributeModifier modifier = new AttributeModifier(
+                Identifier.fromNamespaceAndPath("qazr1234", "mod_" + System.nanoTime()),
                 amount,
-                EntityAttributeModifier.Operation.ADD_VALUE
+                AttributeModifier.Operation.ADD_VALUE
             );
-            AttributeModifierSlot slot = parseSlot(slotStr);
-            AttributeModifiersComponent current = stack.getOrDefault(
-                DataComponentTypes.ATTRIBUTE_MODIFIERS, AttributeModifiersComponent.DEFAULT);
-            AttributeModifiersComponent updated = current.with(ref.get(), modifier, slot);
-            stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, updated);
+            EquipmentSlotGroup slot = parseSlot(slotStr);
+            ItemAttributeModifiers current = stack.getOrDefault(
+                DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
+            ItemAttributeModifiers updated = current.withModifierAdded(ref.get(), modifier, slot);
+            stack.set(DataComponents.ATTRIBUTE_MODIFIERS, updated);
         } catch (Exception e) {
             CreativeGiveUtil.warn("Attribute failed [" + id + "]: " + e.getMessage());
         }
     }
 
-    private AttributeModifierSlot parseSlot(String s) {
+    private EquipmentSlotGroup parseSlot(String s) {
         try {
-            return AttributeModifierSlot.valueOf(s);
+            return EquipmentSlotGroup.valueOf(s);
         } catch (Exception e) {
-            CreativeGiveUtil.warn("Unknown slot: " + s + " (using ANY)"); return AttributeModifierSlot.ANY;
+            CreativeGiveUtil.warn("Unknown slot: " + s + " (using ANY)"); return EquipmentSlotGroup.ANY;
         }
     }
 
     @SuppressWarnings("unchecked")
     private Registry<Enchantment> enchantmentRegistry() {
-        return (Registry<Enchantment>) (Registry<?>) mc.world.getRegistryManager()
-            .getOptional(RegistryKeys.ENCHANTMENT).orElseThrow();
+        return mc.level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
     }
 
     @SuppressWarnings("unchecked")
-    private Registry<EntityAttribute> attributeRegistry() {
-        return (Registry<EntityAttribute>) (Registry<?>) mc.world.getRegistryManager()
-            .getOptional(RegistryKeys.ATTRIBUTE).orElseThrow();
+    private Registry<Attribute> attributeRegistry() {
+        return mc.level.registryAccess().lookupOrThrow(Registries.ATTRIBUTE);
     }
 
     /* ==================== 预设 ==================== */
@@ -271,19 +270,19 @@ public class CreativeGiveModule extends Module {
 
     private void genDamageSword() {
         ItemStack stack = new ItemStack(Items.NETHERITE_SWORD, 1);
-        stack.set(DataComponentTypes.CUSTOM_NAME,
-            Text.literal("Qazr1234 God Sword").formatted(Formatting.YELLOW, Formatting.BOLD));
+        stack.set(DataComponents.CUSTOM_NAME,
+            Component.literal("Qazr1234 God Sword").withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD));
 
-        Optional<RegistryEntry.Reference<EntityAttribute>> dmgAttr =
-            attributeRegistry().getEntry(Identifier.of("generic.attack_damage"));
+        Optional<Holder.Reference<Attribute>> dmgAttr =
+            attributeRegistry().get(Identifier.withDefaultNamespace("attack_damage"));
         if (dmgAttr.isPresent()) {
-            EntityAttributeModifier mod = new EntityAttributeModifier(
-                Identifier.of("qazr1234", "dmg"), 137891.0,
-                EntityAttributeModifier.Operation.ADD_VALUE);
-            AttributeModifiersComponent current = stack.getOrDefault(
-                DataComponentTypes.ATTRIBUTE_MODIFIERS, AttributeModifiersComponent.DEFAULT);
-            stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS,
-                current.with(dmgAttr.get(), mod, AttributeModifierSlot.MAINHAND));
+            AttributeModifier mod = new AttributeModifier(
+                Identifier.fromNamespaceAndPath("qazr1234", "dmg"), 137891.0,
+                AttributeModifier.Operation.ADD_VALUE);
+            ItemAttributeModifiers current = stack.getOrDefault(
+                DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
+            stack.set(DataComponents.ATTRIBUTE_MODIFIERS,
+                current.withModifierAdded(dmgAttr.get(), mod, EquipmentSlotGroup.MAINHAND));
         }
         if (CreativeGiveUtil.give(stack))
             CreativeGiveUtil.info("God Sword (137891) given");
@@ -292,35 +291,35 @@ public class CreativeGiveModule extends Module {
     private void genDamageArmor() {
         Item[] pieces = {Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE,
                          Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS};
-        AttributeModifierSlot[] groups = {AttributeModifierSlot.HEAD, AttributeModifierSlot.CHEST,
-                                          AttributeModifierSlot.LEGS, AttributeModifierSlot.FEET};
+        EquipmentSlotGroup[] groups = {EquipmentSlotGroup.HEAD, EquipmentSlotGroup.CHEST,
+                                          EquipmentSlotGroup.LEGS, EquipmentSlotGroup.FEET};
 
-        Optional<RegistryEntry.Reference<EntityAttribute>> armor =
-            attributeRegistry().getEntry(Identifier.of("generic.armor"));
-        Optional<RegistryEntry.Reference<EntityAttribute>> toughness =
-            attributeRegistry().getEntry(Identifier.of("generic.armor_toughness"));
-        Optional<RegistryEntry.Reference<EntityAttribute>> kb =
-            attributeRegistry().getEntry(Identifier.of("generic.knockback_resistance"));
+        Optional<Holder.Reference<Attribute>> armor =
+            attributeRegistry().get(Identifier.withDefaultNamespace("armor"));
+        Optional<Holder.Reference<Attribute>> toughness =
+            attributeRegistry().get(Identifier.withDefaultNamespace("armor_toughness"));
+        Optional<Holder.Reference<Attribute>> kb =
+            attributeRegistry().get(Identifier.withDefaultNamespace("knockback_resistance"));
 
         for (int i = 0; i < pieces.length; i++) {
             ItemStack stack = new ItemStack(pieces[i], 1);
-            stack.set(DataComponentTypes.CUSTOM_NAME,
-                Text.literal("Qazr1234 God Armor").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD));
-            AttributeModifiersComponent comp = stack.getOrDefault(
-                DataComponentTypes.ATTRIBUTE_MODIFIERS, AttributeModifiersComponent.DEFAULT);
+            stack.set(DataComponents.CUSTOM_NAME,
+                Component.literal("Qazr1234 God Armor").withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD));
+            ItemAttributeModifiers comp = stack.getOrDefault(
+                DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
             if (armor.isPresent())
-                comp = comp.with(armor.get(),
-                    new EntityAttributeModifier(Identifier.of("qazr1234", "armor" + i), 137891.0,
-                        EntityAttributeModifier.Operation.ADD_VALUE), groups[i]);
+                comp = comp.withModifierAdded(armor.get(),
+                    new AttributeModifier(Identifier.fromNamespaceAndPath("qazr1234", "armor" + i), 137891.0,
+                        AttributeModifier.Operation.ADD_VALUE), groups[i]);
             if (toughness.isPresent())
-                comp = comp.with(toughness.get(),
-                    new EntityAttributeModifier(Identifier.of("qazr1234", "tough" + i), 137891.0,
-                        EntityAttributeModifier.Operation.ADD_VALUE), groups[i]);
+                comp = comp.withModifierAdded(toughness.get(),
+                    new AttributeModifier(Identifier.fromNamespaceAndPath("qazr1234", "tough" + i), 137891.0,
+                        AttributeModifier.Operation.ADD_VALUE), groups[i]);
             if (kb.isPresent())
-                comp = comp.with(kb.get(),
-                    new EntityAttributeModifier(Identifier.of("qazr1234", "kb" + i), 1.0,
-                        EntityAttributeModifier.Operation.ADD_VALUE), groups[i]);
-            stack.set(DataComponentTypes.ATTRIBUTE_MODIFIERS, comp);
+                comp = comp.withModifierAdded(kb.get(),
+                    new AttributeModifier(Identifier.fromNamespaceAndPath("qazr1234", "kb" + i), 1.0,
+                        AttributeModifier.Operation.ADD_VALUE), groups[i]);
+            stack.set(DataComponents.ATTRIBUTE_MODIFIERS, comp);
             CreativeGiveUtil.give(stack);
         }
         CreativeGiveUtil.info("Full God Armor set (137891) given");
@@ -328,8 +327,8 @@ public class CreativeGiveModule extends Module {
 
     private void genTotem() {
         ItemStack stack = new ItemStack(Items.TOTEM_OF_UNDYING, 1);
-        stack.set(DataComponentTypes.CUSTOM_NAME,
-            Text.literal("Qazr1234 Undying Totem").formatted(Formatting.GOLD, Formatting.BOLD));
+        stack.set(DataComponents.CUSTOM_NAME,
+            Component.literal("Qazr1234 Undying Totem").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         if (CreativeGiveUtil.give(stack))
             CreativeGiveUtil.info("Undying Totem given");
     }
@@ -338,6 +337,6 @@ public class CreativeGiveModule extends Module {
     private Item resolveItem(String id) {
         String fullId = id.contains(":") ? id : "minecraft:" + id;
         Identifier identifier = Identifier.tryParse(fullId);
-        return identifier != null ? Registries.ITEM.get(identifier) : Items.AIR;
+        return identifier != null ? BuiltInRegistries.ITEM.getValue(identifier) : Items.AIR;
     }
 }
