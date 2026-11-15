@@ -2,7 +2,7 @@ package com.macekill.addon;
 
 import com.macekill.addon.commands.BlacklistCommand;
 import com.macekill.addon.commands.TpCommand;
-// import com.macekill.addon.modules.AdvancedNoFall;
+import com.macekill.addon.modules.AdvancedNoFall;
 import com.macekill.addon.modules.AntiCreeper;
 import com.macekill.addon.modules.AntiPop;
 import com.macekill.addon.modules.ArrowKiller;
@@ -27,7 +27,7 @@ import com.macekill.addon.modules.AutoGGModule;
 import com.macekill.addon.modules.AutoMineModule;
 import com.macekill.addon.modules.CreativeGiveModule;
 import com.macekill.addon.modules.CustomPotionModule;
-// import com.macekill.addon.modules.MaceDMG;
+import com.macekill.addon.modules.MaceDMG;
 import com.macekill.addon.modules.MaceKillModule;
 import com.macekill.addon.modules.PlayerTp;
 import com.macekill.addon.modules.AntiAirMiss;
@@ -49,17 +49,18 @@ public class MaceKillAddon extends MeteorAddon {
     @Override
     public void onInitialize() {
         LOG.info("Qazr Addons initializing...");
+        meteordevelopment.meteorclient.MeteorClient.EVENT_BUS.subscribe(new com.macekill.addon.utils.PacketGuard());
 
         
         Modules.get().add(new MaceKillModule());
-        // Modules.get().add(new MaceAura());
-        // Modules.get().add(new MaceMissLite());
-        // Modules.get().add(new XinTpMace());
+        Modules.get().add(new MaceAura());
+        Modules.get().add(new MaceMissLite());
+        Modules.get().add(new XinTpMace());
         Modules.get().add(new TpMace());
         Modules.get().add(new MaceAttect());
         Modules.get().add(new MaceBreakerPro());
-        // Modules.get().add(new MaceDMG());
-        // Modules.get().add(new AntiAirMiss());
+        Modules.get().add(new MaceDMG());
+        Modules.get().add(new AntiAirMiss());
         Modules.get().add(new FreecamTp());
         Modules.get().add(new Hitback());
         Modules.get().add(new MassTpa());
@@ -76,7 +77,7 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new Rise());
         Modules.get().add(new SpeedModule());
         Modules.get().add(new PlayerTp());
-        // Modules.get().add(new AdvancedNoFall());
+        Modules.get().add(new AdvancedNoFall());
         Modules.get().add(new AntiPop());
 
         // ---- 自动化 ----

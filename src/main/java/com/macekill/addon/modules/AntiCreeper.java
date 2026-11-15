@@ -10,8 +10,8 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.mob.CreeperEntity;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.monster.Creeper;
 
 /**
  * AntiCreeper (ported from brew-addon 1.21.8).
@@ -57,11 +57,11 @@ public class AntiCreeper extends Module {
     @EventHandler
     private void onTick(TickEvent.Post event) {
         if (mode.get() == KillMode.OnSpawn) return;
-        if (mc.world == null || mc.player == null) return;
+        if (mc.level == null || mc.player == null) return;
 
-        for (Entity entity : mc.world.getEntities()) {
-            if (!(entity instanceof CreeperEntity creeper)) continue;
-            if (creeper.getFuseSpeed() > 0 && mc.player.squaredDistanceTo(creeper) <= range.get() * range.get()) {
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (!(entity instanceof Creeper creeper)) continue;
+            if (creeper.getSwellDir() > 0 && mc.player.distanceToSqr(creeper) <= range.get() * range.get()) {
                 Attack.attack(creeper, true, 10, true);
             }
         }
@@ -72,7 +72,7 @@ public class AntiCreeper extends Module {
         if (mode.get() == KillMode.OnExplode) return;
         if (mc.player == null) return;
 
-        if (event.entity instanceof CreeperEntity && mc.player.squaredDistanceTo(event.entity) <= range.get() * range.get()) {
+        if (event.entity instanceof Creeper && mc.player.distanceToSqr(event.entity) <= range.get() * range.get()) {
             Attack.attack(event.entity, true, 10, true);
         }
     }

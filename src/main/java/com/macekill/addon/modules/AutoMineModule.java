@@ -8,18 +8,19 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.render.color.SettingColor;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.block.*;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Item;
-import net.minecraft.item.Items;
-import net.minecraft.registry.tag.FluidTags;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.math.BlockPos.Mutable;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.BlockPos.MutableBlockPos;
+import net.minecraft.world.level.Level;
 
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
@@ -139,7 +140,7 @@ public class AutoMineModule extends Module {
         breakingPos = null; breakTicks = 0; stuckTicks = 0; isStuck = false;
         targetLockTime = 0;
         abandonBlacklist.clear(); dugPositions.clear(); lastOreMinedTime = 0;
-        lastPos = mc.player != null ? mc.player.getBlockPos() : null;
+        lastPos = mc.player != null ? mc.player.blockPosition() : null;
         wasFlying = mc.player != null && mc.player.getAbilities().flying;
         // 反射获取 CPU 监控方法(安全降级)
         try {
@@ -156,7 +157,7 @@ public class AutoMineModule extends Module {
         // 恢复原始飞行状态
         if (mc.player != null && !wasFlying) {
             mc.player.getAbilities().flying = false;
-            mc.player.getAbilities().allowFlying = false;
+            mc.player.getAbilities().mayfly = false;
         }
     }
 
@@ -173,10 +174,10 @@ public class AutoMineModule extends Module {
     /* ==================== 主循环 ==================== */
     @EventHandler
     private void onTick(TickEvent.Post event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
 
         // 死亡自动关闭
-        if (mc.player.isDead() || mc.player.getHealth() <= 0) {
+        if (mc.player.isDeadOrDying() || mc.player.getHealth() <= 0) {
             toggle();
             return;
         }
@@ -193,7 +194,7 @@ public class AutoMineModule extends Module {
         // 扫描
         if (scanCooldown-- <= 0) { scanCooldown = 60; scan(); }
         orePositions.removeIf(p -> {
-            BlockState s = mc.world.getBlockState(p);
+            BlockState s = mc.level.getBlockState(p);
             return !isTargetOre(s.getBlock()) || s.isAir();
         });
 
@@ -201,11 +202,11 @@ public class AutoMineModule extends Module {
         BlockPos nearest = orePositions.isEmpty() ? null : orePositions.stream()
             .filter(p -> !abandonBlacklist.containsKey(p))
             .filter(p -> !dugPositions.containsKey(p))
-            .min(Comparator.comparingDouble(p -> p.getSquaredDistance(mc.player.getEyePos()))).orElse(null);
+            .min(Comparator.comparingDouble(p -> p.distToCenterSqr(mc.player.getEyePosition()))).orElse(null);
 
         // 目标矿石被挖掉 → 记录时间
         if (currentTarget != null) {
-            BlockState ts = mc.world.getBlockState(currentTarget);
+            BlockState ts = mc.level.getBlockState(currentTarget);
             if (!isTargetOre(ts.getBlock()) || ts.isAir()) {
                 lastOreMinedTime = System.currentTimeMillis();
                 currentTarget = null; waypoints.clear(); wpIndex = 0; phase = Phase.IDLE;
@@ -239,7 +240,7 @@ public class AutoMineModule extends Module {
             } else if (autoMine.get()) {
                 wpIndex = 0;
                 // 检查是否在同Y层
-                int pY = mc.player.getBlockPos().getY();
+                int pY = mc.player.blockPosition().getY();
                 if (Math.abs(currentTarget.getY() - pY) <= 1) {
                     phase = Phase.WALK_XZ;
                 } else if (currentTarget.getY() != pY) {
@@ -249,7 +250,7 @@ public class AutoMineModule extends Module {
         }
 
         // 卡住检测
-        BlockPos curPos = mc.player.getBlockPos();
+        BlockPos curPos = mc.player.blockPosition();
         if (lastPos != null && curPos.equals(lastPos)) stuckTicks++;
         else { stuckTicks = 0; isStuck = false; }
         lastPos = curPos;
@@ -282,7 +283,7 @@ public class AutoMineModule extends Module {
                     currentTarget = null; waypoints.clear(); wpIndex = 0; phase = Phase.IDLE;
                     targetLockTime = 0; lastOreMinedTime = 0;
                     breakingPos = null; breakTicks = 0;
-                    mc.interactionManager.cancelBlockBreaking();
+                    mc.gameMode.stopDestroyBlock();
                     perfPauseUntil = System.currentTimeMillis() + 5_000L;
                     notify(String.format("CPU overload (%.0f%%), paused 5s", cpuLoad * 100));
                     return;
@@ -297,7 +298,7 @@ public class AutoMineModule extends Module {
             currentTarget = null; waypoints.clear(); wpIndex = 0; phase = Phase.IDLE;
             targetLockTime = 0; lastOreMinedTime = 0;
             breakingPos = null; breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
+            mc.gameMode.stopDestroyBlock();
             notify("Unreachable, blacklisted for 3 min");
             return;
         }
@@ -315,7 +316,7 @@ public class AutoMineModule extends Module {
     /* ==================== 路径规划: 折线节点 + 寻路避障 ==================== */
     private void planWaypoints() {
         waypoints.clear();
-        BlockPos from = mc.player.getBlockPos();
+        BlockPos from = mc.player.blockPosition();
         BlockPos to = currentTarget;
 
         // 终点选相邻空气位置
@@ -377,7 +378,7 @@ public class AutoMineModule extends Module {
             if (!cp.equals(from) && isDangerZone(cp, y)) continue;
 
             for (int[] d : dirs) {
-                BlockPos np = cp.add(d[0], 0, d[1]);
+                BlockPos np = cp.offset(d[0], 0, d[1]);
                 long nk = key(np);
                 if (isDangerZone(np, y)) continue;
 
@@ -435,7 +436,7 @@ public class AutoMineModule extends Module {
         if (dx == 0 && dz == 0) return true;
         int steps = dx != 0 ? Math.abs(b.getX() - a.getX()) : Math.abs(b.getZ() - a.getZ());
         for (int i = 1; i <= steps; i++) {
-            if (isDangerZone(a.add(dx * i, 0, dz * i), y)) return false;
+            if (isDangerZone(a.offset(dx * i, 0, dz * i), y)) return false;
         }
         return true;
     }
@@ -451,29 +452,29 @@ public class AutoMineModule extends Module {
 
         // 先X
         for (int i = 1; i <= stepsX; i++) {
-            BlockPos p = from.add(dx * i, 0, 0);
+            BlockPos p = from.offset(dx * i, 0, 0);
             if (!isDangerZone(p, y)) path.add(p);
             else {
                 // 尝试Z侧移绕行
                 for (int s = 1; s <= 4; s++) {
-                    BlockPos det = p.add(0, 0, s);
-                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.add(dx, 0, 0)); break; }
-                    det = p.add(0, 0, -s);
-                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.add(dx, 0, 0)); break; }
+                    BlockPos det = p.offset(0, 0, s);
+                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.offset(dx, 0, 0)); break; }
+                    det = p.offset(0, 0, -s);
+                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.offset(dx, 0, 0)); break; }
                 }
             }
         }
         BlockPos afterX = new BlockPos(to.getX(), y, from.getZ());
         // 再Z
         for (int i = 1; i <= stepsZ; i++) {
-            BlockPos p = afterX.add(0, 0, dz * i);
+            BlockPos p = afterX.offset(0, 0, dz * i);
             if (!isDangerZone(p, y)) path.add(p);
             else {
                 for (int s = 1; s <= 4; s++) {
-                    BlockPos det = p.add(s, 0, 0);
-                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.add(0, 0, dz)); break; }
-                    det = p.add(-s, 0, 0);
-                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.add(0, 0, dz)); break; }
+                    BlockPos det = p.offset(s, 0, 0);
+                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.offset(0, 0, dz)); break; }
+                    det = p.offset(-s, 0, 0);
+                    if (!isDangerZone(det, y)) { path.add(det); path.add(det.offset(0, 0, dz)); break; }
                 }
             }
         }
@@ -488,9 +489,9 @@ public class AutoMineModule extends Module {
         for (int dx = -safeR; dx <= safeR; dx++)
             for (int dy = -1; dy <= 2; dy++)
                 for (int dz = -safeR; dz <= safeR; dz++) {
-                    BlockPos check = pos.add(dx, yLevel + dy, dz);
+                    BlockPos check = pos.offset(dx, yLevel + dy, dz);
                     if (check.getY() <= minY) continue;
-                    BlockState s = mc.world.getBlockState(check);
+                    BlockState s = mc.level.getBlockState(check);
                     if (isFluid(s)) return true;
                     if (checkCaves && s.isAir()) return true;
                 }
@@ -512,19 +513,19 @@ public class AutoMineModule extends Module {
         // 找矿石周围最近的空气位置
         BlockPos best = ore;
         double bestDist = Double.MAX_VALUE;
-        Vec3d eye = mc.player != null ? mc.player.getEyePos() : Vec3d.ZERO;
+        Vec3 eye = mc.player != null ? mc.player.getEyePosition() : Vec3.ZERO;
         for (Direction d : Direction.values()) {
-            BlockPos adj = ore.offset(d);
-            if (mc.world.getBlockState(adj).isAir() || isReplaceable(mc.world.getBlockState(adj))) {
-                double dist = adj.getSquaredDistance(eye);
+            BlockPos adj = ore.relative(d);
+            if (mc.level.getBlockState(adj).isAir() || isReplaceable(mc.level.getBlockState(adj))) {
+                double dist = adj.distToCenterSqr(eye);
                 if (dist < bestDist) { bestDist = dist; best = adj; }
             }
         }
         // 如果没有相邻空气，选最近的方向
         if (bestDist == Double.MAX_VALUE) {
             for (Direction d : Direction.values()) {
-                double dist = ore.offset(d).getSquaredDistance(eye);
-                if (dist < bestDist) { bestDist = dist; best = ore.offset(d); }
+                double dist = ore.relative(d).distToCenterSqr(eye);
+                if (dist < bestDist) { bestDist = dist; best = ore.relative(d); }
             }
         }
         return best;
@@ -534,7 +535,7 @@ public class AutoMineModule extends Module {
     private void walkXZPhase() {
         if (wpIndex >= waypoints.size()) {
             // 水平路径走完, 判断垂直方向
-            int pY = mc.player.getBlockPos().getY();
+            int pY = mc.player.blockPosition().getY();
             int tY = currentTarget.getY();
             if (tY > pY + 1) {
                 phase = Phase.FLY_UP;
@@ -551,7 +552,7 @@ public class AutoMineModule extends Module {
         }
 
         BlockPos wp = waypoints.get(wpIndex);
-        BlockPos feet = mc.player.getBlockPos();
+        BlockPos feet = mc.player.blockPosition();
 
         // 是否已到达当前节点 (X/Z对齐)
         boolean atZ = feet.getZ() == wp.getZ();
@@ -580,14 +581,14 @@ public class AutoMineModule extends Module {
 
         int stepX = xSeg ? Integer.signum(wp.getX() - feet.getX()) : 0;
         int stepZ = zSeg ? Integer.signum(wp.getZ() - feet.getZ()) : 0;
-        Vec3d faceTarget = new Vec3d(feet.getX() + stepX + 0.5, feet.getY() + 0.5, feet.getZ() + stepZ + 0.5);
+        Vec3 faceTarget = new Vec3(feet.getX() + stepX + 0.5, feet.getY() + 0.5, feet.getZ() + stepZ + 0.5);
 
         // 朝向目标方向
         face(faceTarget);
 
         // Wurst TunnelHack: 检查前进方向2格高方块
-        BlockPos frontLow = feet.add(stepX, 0, stepZ);
-        BlockPos frontHigh = frontLow.up();
+        BlockPos frontLow = feet.offset(stepX, 0, stepZ);
+        BlockPos frontHigh = frontLow.above();
 
         if (frontLow.getY() <= minY.get() || frontHigh.getY() <= minY.get()) {
             blacklistAndNext("Reached min Y limit"); return;
@@ -595,14 +596,14 @@ public class AutoMineModule extends Module {
 
         // 找到需要挖掘的方块 (Wurst: dig box in front)
         List<BlockPos> toDig = new ArrayList<>();
-        if (isBlocking(mc.world.getBlockState(frontLow))) toDig.add(frontLow);
-        if (isBlocking(mc.world.getBlockState(frontHigh))) toDig.add(frontHigh);
+        if (isBlocking(mc.level.getBlockState(frontLow))) toDig.add(frontLow);
+        if (isBlocking(mc.level.getBlockState(frontHigh))) toDig.add(frontHigh);
 
         // 安全检查: 下一步位置是否进入危险区
         boolean frontDanger = isDangerZone(frontLow, feet.getY());
         if (frontDanger) {
             // 是固体墙且危险 → 不挖, 重新规划
-            if (isBlocking(mc.world.getBlockState(frontLow))) {
+            if (isBlocking(mc.level.getBlockState(frontLow))) {
                 blacklistBlock(frontLow);
             }
             planWaypoints();
@@ -611,7 +612,7 @@ public class AutoMineModule extends Module {
                 return;
             }
             wpIndex = 0;
-            mc.options.forwardKey.setPressed(false);
+            mc.options.keyUp.setDown(false);
             return;
         }
 
@@ -626,8 +627,8 @@ public class AutoMineModule extends Module {
             BlockPos dig = toDig.get(0); // 优先脚部再头部
             // 如果在挖第二个方块(top priority is the one closest)
             if (toDig.size() == 2) {
-                double dLow = mc.player.getEyePos().squaredDistanceTo(Vec3d.ofCenter(frontLow));
-                double dHigh = mc.player.getEyePos().squaredDistanceTo(Vec3d.ofCenter(frontHigh));
+                double dLow = mc.player.getEyePosition().distanceToSqr(Vec3.atCenterOf(frontLow));
+                double dHigh = mc.player.getEyePosition().distanceToSqr(Vec3.atCenterOf(frontHigh));
                 dig = dLow < dHigh ? frontLow : frontHigh;
             }
             doDigBlock(dig);
@@ -635,14 +636,14 @@ public class AutoMineModule extends Module {
             // 无障碍 → 前进
             breakingPos = null;
             breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
-            mc.options.forwardKey.setPressed(true);
+            mc.gameMode.stopDestroyBlock();
+            mc.options.keyUp.setDown(true);
         }
     }
 
     /* ==================== 阶段2A: 竖井上升 (挖掘头顶到矿石之间的所有方块) ==================== */
     private void flyUpPhase() {
-        BlockPos feet = mc.player.getBlockPos();
+        BlockPos feet = mc.player.blockPosition();
         int tY = currentTarget.getY();
 
         if (feet.getY() >= tY - 1) {
@@ -655,8 +656,8 @@ public class AutoMineModule extends Module {
         for (int dy = 1; dy <= (tY - feet.getY() + 1); dy++) {
             BlockPos check = new BlockPos(feet.getX(), feet.getY() + dy, feet.getZ());
             if (check.getY() <= minY.get()) { blacklistAndNext("Reached min Y limit"); return; }
-            if (isBlocking(mc.world.getBlockState(check))) {
-                face(Vec3d.ofCenter(check));
+            if (isBlocking(mc.level.getBlockState(check))) {
+                face(Vec3.atCenterOf(check));
                 doDigBlock(check);
                 enableFlight(); // 飞行悬空挖掘
                 return;
@@ -665,13 +666,13 @@ public class AutoMineModule extends Module {
 
         // 无障碍 → 飞行上升
         enableFlight();
-        Vec3d vel = mc.player.getVelocity();
-        mc.player.setVelocity(vel.x, 0.5, vel.z);
+        Vec3 vel = mc.player.getDeltaMovement();
+        mc.player.setDeltaMovement(vel.x, 0.5, vel.z);
     }
 
     /* ==================== 阶段2B: 竖井下降 (挖掘脚底到矿石之间的所有方块) ==================== */
     private void digDownPhase() {
-        BlockPos feet = mc.player.getBlockPos();
+        BlockPos feet = mc.player.blockPosition();
         int tY = currentTarget.getY();
 
         if (feet.getY() <= tY + 1) {
@@ -683,16 +684,16 @@ public class AutoMineModule extends Module {
         for (int dy = 1; dy <= (feet.getY() - tY); dy++) {
             BlockPos check = new BlockPos(feet.getX(), feet.getY() - dy, feet.getZ());
             if (check.getY() <= minY.get()) { blacklistAndNext("Reached min Y limit"); return; }
-            if (isBlocking(mc.world.getBlockState(check))) {
-                face(Vec3d.ofCenter(check));
+            if (isBlocking(mc.level.getBlockState(check))) {
+                face(Vec3.atCenterOf(check));
                 doDigBlock(check);
                 return;
             }
         }
 
         // 无障碍 → 走下一步
-        mc.options.forwardKey.setPressed(true);
-        mc.options.sneakKey.setPressed(true);
+        mc.options.keyUp.setDown(true);
+        mc.options.keyShift.setDown(true);
     }
 
     /* ==================== 阶段3: 挖掘矿石 ==================== */
@@ -700,35 +701,35 @@ public class AutoMineModule extends Module {
         BlockPos ore = currentTarget;
         if (ore == null) { phase = Phase.IDLE; return; }
 
-        BlockState s = mc.world.getBlockState(ore);
+        BlockState s = mc.level.getBlockState(ore);
         if (!isTargetOre(s.getBlock()) || s.isAir()) {
             // 矿石已消失
             lastOreMinedTime = System.currentTimeMillis();
             currentTarget = null; waypoints.clear(); wpIndex = 0;
             targetLockTime = 0;
             breakingPos = null; breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
+            mc.gameMode.stopDestroyBlock();
             phase = Phase.RETURN_TO_TUNNEL;
             return;
         }
 
         // Wurst BlockBreaker: 如果已在挖掘同一矿石, 继续进度
         if (breakingPos != null && breakingPos.equals(ore)) {
-            if (breakTicks++ > 200) { blacklistBlock(ore); breakingPos = null; breakTicks = 0; mc.interactionManager.cancelBlockBreaking(); planWaypoints(); return; }
-            mc.interactionManager.updateBlockBreakingProgress(ore, bestFace(ore));
-            face(Vec3d.ofCenter(ore));
+            if (breakTicks++ > 200) { blacklistBlock(ore); breakingPos = null; breakTicks = 0; mc.gameMode.stopDestroyBlock(); planWaypoints(); return; }
+            mc.gameMode.continueDestroyBlock(ore, bestFace(ore));
+            face(Vec3.atCenterOf(ore));
             return;
         }
 
         // 开始新挖掘
-        face(Vec3d.ofCenter(ore));
+        face(Vec3.atCenterOf(ore));
         switchToPick();
         doDigBlock(ore);
     }
 
     /* ==================== 阶段4: 返回隧道层 ==================== */
     private void returnToTunnelPhase() {
-        int pY = mc.player.getBlockPos().getY();
+        int pY = mc.player.blockPosition().getY();
 
         if (Math.abs(pY - tunnelY) <= 1) {
             disableFlight();
@@ -739,27 +740,27 @@ public class AutoMineModule extends Module {
         if (pY < tunnelY) {
             // 需要上升 → 飞行
             enableFlight();
-            Vec3d vel = mc.player.getVelocity();
-            mc.player.setVelocity(vel.x, 0.5, vel.z);
+            Vec3 vel = mc.player.getDeltaMovement();
+            mc.player.setDeltaMovement(vel.x, 0.5, vel.z);
         } else {
             // 需要下降 → 走台阶(不飞行)
             disableFlight();
-            BlockPos below = mc.player.getBlockPos().down();
-            if (isBlocking(mc.world.getBlockState(below))) {
-                face(Vec3d.ofCenter(below));
+            BlockPos below = mc.player.blockPosition().below();
+            if (isBlocking(mc.level.getBlockState(below))) {
+                face(Vec3.atCenterOf(below));
                 doDigBlock(below);
             } else {
-                mc.options.forwardKey.setPressed(true);
+                mc.options.keyUp.setDown(true);
             }
         }
     }
 
     /* ==================== 挖掘单个方块 (Wurst BlockBreaker 风格) ==================== */
     private void doDigBlock(BlockPos pos) {
-        BlockState s = mc.world.getBlockState(pos);
+        BlockState s = mc.level.getBlockState(pos);
         if (s.isAir() || isReplaceable(s) || isUnbreakable(s.getBlock()) || isFluid(s)) {
             breakingPos = null; breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
+            mc.gameMode.stopDestroyBlock();
             return;
         }
 
@@ -767,7 +768,7 @@ public class AutoMineModule extends Module {
         if (isDangerZone(pos, pos.getY())) {
             blacklistBlock(pos);
             breakingPos = null; breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
+            mc.gameMode.stopDestroyBlock();
             waypoints.clear();
             planWaypoints();
             if (waypoints.size() > 0) wpIndex = 0;
@@ -777,11 +778,11 @@ public class AutoMineModule extends Module {
         // 切换挖掘目标时重置计数
         if (breakingPos != null && !breakingPos.equals(pos)) {
             breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
+            mc.gameMode.stopDestroyBlock();
         }
         breakingPos = pos;
         dugPositions.put(pos, System.currentTimeMillis() + 60_000L); // 1分钟后过期
-        face(Vec3d.ofCenter(pos));
+        face(Vec3.atCenterOf(pos));
         switchToPick();
 
         // Wurst: 选择最佳面
@@ -791,7 +792,7 @@ public class AutoMineModule extends Module {
             // 超时 → 跳过
             blacklistBlock(pos);
             breakingPos = null; breakTicks = 0;
-            mc.interactionManager.cancelBlockBreaking();
+            mc.gameMode.stopDestroyBlock();
             waypoints.clear(); wpIndex = 0;
             planWaypoints();
             if (!waypoints.isEmpty()) wpIndex = 1;
@@ -800,17 +801,17 @@ public class AutoMineModule extends Module {
 
         // 首帧 attackBlock 发起挖掘, 后续帧 updateProgress 推进
         if (breakTicks == 0) {
-            mc.interactionManager.attackBlock(pos, bestSide);
+            mc.gameMode.startDestroyBlock(pos, bestSide);
         }
-        mc.interactionManager.updateBlockBreakingProgress(pos, bestSide);
-        mc.player.swingHand(Hand.MAIN_HAND);
+        mc.gameMode.continueDestroyBlock(pos, bestSide);
+        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
 
         breakTicks++;
     }
 
     /* ==================== 卡住清理 ==================== */
     private void doClearing() {
-        BlockPos pp = mc.player.getBlockPos();
+        BlockPos pp = mc.player.blockPosition();
         List<BlockPos> nearby = new ArrayList<>();
         int minYLev = minY.get();
 
@@ -818,35 +819,35 @@ public class AutoMineModule extends Module {
             for (int dy = -1; dy <= 2; dy++)
                 for (int dz = -1; dz <= 1; dz++) {
                     if (dx == 0 && dy == 0 && dz == 0) continue;
-                    BlockPos pos = pp.add(dx, dy, dz);
+                    BlockPos pos = pp.offset(dx, dy, dz);
                     if (pos.getY() <= minYLev) continue;
-                    BlockState s = mc.world.getBlockState(pos);
-                    if (!s.isAir() && s.getBlock().getHardness() >= 0
+                    BlockState s = mc.level.getBlockState(pos);
+                    if (!s.isAir() && s.getBlock().defaultDestroyTime() >= 0
                         && !isUnbreakable(s.getBlock()) && !isFluid(s))
                         nearby.add(pos);
                 }
 
         if (nearby.isEmpty()) { isStuck = false; stuckTicks = 0; return; }
 
-        nearby.sort(Comparator.comparingDouble(p -> p.getSquaredDistance(mc.player.getEyePos())));
+        nearby.sort(Comparator.comparingDouble(p -> p.distToCenterSqr(mc.player.getEyePosition())));
         BlockPos dig = nearby.get(0);
-        face(Vec3d.ofCenter(dig));
+        face(Vec3.atCenterOf(dig));
         switchToPick();
-        mc.interactionManager.updateBlockBreakingProgress(dig, bestFace(dig));
-        mc.player.swingHand(Hand.MAIN_HAND);
+        mc.gameMode.continueDestroyBlock(dig, bestFace(dig));
+        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
 
         // 挖掉后卡住重置
-        if (mc.world.getBlockState(dig).isAir()) { isStuck = false; stuckTicks = 0; }
+        if (mc.level.getBlockState(dig).isAir()) { isStuck = false; stuckTicks = 0; }
     }
 
     /* ==================== 扫描 ==================== */
     private void scan() {
-        World world = mc.world;
-        BlockPos pp = mc.player.getBlockPos();
+        Level world = mc.level;
+        BlockPos pp = mc.player.blockPosition();
         int r = (int) Math.ceil(scanRange.get()), rSq = r * r;
         int minYLev = minY.get();
         boolean filterDanger = filterDangerOres.get();
-        Mutable m = new Mutable();
+        MutableBlockPos m = new MutableBlockPos();
         for (int dx = -r; dx <= r; dx++) {
             int dx2 = dx * dx;
             for (int dy = -r; dy <= r; dy++) {
@@ -856,12 +857,12 @@ public class AutoMineModule extends Module {
                     if (dxy2 + dz * dz > rSq) continue;
                     m.set(pp.getX() + dx, pp.getY() + dy, pp.getZ() + dz);
                     if (m.getY() <= minYLev) continue;
-                    BlockPos imm = m.toImmutable();
+                    BlockPos imm = m.immutable();
                     if (abandonBlacklist.containsKey(imm)) continue;
                     if (dugPositions.containsKey(imm)) continue;
                     BlockState s = world.getBlockState(imm);
                     if (!isTargetOre(s.getBlock())) continue;
-                    if (s.getHardness(world, imm) < 0) continue;
+                    if (s.getDestroySpeed(world, imm) < 0) continue;
                     if (filterDanger && isOreNearFluid(imm)) continue;
                     orePositions.add(imm);
                 }
@@ -876,8 +877,8 @@ public class AutoMineModule extends Module {
             for (int dy = -safeR; dy <= safeR; dy++)
                 for (int dz = -safeR; dz <= safeR; dz++) {
                     if (dx == 0 && dy == 0 && dz == 0) continue;
-                    BlockPos check = ore.add(dx, dy, dz);
-                    if (isFluid(mc.world.getBlockState(check))) return true;
+                    BlockPos check = ore.offset(dx, dy, dz);
+                    if (isFluid(mc.level.getBlockState(check))) return true;
                 }
         return false;
     }
@@ -905,39 +906,39 @@ public class AutoMineModule extends Module {
     }
 
     /* ==================== 辅助 ==================== */
-    private void face(Vec3d t) {
-        Vec3d e = mc.player.getEyePos();
+    private void face(Vec3 t) {
+        Vec3 e = mc.player.getEyePosition();
         double dx = t.x - e.x, dy = t.y - e.y, dz = t.z - e.z;
         double h = Math.sqrt(dx * dx + dz * dz);
-        mc.player.setYaw((float) Math.toDegrees(Math.atan2(-dx, dz)));
-        mc.player.setPitch((float) -Math.toDegrees(Math.atan2(dy, h)));
+        mc.player.setYRot((float) Math.toDegrees(Math.atan2(-dx, dz)));
+        mc.player.setXRot((float) -Math.toDegrees(Math.atan2(dy, h)));
     }
 
     /** Wurst: 选最佳攻击面 */
     private Direction bestFace(BlockPos pos) {
-        Vec3d eye = mc.player.getEyePos();
-        Vec3d c = Vec3d.ofCenter(pos);
-        Vec3d d = c.subtract(eye).normalize();
+        Vec3 eye = mc.player.getEyePosition();
+        Vec3 c = Vec3.atCenterOf(pos);
+        Vec3 d = c.subtract(eye).normalize();
         double best = -2; Direction r = Direction.UP;
         for (Direction dir : Direction.values()) {
-            double dot = d.dotProduct(Vec3d.of(dir.getVector()));
+            double dot = d.dot(Vec3.atLowerCornerOf(dir.getUnitVec3i()));
             if (dot > best) { best = dot; r = dir; }
         }
         return r;
     }
 
     private boolean isBlocking(BlockState s) {
-        if (s.isAir() || s.isReplaceable() || isFluid(s)) return false;
-        return s.isSolid() || s.getBlock().getHardness() >= 0;
+        if (s.isAir() || s.canBeReplaced() || isFluid(s)) return false;
+        return s.isSolid() || s.getBlock().defaultDestroyTime() >= 0;
     }
 
     private boolean isReplaceable(BlockState s) {
-        return s.isReplaceable() || s.getBlock() instanceof TallFlowerBlock
+        return s.canBeReplaced() || s.getBlock() instanceof TallFlowerBlock
             || s.getBlock() instanceof FlowerBlock;
     }
 
     private boolean isFluid(BlockState s) {
-        return s.getFluidState().isIn(FluidTags.LAVA) || s.getFluidState().isIn(FluidTags.WATER);
+        return s.getFluidState().is(FluidTags.LAVA) || s.getFluidState().is(FluidTags.WATER);
     }
 
     private void blacklistAndNext(String reason) {
@@ -962,20 +963,20 @@ public class AutoMineModule extends Module {
             for (int dy = -2; dy <= 2; dy++)
                 for (int dz = -2; dz <= 2; dz++) {
                     if (Math.abs(dx) + Math.abs(dy) + Math.abs(dz) > 2) continue;
-                    BlockPos pos = center.add(dx, dy, dz);
+                    BlockPos pos = center.offset(dx, dy, dz);
                     if (orePositions.contains(pos)) abandonBlacklist.put(pos, expire);
                 }
     }
 
     private void enableFlight() {
         mc.player.getAbilities().flying = true;
-        mc.player.getAbilities().allowFlying = true;
+        mc.player.getAbilities().mayfly = true;
     }
 
     private void disableFlight() {
         if (!wasFlying) {
             mc.player.getAbilities().flying = false;
-            mc.player.getAbilities().allowFlying = false;
+            mc.player.getAbilities().mayfly = false;
         }
     }
 
@@ -985,49 +986,48 @@ public class AutoMineModule extends Module {
 
     private void notify(String msg) {
         if (mc.player != null)
-            mc.player.sendMessage(net.minecraft.text.Text.literal("§8[§6OreTracker§8] §f" + msg), true);
+            mc.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("§8[§6OreTracker§8] §f" + msg));
     }
 
     private void releaseControls() {
-        mc.options.forwardKey.setPressed(false); mc.options.backKey.setPressed(false);
-        mc.options.leftKey.setPressed(false); mc.options.rightKey.setPressed(false);
-        mc.options.jumpKey.setPressed(false); mc.options.sneakKey.setPressed(false);
-        mc.options.attackKey.setPressed(false);
+        mc.options.keyUp.setDown(false); mc.options.keyDown.setDown(false);
+        mc.options.keyLeft.setDown(false); mc.options.keyRight.setDown(false);
+        mc.options.keyJump.setDown(false); mc.options.keyShift.setDown(false);
+        mc.options.keyAttack.setDown(false);
     }
 
     /* ==================== 工具切换 (Wurst AutoTool) ==================== */
     private void switchToPick() {
-        if (isPickaxe(mc.player.getMainHandStack().getItem())) return;
+        if (isPickaxe(mc.player.getMainHandItem().getItem())) return;
         for (int i = 0; i < 9; i++)
-            if (isPickaxe(mc.player.getInventory().getStack(i).getItem())) {
+            if (isPickaxe(mc.player.getInventory().getItem(i).getItem())) {
                 setSelectedSlot(mc.player.getInventory(), i);
                 return;
             }
     }
 
-    private void setSelectedSlot(PlayerInventory inv, int slot) {
+    private void setSelectedSlot(Inventory inv, int slot) {
         if (inv == null || slot < 0 || slot > 8) return;
         inv.setSelectedSlot(slot);
     }
 
     private boolean isPickaxe(Item i) {
-        return i == Items.WOODEN_PICKAXE || i == Items.STONE_PICKAXE || i == Items.IRON_PICKAXE
-            || i == Items.GOLDEN_PICKAXE || i == Items.DIAMOND_PICKAXE || i == Items.NETHERITE_PICKAXE;
+        return i.getDefaultInstance().is(net.minecraft.tags.ItemTags.PICKAXES);
     }
 
     /* ==================== 渲染 ==================== */
     @EventHandler
     private void onRender3D(Render3DEvent event) {
-        if (mc.world == null) return;
+        if (mc.level == null) return;
 
         // 所有矿石
         if (renderOres.get())
             for (BlockPos p : orePositions)
-                if (isTargetOre(mc.world.getBlockState(p).getBlock()))
+                if (isTargetOre(mc.level.getBlockState(p).getBlock()))
                     event.renderer.box(p, oreColor.get(), oreColor.get(), ShapeMode.Both, 0);
 
         // 当前目标
-        if (currentTarget != null && isTargetOre(mc.world.getBlockState(currentTarget).getBlock()))
+        if (currentTarget != null && isTargetOre(mc.level.getBlockState(currentTarget).getBlock()))
             event.renderer.box(currentTarget, targetColor.get(), targetColor.get(), ShapeMode.Both, 0);
 
         // 路径节点
@@ -1036,8 +1036,8 @@ public class AutoMineModule extends Module {
                 BlockPos p = waypoints.get(i);
                 event.renderer.box(p, pathColor.get(), pathColor.get(), ShapeMode.Lines, 0);
                 if (i > 0) {
-                    Vec3d a = Vec3d.ofCenter(waypoints.get(i - 1));
-                    Vec3d b = Vec3d.ofCenter(p);
+                    Vec3 a = Vec3.atCenterOf(waypoints.get(i - 1));
+                    Vec3 b = Vec3.atCenterOf(p);
                     event.renderer.line(a.x, a.y, a.z, b.x, b.y, b.z, pathColor.get());
                 }
             }

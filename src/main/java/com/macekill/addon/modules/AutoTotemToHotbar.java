@@ -7,8 +7,8 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.item.Items;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.ItemStack;
 
 public class AutoTotemToHotbar extends Module {
 
@@ -24,11 +24,11 @@ public class AutoTotemToHotbar extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
 
         // 检查副手是否已有图腾
-        ItemStack offhand = mc.player.getOffHandStack();
-        if (offhand.isOf(Items.TOTEM_OF_UNDYING)) return;
+        ItemStack offhand = mc.player.getOffhandItem();
+        if (offhand.is(Items.TOTEM_OF_UNDYING)) return;
 
         // 先在快捷栏找图腾
         FindItemResult hotbarResult = InvUtils.findInHotbar(Items.TOTEM_OF_UNDYING);

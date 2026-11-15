@@ -3,7 +3,7 @@ package com.macekill.addon.modules;
 import com.macekill.addon.MaceKillAddon;
 import com.macekill.addon.modules.macekill.Combat;
 import com.macekill.addon.modules.macekill.Config;
-import com.macekill.addon.modules.macekill.Inventory;
+import com.macekill.addon.modules.macekill.InvHelper;
 import com.macekill.addon.modules.macekill.Movement;
 import com.macekill.addon.modules.macekill.SortPriority;
 import com.macekill.addon.modules.macekill.TargetFilter;
@@ -20,11 +20,11 @@ import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.settings.StringListSetting;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 
 public class MaceKillModule extends Module {
     private final SettingGroup sgGeneral;
@@ -66,8 +66,8 @@ public class MaceKillModule extends Module {
 
     private Phase phase;
     private int delayTicks;
-    private Vec3d originalPos;
-    private Vec3d targetPos;
+    private Vec3 originalPos;
+    private Vec3 targetPos;
     private LivingEntity target;
     private LivingEntity drainTarget;
     private int totemHits;
@@ -278,17 +278,17 @@ public class MaceKillModule extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (this.mc.player == null || this.mc.world == null) {
+        if (this.mc.player == null || this.mc.level == null) {
             this.phase = Phase.IDLE;
             return;
         }
         if (this.autoTotem.get()) {
-            Inventory.ensureTotem(this.mc);
+            InvHelper.ensureTotem(this.mc);
         }
         switch (this.phase) {
             case IDLE -> {
                 if (this.requireFullCooldown.get() && !this.bypassTotem.get()
-                        && this.mc.player.getAttackCooldownProgress(0.0f) < 1.0f) {
+                        && this.mc.player.getAttackStrengthScale(0.0f) < 1.0f) {
                     return;
                 }
                 this.tickIdle();
@@ -314,7 +314,7 @@ public class MaceKillModule extends Module {
             this.drainTarget = this.target;
             this.totemHits = 0;
         }
-        this.originalPos = new Vec3d(this.mc.player.getX(), this.mc.player.getY(), this.mc.player.getZ());
+        this.originalPos = new Vec3(this.mc.player.getX(), this.mc.player.getY(), this.mc.player.getZ());
         this.targetPos = Targeting.predictPosition(
             this.mc, this.target, this.predict.get(), this.predictTicks.get());
         if (this.spamRotations.get()) {
@@ -333,12 +333,12 @@ public class MaceKillModule extends Module {
     private void tickStartDelay() {
         Movement.doTpTo(this.mc, this.targetPos, this.moveDistance.get(), this.syncClientPos.get());
         if (this.syncClientPos.get()) {
-            this.mc.player.updatePosition(this.targetPos.x, this.targetPos.y, this.targetPos.z);
+            this.mc.player.setPos(this.targetPos.x, this.targetPos.y, this.targetPos.z);
         }
         this.delayTicks--;
         if (this.delayTicks <= 0) {
             if (this.target == null || !this.target.isAlive()
-                    || this.mc.player.squaredDistanceTo(this.target) > this.range.get() * this.range.get()) {
+                    || this.mc.player.distanceToSqr(this.target) > this.range.get() * this.range.get()) {
                 this.doReturn();
             } else {
                 this.executeAndReturn();
@@ -372,7 +372,7 @@ public class MaceKillModule extends Module {
     private void executeAttack() {
         if (isBypassingTotem()) {
             int totems = this.totemsToPop.get();
-            if (this.detectTotem.get()) totems = Math.min(totems, countTotems((PlayerEntity) this.target));
+            if (this.detectTotem.get()) totems = Math.min(totems, countTotems((Player) this.target));
             totems = Math.min(totems + 3, Combat.MAX_TOTEM_HITS);
             // AutoTotem re-equips between ticks, so the whole strictly-escalating hit list
             // MUST land in a single tick (one mace smash) or the target always survives.
@@ -411,24 +411,24 @@ public class MaceKillModule extends Module {
     }
 
     private boolean isBypassingTotem() {
-        if (!this.bypassTotem.get() || !(this.target instanceof PlayerEntity)) {
+        if (!this.bypassTotem.get() || !(this.target instanceof Player)) {
             return false;
         }
-        if (this.detectTotem.get() && !targetHasTotem((PlayerEntity) this.target)) {
+        if (this.detectTotem.get() && !targetHasTotem((Player) this.target)) {
             return false;
         }
         return true;
     }
 
-    private boolean targetHasTotem(PlayerEntity player) {
+    private boolean targetHasTotem(Player player) {
         return countTotems(player) > 0;
     }
 
-    private int countTotems(PlayerEntity player) {
+    private int countTotems(Player player) {
         int n = 0;
-        PlayerInventory inv = player.getInventory();
-        for (int i = 0; i < inv.size(); i++) {
-            if (inv.getStack(i).isOf(Items.TOTEM_OF_UNDYING)) n++;
+        Inventory inv = player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (inv.getItem(i).is(Items.TOTEM_OF_UNDYING)) n++;
         }
         return n;
     }

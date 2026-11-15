@@ -2,28 +2,28 @@ package com.macekill.addon.modules.macekill;
 
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Items;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Items;
 
-public final class Inventory {
+public final class InvHelper {
     // When the mace was moved out of the main inventory into the hotbar, this is its
     // original slot so we can move it back after the attack. -1 means no swap happened.
     private static int lastMaceSwapSlot = -1;
 
-    private Inventory() {}
+    private InvHelper() {}
 
-    public static int switchToMace(MinecraftClient mc) {
+    public static int switchToMace(Minecraft mc) {
         if (mc.player == null) return -1;
-        PlayerInventory inv = mc.player.getInventory();
+        Inventory inv = mc.player.getInventory();
         int cur = getSelectedSlot(inv);
         lastMaceSwapSlot = -1;
 
-        if (inv.getStack(cur).getItem() == Items.MACE) return cur;
+        if (inv.getItem(cur).getItem() == Items.MACE) return cur;
 
         // Mace already in the hotbar -> just select it.
         for (int i = 0; i < 9; i++) {
-            if (inv.getStack(i).getItem() != Items.MACE) continue;
+            if (inv.getItem(i).getItem() != Items.MACE) continue;
             if (i != cur) {
                 setSelectedSlot(inv, i);
                 Movement.sendSlotPacket(mc, i);
@@ -41,9 +41,9 @@ public final class Inventory {
         return cur;
     }
 
-    public static void switchBack(MinecraftClient mc, int slot) {
+    public static void switchBack(Minecraft mc, int slot) {
         if (mc.player == null) return;
-        PlayerInventory inv = mc.player.getInventory();
+        Inventory inv = mc.player.getInventory();
         if (lastMaceSwapSlot >= 0) {
             // Move the mace back to where it came from (swaps the original item back).
             InvUtils.move().from(slot).to(lastMaceSwapSlot);
@@ -54,21 +54,21 @@ public final class Inventory {
         Movement.sendSlotPacket(mc, slot);
     }
 
-    public static int findTotemSlot(MinecraftClient mc) {
+    public static int findTotemSlot(Minecraft mc) {
         if (mc.player == null) return -1;
-        PlayerInventory inv = mc.player.getInventory();
+        Inventory inv = mc.player.getInventory();
         for (int i = 0; i < 9; i++) {
-            if (inv.getStack(i).getItem() != Items.TOTEM_OF_UNDYING) continue;
+            if (inv.getItem(i).getItem() != Items.TOTEM_OF_UNDYING) continue;
             return i;
         }
         return -1;
     }
 
-    public static void ensureTotem(MinecraftClient mc) {
-        if (mc.player == null || mc.getNetworkHandler() == null) return;
-        PlayerInventory inv = mc.player.getInventory();
+    public static void ensureTotem(Minecraft mc) {
+        if (mc.player == null || mc.getConnection() == null) return;
+        Inventory inv = mc.player.getInventory();
         int cur = getSelectedSlot(inv);
-        if (inv.getStack(cur).getItem() == Items.TOTEM_OF_UNDYING) return;
+        if (inv.getItem(cur).getItem() == Items.TOTEM_OF_UNDYING) return;
         int t = findTotemSlot(mc);
         if (t != -1) {
             setSelectedSlot(inv, t);
@@ -76,21 +76,21 @@ public final class Inventory {
         }
     }
 
-    public static int getSelectedSlot(MinecraftClient mc) {
+    public static int getSelectedSlot(Minecraft mc) {
         if (mc.player == null) return 0;
         return getSelectedSlot(mc.player.getInventory());
     }
 
-    // NOTE: public PlayerInventory.get/setSelectedSlot() API — never reflection.
+    // NOTE: public Inventory.get/setSelectedSlot() API — never reflection.
     // The old getDeclaredField("selectedSlot") lookup used the Yarn name, which does not
     // exist at runtime (intermediary mappings), so it always failed in production: reads
     // returned 0 and writes were silently dropped, breaking slot revert / silent swap.
-    public static int getSelectedSlot(PlayerInventory inv) {
+    public static int getSelectedSlot(Inventory inv) {
         if (inv == null) return 0;
         return inv.getSelectedSlot();
     }
 
-    public static void setSelectedSlot(PlayerInventory inv, int slot) {
+    public static void setSelectedSlot(Inventory inv, int slot) {
         if (inv == null || slot < 0 || slot > 8) return;
         inv.setSelectedSlot(slot);
     }

@@ -6,10 +6,10 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 public class AutoRise extends Module {
 
@@ -33,15 +33,15 @@ public class AutoRise extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
 
         double h = riseHeight.get();
 
         // 如果高度>12且开启了发送旋转，先发4个垃圾旋转包
         if (sendRotationsWhenHigh.get() && h > 12.0) {
             for (int i = 0; i < 4; i++) {
-                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.LookAndOnGround(
-                        mc.player.getYaw(), mc.player.getPitch(), mc.player.isOnGround(), false));
+                mc.getConnection().send(new ServerboundMovePlayerPacket.Rot(
+                        mc.player.getYRot(), mc.player.getXRot(), mc.player.onGround(), false));
             }
         }
 
@@ -54,25 +54,25 @@ public class AutoRise extends Module {
         double posZ = mc.player.getZ();
 
         // 第一个包：上升
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
+        mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
                 posX, posY + h, posZ, false, false));
 
         // 第二个包：返回原位
-        mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
+        mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
                 posX, posY, posZ, false, false));
     }
 
     private LivingEntity findTarget() {
-        if (mc.world == null || mc.player == null) return null;
+        if (mc.level == null || mc.player == null) return null;
         double rangeSq = detectRange.get() * detectRange.get();
         LivingEntity best = null;
         double bestDist = Double.MAX_VALUE;
 
-        for (Entity e : mc.world.getEntities()) {
+        for (Entity e : mc.level.entitiesForRendering()) {
             if (!(e instanceof LivingEntity le) || !le.isAlive() || le == mc.player) continue;
-            double distSq = mc.player.squaredDistanceTo(le);
+            double distSq = mc.player.distanceToSqr(le);
             if (distSq > rangeSq) continue;
-            if (le instanceof PlayerEntity p) {
+            if (le instanceof Player p) {
                 if (p.isCreative() || p.isSpectator() || !Friends.get().shouldAttack(p)) continue;
             }
             if (distSq < bestDist) { bestDist = distSq; best = le; }

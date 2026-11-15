@@ -5,8 +5,9 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import meteordevelopment.meteorclient.commands.Command;
-import net.minecraft.command.CommandSource;
-import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.client.multiplayer.ClientSuggestionProvider;
+import net.minecraft.commands.SharedSuggestionProvider;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,12 +30,12 @@ public class BlacklistCommand extends Command {
     }
 
     @Override
-    public void build(LiteralArgumentBuilder<CommandSource> builder) {
+    public void build(LiteralArgumentBuilder<ClientSuggestionProvider> builder) {
         builder
             .then(literal("add")
                 .then(argument("player", StringArgumentType.word())
                     .suggests((context, suggestions) ->
-                        CommandSource.suggestMatching(onlineNames(), suggestions))
+                        SharedSuggestionProvider.suggest(onlineNames(), suggestions))
                     .executes(context -> {
                         Blacklist module = Blacklist.get();
                         if (module == null) {
@@ -53,7 +54,7 @@ public class BlacklistCommand extends Command {
             .then(literal("remove")
                 .then(argument("player", StringArgumentType.word())
                     .suggests((context, suggestions) ->
-                        CommandSource.suggestMatching(blacklistNames(), suggestions))
+                        SharedSuggestionProvider.suggest(blacklistNames(), suggestions))
                     .executes(context -> {
                         Blacklist module = Blacklist.get();
                         if (module == null) {
@@ -119,8 +120,8 @@ public class BlacklistCommand extends Command {
     /** Online player names for the add-suggestions; self excluded. */
     private List<String> onlineNames() {
         List<String> names = new ArrayList<>();
-        if (mc != null && mc.world != null) {
-            for (PlayerEntity player : mc.world.getPlayers()) {
+        if (mc != null && mc.level != null) {
+            for (Player player : mc.level.players()) {
                 if (player == mc.player) continue;
                 names.add(player.getName().getString());
             }

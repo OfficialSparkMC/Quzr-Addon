@@ -5,7 +5,7 @@ import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 public class SpeedModule extends Module {
 
@@ -25,7 +25,7 @@ public class SpeedModule extends Module {
 
     @EventHandler
     private void onTick(TickEvent.Pre event) {
-        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) return;
+        if (mc.player == null || mc.level == null || mc.getConnection() == null) return;
 
         double posX = mc.player.getX();
         double posY = mc.player.getY();
@@ -37,7 +37,7 @@ public class SpeedModule extends Module {
         for (int i = 0; i <= n; i++) {
             double targetY = posY + h * i;
             for (int j = 0; j < 3; j++) {
-                mc.getNetworkHandler().sendPacket(new PlayerMoveC2SPacket.PositionAndOnGround(
+                mc.getConnection().send(new ServerboundMovePlayerPacket.Pos(
                         posX, targetY, posZ, false, false));
             }
         }

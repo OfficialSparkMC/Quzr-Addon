@@ -9,8 +9,7 @@ import meteordevelopment.meteorclient.systems.modules.Modules;
 import meteordevelopment.meteorclient.systems.modules.render.Freecam;
 import meteordevelopment.meteorclient.utils.misc.input.KeyAction;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 
 import static com.macekill.addon.MaceKillAddon.CATEGORY;
 
@@ -52,7 +51,7 @@ public class FreecamTp extends Module {
     @EventHandler
     private void onMouseClick(MouseClickEvent event) {
         if (event.action != KeyAction.Press) return;
-        if (event.button() != GLFW.GLFW_MOUSE_BUTTON_2) return; // right click
+        if (event.button() != 1) return; // right click
 
         Freecam freecam = Modules.get().get(Freecam.class);
         if (mc.player == null || !freecam.isActive()) return;
@@ -62,11 +61,11 @@ public class FreecamTp extends Module {
         double y = freecam.pos.y - yOff;
         double z = freecam.pos.z;
 
-        mc.getNetworkHandler().sendPacket(
-                new PlayerMoveC2SPacket.PositionAndOnGround(x, y, z, mc.player.isOnGround(), false));
+        mc.getConnection().send(
+                new ServerboundMovePlayerPacket.Pos(x, y, z, mc.player.onGround(), false));
         mc.player.setPos(x, y, z);
 
         info("Teleported to freecam position (%.1f, %.1f, %.1f)", x, y, z);
-        event.cancel();
+        event.setCancelled(true);
     }
 }

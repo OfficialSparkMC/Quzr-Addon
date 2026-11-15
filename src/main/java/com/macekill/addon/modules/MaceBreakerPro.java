@@ -7,14 +7,14 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.player.FindItemResult;
 import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
-import net.minecraft.util.Hand;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Items;
+import net.minecraft.network.protocol.game.ServerboundAttackPacket;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.world.InteractionHand;
 
 /**
  * 盾牌破碎 - 攻击时自动斧+重锤连击破盾
@@ -51,18 +51,18 @@ public class MaceBreakerPro extends Module {
 
     @EventHandler
     private void onAttackEntity(AttackEntityEvent event) {
-        if (mc.player == null || mc.world == null) return;
+        if (mc.player == null || mc.level == null) return;
         if (!(event.entity instanceof LivingEntity target)) return;
 
         // 仅持盾模式：跳过未举盾的目标
         if (onlyOnShield.get() && !target.isBlocking()) return;
 
         // 检查当前武器是否匹配触发条件 (1.21.11 has no SwordItem class — swords are plain Items, match by registry id)
-        ItemStack handItem = mc.player.getMainHandStack();
-        String swordPath = net.minecraft.registry.Registries.ITEM.getId(handItem.getItem()).getPath();
+        ItemStack handItem = mc.player.getMainHandItem();
+        String swordPath = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(handItem.getItem()).getPath();
         boolean isSword = swordPath.contains("sword");
-        boolean isAxe = handItem.getItem() instanceof net.minecraft.item.AxeItem;
-        boolean isMace = handItem.getItem() instanceof net.minecraft.item.MaceItem;
+        boolean isAxe = handItem.is(net.minecraft.tags.ItemTags.AXES);
+        boolean isMace = handItem.getItem() instanceof net.minecraft.world.item.MaceItem;
 
         if (!(isSword && swordTrigger.get())
                 && !(isAxe && axeTrigger.get())
@@ -106,13 +106,13 @@ public class MaceBreakerPro extends Module {
             switchTo(originalSlot);
         }
 
-        mc.player.swingHand(Hand.MAIN_HAND);
+        mc.player.swing(InteractionHand.MAIN_HAND, mc.player.getMainHandItem().getAttackAnimation(), true);
     }
 
     private FindItemResult findAxe() {
         for (int i = 0; i < 9; i++) {
-            ItemStack stack = mc.player.getInventory().getStack(i);
-            if (stack.getItem() instanceof net.minecraft.item.AxeItem) return new FindItemResult(i, stack.getCount());
+            ItemStack stack = mc.player.getInventory().getItem(i);
+            if (stack.is(net.minecraft.tags.ItemTags.AXES)) return new FindItemResult(i, stack.getCount());
         }
         return new FindItemResult(-1, 0);
     }
@@ -122,14 +122,14 @@ public class MaceBreakerPro extends Module {
     }
 
     private void switchTo(int slot) {
-        if (mc.player == null || mc.getNetworkHandler() == null || slot < 0 || slot > 8) return;
+        if (mc.player == null || mc.getConnection() == null || slot < 0 || slot > 8) return;
         setSelectedSlot(mc.player.getInventory(), slot);
-        mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(slot));
+        mc.getConnection().send(new ServerboundSetCarriedItemPacket(slot));
     }
 
     private void sendAttackPacket(LivingEntity target) {
-        mc.getNetworkHandler().sendPacket(
-                PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+        mc.getConnection().send(
+                new ServerboundAttackPacket(target.getId()));
     }
 
     private int getSelectedSlot() {
@@ -137,7 +137,7 @@ public class MaceBreakerPro extends Module {
         return mc.player.getInventory().getSelectedSlot();
     }
 
-    private void setSelectedSlot(PlayerInventory inv, int slot) {
+    private void setSelectedSlot(Inventory inv, int slot) {
         if (inv == null || slot < 0 || slot > 8) return;
         inv.setSelectedSlot(slot);
     }
