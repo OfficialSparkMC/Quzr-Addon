@@ -92,10 +92,10 @@ not ask for; see `problems.md` #44.
 (blocks ignored) → entity beyond 4.5 blocks and within `entity-reach` (not an item entity) →
 `Attack.attack(target, false, 0, false)` (plain hit — the mace path was removed); if that did not
 fire and `blocks` is on → `breakBlock`. Use click only works while `blocks` is on.
-`breakBlock`: packet-teleport to `block.toCenterPos().add(0,2,0)`, send `START_DESTROY_BLOCK`,
+`breakBlock`: packet-teleport to `Vec3.atCenterOf(target).add(0,2,0)`, send `START_DESTROY_BLOCK`,
 teleport back; while held, `updateBreakProgress` picks the fastest hotbar tool and adds
 `BlockUtils.getBreakDelta`, at `>=1.0` → `STOP_DESTROY_BLOCK` + reset. `interact` uses the same
-block path with `PlayerInteractBlockC2SPacket`. Turning `blocks` off, releasing the key, or
+block path with `ServerboundUseItemOnPacket(MAIN_HAND, BlockHitResult, 0)`. Turning `blocks` off, releasing the key, or
 `onDeactivate` resets the break state. All teleports are server-side only
 (`setClientSided=false`) and are trivially visible to anticheat.
 
@@ -105,14 +105,13 @@ outline, ShapeMode.Both, 0)` when the hit point is beyond the vanilla 4.5-block 
 are skipped so the vanilla outline is not duplicated). The box follows the camera, so it also works
 in third person/freecam; it only draws what the ray actually hits within the configured range.
 
-Far-break **crack overlay** (2026-11-05): the break loop feeds Minecraft's own breaking
-animation by calling `mc.world.setBlockBreakingInfo(mc.player.getId(), pos, stage)` right after
-the START packet and inside `updateBreakProgress` — the same call vanilla makes locally
-(`ClientPlayerInteractionManager.updateBlockBreakingProgress` ends with it,
-`getBlockBreakingProgress()` = `progress > 0 ? (int)(progress*10) : -1`) and remotely
-(`BlockBreakingProgressS2CPacket` → `ClientWorld.setBlockBreakingInfo`). `hideCrack()` sends
-stage `-1` (the renderer's removal path, keyed by entity id only) in `resetBreaking`, which runs
-on release/target change/finish/module-off. Stages map to `destroy_stage_0..9` in the block
+Far-break **crack overlay** (ported to 26.3 / official mappings 2026-11-16): the break loop feeds
+Minecraft's own breaking animation by calling `mc.level.destroyBlockProgress(mc.player.getId(), pos, stage)`
+right after the START packet and inside `updateBreakProgress` — the same call vanilla makes locally
+(`MultiPlayerGameMode.getDestroyStage()` = `progress > 0 ? (int)(progress*10) : -1`, invoked from
+`continueDestroyBlock`) and remotely (`ClientboundBlockDestructionPacket` → `ClientLevel.destroyBlockProgress`).
+`hideCrack()` sends stage `-1` (the renderer's removal path, keyed by entity id only) in `resetBreaking`,
+which runs on release/target change/finish/module-off. Stages map to `destroy_stage_0..9` in the block
 atlas, so custom breaking textures from resource packs are used automatically. Client-side
 rendering only — no packets added, the server sees the exact same break loop as before.
 

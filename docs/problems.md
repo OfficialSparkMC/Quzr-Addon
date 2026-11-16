@@ -226,6 +226,16 @@
     flag every smash exactly like UltraAura. One smash per `Attack Delay` ticks while the module
     is on; setting `Attack Delay` near 0 turns it into a continuous packet wall (no client-side
     limiter beyond the delay). Only one victim per attempt, no multi-target.
+45. **26.3 DELTA — `InfiniteReach` crack overlay.** Ported to the 26.3 official mappings:
+    yarn `ClientWorld.setBlockBreakingInfo` → `ClientLevel.destroyBlockProgress(int, BlockPos, int)`
+    (same semantics: stage `<0 || >=10` removes the crack, `0..9` shows it; vanilla calls it from
+    `MultiPlayerGameMode.getDestroyStage()` during `continueDestroyBlock`, remotely via
+    `ClientboundBlockDestructionPacket`); `BlockPos.ORIGIN` → `BlockPos.ZERO`;
+    `MinecraftClient.getNetworkHandler()` → `getConnection()`; `mc.world` → `mc.level`.
+    Packet CTORs verified against the 26.3 merged jar (`ServerboundPlayerActionPacket(Action,
+    BlockPos, Direction[, seq])`, `ServerboundUseItemOnPacket(hand, hit, seq)`); Meteor 26.3's
+    `BlockUtils.getBreakDelta(slot, state)` indexes the same `items` list `Inventory.getItem(0..8)`
+    does, so hotbar indices stay valid. Hover box unchanged (`Camera.position()`/`xRot()`/`yRot()`).
 
 ## Fix priority (suggested)
 

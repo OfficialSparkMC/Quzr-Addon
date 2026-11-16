@@ -232,26 +232,26 @@ public class InfiniteReach extends Module {
 
     /**
      * Shows Minecraft's own block-breaking overlay on the far block. Vanilla uses the
-     * exact same call twice: locally ({@code ClientPlayerInteractionManager
-     * .updateBlockBreakingProgress} ends with {@code client.world.setBlockBreakingInfo(
-     * player.getId(), pos, getBlockBreakingProgress())}), and remotely
-     * ({@code BlockBreakingProgressS2CPacket} → {@code ClientWorld.setBlockBreakingInfo}).
-     * Nobody broadcasts a break packet for this far-break loop, so the world call is made
-     * directly with the own entity id — the same id vanilla uses for the local player, so
-     * it can never collide with another entity's crack nor stack with near-break cracks.
+     * exact same call twice: locally ({@code MultiPlayerGameMode.getDestroyStage()} /
+     * {@code continueDestroyBlock} call {@code ClientLevel.destroyBlockProgress(
+     * player.getId(), pos, stage)}), and remotely ({@code ClientboundBlockDestructionPacket}
+     * → {@code ClientLevel.destroyBlockProgress}). Nobody broadcasts a break packet for this
+     * far-break loop, so the world call is made directly with the own entity id — the same id
+     * vanilla uses for the local player, so it can never collide with another entity's crack
+     * nor stack with near-break cracks.
      *
-     * <p>The stage decision mirrors {@code getBlockBreakingProgress()}:
+     * <p>The stage decision mirrors {@code MultiPlayerGameMode.getDestroyStage()}:
      * {@code progress > 0 ? (int)(progress * 10) : -1}, clamped to the 0..9 window the
      * renderer accepts (stage {@code < 0 || > 9} removes a crack). Stages render from
      * {@code destroy_stage_0..9} in Minecraft's block atlas, so any resource pack with
      * custom breaking textures applies automatically.
      */
     private void showCrack() {
-        if (mc.player == null || mc.world == null || currentBreakingBlock == null) return;
+        if (mc.player == null || mc.level == null || currentBreakingBlock == null) return;
 
         int stage = breakProgress > 0.0 ? (int) (breakProgress * 10.0) : -1;
         if (stage > 9) stage = 9;
-        mc.world.setBlockBreakingInfo(mc.player.getId(), currentBreakingBlock, stage);
+        mc.level.destroyBlockProgress(mc.player.getId(), currentBreakingBlock, stage);
         crackShown = stage >= 0;
     }
 
@@ -263,9 +263,9 @@ public class InfiniteReach extends Module {
     private void hideCrack() {
         if (!crackShown) return;
         crackShown = false;
-        if (mc.world == null || mc.player == null || mc.getNetworkHandler() == null) return;
-        mc.world.setBlockBreakingInfo(
-            mc.player.getId(), currentBreakingBlock != null ? currentBreakingBlock : BlockPos.ORIGIN, -1);
+        if (mc.level == null || mc.player == null || mc.getConnection() == null) return;
+        mc.level.destroyBlockProgress(
+            mc.player.getId(), currentBreakingBlock != null ? currentBreakingBlock : BlockPos.ZERO, -1);
     }
 
     private void finishBreaking() {

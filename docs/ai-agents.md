@@ -79,7 +79,15 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-08 — `InfiniteReach` far-break path now renders Minecraft's own
+*Last verified: 2026-11-16 — `InfiniteReach` ported to the 26.3 official mappings:
+yarn `ClientWorld.setBlockBreakingInfo` → `ClientLevel.destroyBlockProgress(int, BlockPos, int)`
+(same stage semantics: `<0 || >=10` removes, `0..9` draws; vanilla calls it from
+`MultiPlayerGameMode.getDestroyStage()` / `continueDestroyBlock`, remotely via
+`ClientboundBlockDestructionPacket`); `BlockPos.ORIGIN` → `BlockPos.ZERO`;
+`getNetworkHandler()` → `mc.getConnection()`. Packet CTORs and Meteor 26.3's
+`BlockUtils.getBreakDelta` (hotbar indices == `items` list order) verified against the 26.3
+merged jar + meteor-client 26.3-SNAPSHOT sources; `./gradlew build` green. See problems.md #45.
+Previously on 2026-11-08: `InfiniteReach` far-break path now renders Minecraft's own
 breaking animation: after the START packet and on every `updateBreakProgress` step it calls
 `mc.world.setBlockBreakingInfo(mc.player.getId(), pos, stage)` (same call vanilla uses for the
 local player and via `BlockBreakingProgressS2CPacket` for remote ones; stage
