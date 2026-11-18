@@ -6,8 +6,11 @@
 
 - `extends MeteorAddon`, `LOG = "Qazr-Addons"`.
 - `onRegisterCategories()` registers `CATEGORY = new Category("Qazr1234")`.
-- `onInitialize()` adds 26 registered modules via `Modules.get().add(new X())` grouped by comments
-  (重锤战斗 / 长矛战斗 / 移动辅助 / 自动化 / 聊天/信息); five classes remain unregistered.
+- `onInitialize()` adds 24 registered modules via `Modules.get().add(new X())` grouped by comments
+  (重锤战斗 / 长矛战斗 / 移动辅助 / 自动化 / 聊天/信息); two classes remain unregistered
+  (`MaceAura`, `AdvancedNoFall` — registration commented out). The bundled `MaceMissLite`,
+  `XinTpMace`, `TpMace`, `MaceDMG`, `AntiAirMiss`, `AutoRise` and `AutoTotemToHotbar`
+  modules were removed entirely on 2026-11-18.
 - `getPackage()` returns `"com.macekill.addon"` — Meteor uses it to scan settings/commands.
 - Logs module count via `Modules.get().getGroup(CATEGORY).size()`.
 
@@ -33,7 +36,7 @@ To add a HUD element: it must extend Meteor's `HudElement`, not `Module` (note:
 | `utils/Movement.java` | static util | `teleport` / `execute` / `calculatePackets` / `sendPackets` — `PositionAndOnGround` packet teleports, 10 blocks per filler packet (brew-addon port) |
 | `utils/HitResults.java` | static util | `getCrosshairTarget(entity, range, ignoreBlocks, filter)` — camera raycast with custom reach (brew-addon port) |
 
-### Canonical combat flow (MaceKillModule / XinTpMace / MaceMissLite)
+### Canonical combat flow (MaceKillModule)
 
 ```
 TickEvent.Pre → find target (Targeting / inline loop)
@@ -49,9 +52,10 @@ TickEvent.Pre → find target (Targeting / inline loop)
              → Movement.doTpTo(originalPos)
 ```
 
-`TpMace` / `MaceAttect` do **not** use this flow — they have their own
-`stepMove` / `stepMoveDown` / `findDropColumn` / `checkAndSwapWeapon` copies
-(~400 duplicated lines each). See `problems.md` § duplication.
+`MaceAttect` does **not** use this flow — it has its own
+`stepMove` / `stepMoveDown` / `findDropColumn` copies.
+`MaceMissLite`, `XinTpMace` and `TpMace` shared this fate and were removed 2026-11-18.
+See `problems.md` § duplication.
 
 ### Totem-bypass theory (as coded)
 
@@ -89,7 +93,8 @@ damage, hurt invulnerability, and 24-totem sustained drain.
    remember `maceSwapBackSlot` and move back on finish.
 
 Reflection target was `PlayerInventory.selectedSlot` (`Inventory.java:103-108`), duplicated
-in `MaceAura`, `TpMace`, `MaceAttect`, `MaceDMG`, `AutoMineModule`, `AutoShulkerBox`, `SpearKill`.
+in `MaceAura`, `MaceAttect`, `AutoMineModule`, `AutoShulkerBox`, `SpearKill`
+(the `TpMace` and `MaceDMG` copies were removed with those modules 2026-11-18).
 FIXED 2026-09-25: all copies now use the public `getSelectedSlot()/setSelectedSlot()` API —
 the Yarn-name reflection never resolved at runtime (intermediary), silently breaking slot
 reverts (root cause of the silent-swap bug, see `problems.md` §3).
@@ -116,11 +121,7 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 |--------|------------|---------------|
 | MaceKillModule | `TickEvent.Pre`, phases IDLE/START_DELAY/RETURN_DELAY | TP → delay → smash → return |
 | MaceAura *(unregistered)* | `TickEvent.Pre` + `attackDelay` cooldown | nearest target → totem list or single height |
-| TpMace | `TickEvent.Pre`, phases IDLE/DELAY/RETURN_DELAY | first-attack fast path, burst smash, stepped return |
 | MaceAttect | `AttackEntityEvent`, `PacketEvent.Send` (public `handle`/`meteor$getEntity`), `TickEvent.Pre` | `pendingTarget` → SMASH (pierce or Cave Safe) → RETURN_DELAY |
-| MaceMissLite *(unregistered)* | `TickEvent.Pre` IDLE/DELAY, `Render3DEvent` | sorted target → dv-offset smash + box render |
-| XinTpMace *(unregistered)* | `TickEvent.Pre` + `cooldownTicks` | predicted TP + clamped heights |
-| MaceDMG *(unregistered)* | `TickEvent.Post` | cooldown-edge detect → fake-Y burst |
 | MaceBreakerPro | `AttackEntityEvent` | cancel → axe hit → mace hit → restore |
 | UltraAura | `TickEvent.Pre` (target list), `TickEvent.Post` (attack timer) | closest-angle target → packet TP in → attack → TP back |
 | Blacklist | `TickEvent.Post` (attack timer) | `.blacklist` names in `Scan Distance` → `UltraAura.smash(player)` (shared code, UltraAura may be off) |
@@ -137,7 +138,7 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | AutoMsg | `TickEvent.Post`, `PacketEvent.Receive(GameMessageS2C)` | interval/msg-count trigger → chat/cmd |
 | MassTpa | `TickEvent.Pre` | one `tpa <name>` per `Delay` ticks |
 | FreecamTp | `MouseClickEvent` (right) | teleport to `Freecam.pos` |
-| Rise/Speed/AutoRise | `TickEvent.Pre` | packet bursts (see modules-other) |
+| Rise/Speed | `TickEvent.Pre` | packet bursts (see modules-other) |
 | b-anti-creeper | `TickEvent.Post` (OnExplode), `EntityAddedEvent` (OnSpawn) | in-range creeper → `Attack.attack(creeper, mace, 10, equip)` |
 | PlayerTp | one-shot `onActivate` | nearest player → `Movement.doTpTo` → auto-disable |
 | AdvancedNoFall *(unregistered)* | `TickEvent.Pre` | client-fall trigger → `onGround=true` spoof |

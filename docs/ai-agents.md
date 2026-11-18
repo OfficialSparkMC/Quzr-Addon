@@ -7,7 +7,7 @@
 ## 1. Mandatory first reads (in order)
 
 1. `docs/README.md` — index.
-2. `docs/overview.md` — module table (26 modules + `.tp` command; count them in `MaceKillAddon.java`).
+2. `docs/overview.md` — module table (24 modules + `.tp` command; count them in `MaceKillAddon.java`).
 3. `docs/architecture.md` — entry point + `macekill/*` helpers + packet table.
 4. `docs/build.md` — versions in `gradle.properties`, `build.gradle` deps, `fabric.mod.json`.
 5. `docs/problems.md` — known bugs. Do **not** re-introduce anything listed there.
@@ -33,7 +33,7 @@ Every code change that affects behavior, settings, modules, build, or known issu
 
 ### File conventions
 
-- Reference code as `` `path/To/File.java:line` `` (repo-relative, e.g. `` `src/main/java/com/macekill/addon/modules/TpMace.java:290` ``).
+- Reference code as `` `path/To/File.java:line` `` (repo-relative, e.g. `` `src/main/java/com/macekill/addon/modules/MaceAttect.java:290` ``).
 - Module headings: `## <in-game name> — \`modules/X.java\` (<lines> lines)`.
 - Settings inline as `` `Name(default)` ``; keep defaults identical to the `@Setting` builder.
 - Line counts: refresh with `wc -l` on touched files.
@@ -79,7 +79,13 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-08 — `InfiniteReach` far-break path now renders Minecraft's own
+*Last verified: 2026-11-18 — `TpMace`, `MaceMissLite`, `XinTpMace`, `MaceDMG`, `AntiAirMiss`,
+`AutoRise` and `AutoTotemToHotbar` were deleted entirely (classes + `MaceKillAddon`
+imports/registrations; 24 modules now registered). `MaceAura` and `AdvancedNoFall` remain on disk
+with their registration commented out. Problems.md #45 documents the removal. Docs synced
+(overview/architecture/modules-mace/modules-other/problems). `./gradlew build` green (Java 21 /
+yarn 1.21.11). The 26.3 branch carries the same removal on top of its own 26.3 doc set.
+Previously on 2026-11-08: `InfiniteReach` far-break path now renders Minecraft's own
 breaking animation: after the START packet and on every `updateBreakProgress` step it calls
 `mc.world.setBlockBreakingInfo(mc.player.getId(), pos, stage)` (same call vanilla uses for the
 local player and via `BlockBreakingProgressS2CPacket` for remote ones; stage
