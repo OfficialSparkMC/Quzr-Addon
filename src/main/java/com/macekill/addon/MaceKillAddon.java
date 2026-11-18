@@ -2,16 +2,13 @@ package com.macekill.addon;
 
 import com.macekill.addon.commands.BlacklistCommand;
 import com.macekill.addon.commands.TpCommand;
-import com.macekill.addon.modules.AdvancedNoFall;
+// import com.macekill.addon.modules.AdvancedNoFall;
 import com.macekill.addon.modules.AntiCreeper;
 import com.macekill.addon.modules.AntiPop;
 import com.macekill.addon.modules.ArrowKiller;
 import com.macekill.addon.modules.AutoMsgModule;
-import com.macekill.addon.modules.AutoRise;
-import com.macekill.addon.modules.AutoTotemToHotbar;
 import com.macekill.addon.modules.MaceAura;
 import com.macekill.addon.modules.MaceBreakerPro;
-import com.macekill.addon.modules.MaceMissLite;
 import com.macekill.addon.modules.NearestPlayerHUD;
 import com.macekill.addon.modules.Rise;
 import com.macekill.addon.modules.SpeedModule;
@@ -19,18 +16,14 @@ import com.macekill.addon.modules.AutoShulkerBox;
 import com.macekill.addon.modules.Blacklist;
 import com.macekill.addon.modules.AutoTpaReject;
 import com.macekill.addon.modules.SpearKill;
-import com.macekill.addon.modules.TpMace;
 import com.macekill.addon.modules.UltraAura;
 import com.macekill.addon.modules.MaceAttect;
-import com.macekill.addon.modules.XinTpMace;
 import com.macekill.addon.modules.AutoGGModule;
 import com.macekill.addon.modules.AutoMineModule;
 import com.macekill.addon.modules.CreativeGiveModule;
 import com.macekill.addon.modules.CustomPotionModule;
-import com.macekill.addon.modules.MaceDMG;
 import com.macekill.addon.modules.MaceKillModule;
 import com.macekill.addon.modules.PlayerTp;
-import com.macekill.addon.modules.AntiAirMiss;
 import com.macekill.addon.modules.FreecamTp;
 import com.macekill.addon.modules.Hitback;
 import com.macekill.addon.modules.InfiniteReach;
@@ -54,13 +47,8 @@ public class MaceKillAddon extends MeteorAddon {
         
         Modules.get().add(new MaceKillModule());
         Modules.get().add(new MaceAura());
-        Modules.get().add(new MaceMissLite());
-        Modules.get().add(new XinTpMace());
-        Modules.get().add(new TpMace());
         Modules.get().add(new MaceAttect());
         Modules.get().add(new MaceBreakerPro());
-        Modules.get().add(new MaceDMG());
-        Modules.get().add(new AntiAirMiss());
         Modules.get().add(new FreecamTp());
         Modules.get().add(new Hitback());
         Modules.get().add(new MassTpa());
@@ -73,11 +61,10 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new SpearKill());
 
         // ---- 移动辅助 ----
-        Modules.get().add(new AutoRise());
         Modules.get().add(new Rise());
         Modules.get().add(new SpeedModule());
         Modules.get().add(new PlayerTp());
-        Modules.get().add(new AdvancedNoFall());
+        // Modules.get().add(new AdvancedNoFall());
         Modules.get().add(new AntiPop());
 
         // ---- 自动化 ----
@@ -85,7 +72,6 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new AutoShulkerBox());
         Modules.get().add(new AutoMineModule());
         Modules.get().add(new CreativeGiveModule());
-        Modules.get().add(new AutoTotemToHotbar());
 
         // ---- 聊天/信息 ----
         Modules.get().add(new AutoGGModule());

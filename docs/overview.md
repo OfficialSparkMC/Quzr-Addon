@@ -1,6 +1,6 @@
 # Overview — Qazr-Addons
 
-> Meteor Client addon for Minecraft 1.21.11. All combat logic is packet-based
+> Meteor Client addon for Minecraft 26.3 (official mappings). All combat logic is packet-based
 > fake-fall / teleport ("VClip") mace damage. Expect kicks/bans on vanilla,
 > Paper, Grim, Vulcan, etc. This is a cheat addon, not a vanilla utility.
 
@@ -11,21 +11,21 @@
 | Mod id | `qazr-addons` (`src/main/resources/fabric.mod.json:3`) |
 | Name | `Qazr Addons` (`fabric.mod.json:6`) |
 | Entrypoint | `com.macekill.addon.MaceKillAddon` (`fabric.mod.json:14`) |
-| Category | `Qazr1234` (`MaceKillAddon.java:36`) |
-| Package | `com.macekill.addon` (`MaceKillAddon.java:87`) |
-| MC / Yarn / Loader | `1.21.11 / 1.21.11+build.3 / 0.18.6` (`gradle.properties:3-5`) |
-| Meteor | `0.18.6` local jar `libs/MeteorClient-1.21.11-0.18.6.jar` (renamed from `MeteorCilent` typo 2026-09-25) |
-| Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
-| Registration | `MaceKillAddon.onInitialize()` adds 26 modules (`MaceKillAddon.java:51-91`) |
+| Category | `Qazr1234` (`MaceKillAddon.java:40`) |
+| Package | `com.macekill.addon` (`MaceKillAddon.java:95`) |
+| MC / mappings / Loader | `26.3` / official (no yarn) / `0.19.5` (`gradle.properties:1,2`) |
+| Meteor | `26.3-SNAPSHOT` from `https://maven.meteordev.org/snapshots` (`build.gradle`) |
+| Java | 25 (`build.gradle`, `fabric.mod.json`) |
+| Registration | `MaceKillAddon.onInitialize()` adds 25 modules (`MaceKillAddon.java:48-81`) |
 
-## Module table (27 modules + 2 commands)
+## Module table (25 modules + 2 commands)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
 | In-game name | Class | One-liner |
 |--------------|-------|-----------|
 | `macemiss` | `modules/MaceKillModule.java` | TP-to-target + VClip multi-height attack, armor-break + totem-bypass modes |
-| `TpMace` | `modules/TpMace.java` | Long-range pierce-through-roof smash, silent swap, fall-prime packets |
+| `MaceAura` | `modules/MaceAura.java` | Tick-cooldown TP aura with totem-bypass heights, own position cache |
 | `MaceAttect` | `modules/MaceAttect.java` | Hit-triggered smash (manual hit or attack packet), no auto-TP |
 | `MaceBreakerPro` | `modules/MaceBreakerPro.java` | Axe+mace double-hit on `AttackEntityEvent` to break shields |
 | `SpearKill` | `modules/SpearKill.java` | Spear Blink (packet queue) / Lunge (charged dash) |
@@ -34,22 +34,22 @@
 | `ArrowKiller` | `modules/ArrowKiller.java` | Teleports bow/trident shots onto the target (needs `AntiPop` for the fall) |
 | `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) + far-block hover box; far breaks show vanilla destroy-stage cracks |
 
-> Classes `MaceAura`, `MaceMissLite`, `XinTpMace`, `MaceDMG` and `AntiAirMiss` still exist on disk but
-> their `Modules.get().add(...)` lines are commented out in `MaceKillAddon.java:54-59` — they cannot be
-> enabled in-game and are marked *(unregistered)* in `modules-mace.md`.
+> The `MaceMissLite`, `XinTpMace`, `TpMace`, `MaceDMG`, `AntiAirMiss`, `AutoRise` and `AutoTotemToHotbar`
+> module classes were removed entirely on 2026-11-18. `AdvancedNoFall` remains on disk with its
+> import/registration commented out (`MaceKillAddon.java:5,67`) — unregistered, cannot be enabled
+> in-game.
 
 ### Movement (see `modules-other.md`)
 
 | Name | Class | One-liner |
 |------|-------|-----------|
 | `Rise` | `modules/Rise.java` | 10× up/down jitter packets every `Delay` ticks |
-| `AutoRise` | `modules/AutoRise.java` | Rises when a target is within `Detection Range` (fixed X/Y bug, see `problems.md`) |
 | `Speed` | `modules/SpeedModule.java` | Staircase rise `Cycles × Rise Height` packets per tick |
 | `PlayerTp` | `modules/PlayerTp.java` | One-shot TP to nearest player on enable (see `commands.md` for `.tp`) |
 | `AntiPop` | `modules/AntiPop.java` | Rebuilds every outgoing move packet with `onGround=false` (server never sees you land) |
 
 > `AdvancedNoFall` is also on disk but its import/registration are commented out
-> (`MaceKillAddon.java:4,76`) — unregistered, cannot be enabled in-game.
+> (`MaceKillAddon.java:5,67`) — unregistered, cannot be enabled in-game.
 
 ### Automation
 
@@ -59,7 +59,6 @@
 | `AutoShulkerBox` | `modules/AutoShulkerBox.java` | Place/break shulker loop at crosshair pos, public slot API |
 | `ItemGiver` | `modules/CreativeGiveModule.java` | Creative generic item + enchant + attribute spawner |
 | `PotionGiver` | `modules/CustomPotionModule.java` | Creative custom splash/lingering potion spawner |
-| `AutoTotemToHotbar` | `modules/AutoTotemToHotbar.java` | Moves a totem into hotbar `Slot` every tick |
 | `MassTpa` | `modules/MassTpa.java` | Sends `/tpa <everyone>` on a tick timer |
 | `freecamtp` | `modules/FreecamTp.java` | Right-click teleports real player to Freecam camera |
 | `Hitback` | `modules/Hitback.java` | Replies to `EntityDamageS2CPacket` with an attack packet |
@@ -80,18 +79,18 @@ Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,Ta
 
 ## Requirements
 
-- Minecraft 1.21.11 + Fabric Loader 0.18.6 + Meteor Client 0.18.6.
+- Minecraft 26.3 + Fabric Loader 0.19.5 + Meteor Client 26.3-SNAPSHOT.
 - Mace in inventory for all mace modules; spear items for `SpearKill`; pickaxe for miner/shulker.
 - Creative mode for `ItemGiver` / `PotionGiver` (checked via `player.getAbilities().creativeMode`).
 - OP / permissive server for packet modules — strict anticheat will flag `PositionAndOnGround(false)` teleports.
 
 ## Warnings
 
-1. **Ban risk.** `TpMace`, `MaceAttect`, `MaceKillModule`, `UltraAura`, `Blacklist`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
+1. **Ban risk.** `MaceAttect`, `MaceKillModule`, `UltraAura`, `Blacklist`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
    `Speed`, `MassTpa`, `AutoMineModule` (fly) all send abnormal packet bursts. Use only on test servers.
 2. **Desync risk.** Many modules move the *server* via packets but never update the client
    (or vice versa). See `problems.md` § desync.
-3. **Config confusion.** Five mace modules overlap ~80%. Pick one; do not enable several at once
+3. **Config confusion.** Several mace modules overlap ~80%. Pick one; do not enable several at once
    (they all listen to `TickEvent.Pre` and will fight over slot selection).
 4. **Stolen-client drama.** `README.md` contains profanity and an ownership claim; not documentation.
    This `docs/` folder replaces it as the real reference.

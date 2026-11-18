@@ -8,12 +8,6 @@
 `if (!bypass.get() && delayTicks > 0) return;` is unreachable (`delayTicks>0` already returned above).
 Ban-prone PacketFly.
 
-### AutoRise — `modules/AutoRise.java` (87 lines)
-`Detection Range(6)`, `Rise Height(10)`, `Send Rotations` (>12 → 4 junk `LookAndOnGround`).
-Finds nearest alive non-creative/spectator attackable entity; if found sends two packets.
-**Fixed 2026-09-25**: first packet was `PositionAndOnGround(posX+h, posY, posZ)` (height on X);
-now `(posX, posY+h, posZ)`.
-
 ### Speed — `modules/SpeedModule.java` (50 lines)`Rise Height(5)`, `Cycles(10)`. Every tick sends `(Cycles+1)×3` packets staircasing
 `posY + h*i`, all `onGround=false`. At defaults 33 packets/tick ≈ 660/s. Instant flag.
 
@@ -170,10 +164,6 @@ face UP against `targetPos.down()`, sequence `0`); shulker block → one-tick gr
 (`wasPlacing`) → `ensurePickaxeInHand` (durability filter + `lastPickSlot` cache) +
 `breakBlock` (START+STOP same tick + swing) + `cycleShulkerBox` (refill slot).
 Slot switches send `UpdateSelectedSlotC2SPacket` since 2026-09-25 (was reflection-only desync).
-
-### AutoTotemToHotbar — `modules/AutoTotemToHotbar.java` (50 lines)
-`Slot(7)`. Per tick: offhand totem → done; else hotbar totem → `InvUtils.move` to `Slot`;
-else any-inventory totem → move to `Slot`. Uses Meteor `InvUtils` (async clicks).
 
 ### MassTpa — `modules/MassTpa.java` (111 lines)
 `Delay(20t)`, `Ignore Friends`, `Send On Enable`, `Chat Feedback`. `buildQueue` from

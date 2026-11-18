@@ -131,7 +131,7 @@
 
 | Module | Burst | Verdict |
 |--------|-------|---------|
-| `AntiAirMiss` | 21 pkts **every tick** while anyone in 6 blocks | No combat value (own position doesn't change enemy miss calc); pure self-flag. Disable by default / delete. |
+| ~~`AntiAirMiss`~~ | 21 pkts **every tick** while anyone in 6 blocks | **DELETED 2026-11-18** (module removed). Was: no combat value; pure self-flag. |
 | `Rise` | 20 pkts per `Delay` | PacketFly signature. |
 | `SpeedModule` | 33 pkts/tick at defaults (up to 153) | Instant Grim/Vulcan ban. |
 | `SpearKill` Blink flush | **FIXED 2026-09-25: capped at 500 queued packets** (auto-flush+reset) | Was unbounded OOM/kick risk. |
@@ -236,6 +236,14 @@
     BlockPos, Direction[, seq])`, `ServerboundUseItemOnPacket(hand, hit, seq)`); Meteor 26.3's
     `BlockUtils.getBreakDelta(slot, state)` indexes the same `items` list `Inventory.getItem(0..8)`
     does, so hotbar indices stay valid. Hover box unchanged (`Camera.position()`/`xRot()`/`yRot()`).
+46. **2026-11-18 — modules deleted.** `TpMace`, `MaceMissLite`, `XinTpMace`, `MaceDMG`,
+    `AntiAirMiss`, `AutoRise` and `AutoTotemToHotbar` were removed entirely (classes +
+    `MaceKillAddon` imports/registrations) to shrink the 26.3 release build. `MaceAura` was kept
+    and is now registered (it was already present in `onInitialize()`); `AdvancedNoFall` stays on
+    disk with its registration commented out. Historical numeric entries above that reference the
+    deleted files (e.g. #4, #7, #12b/c, #15, #18, #22, #23, #35, #39, #43) describe pre-deletion
+    code and are kept as history. `MaceAttect` absorbed TpMace's role (hit-triggered; Cave Safe
+    path in `MaceAttect.caveClimb` + `macekill/CaveBurst.java`).
 
 ## Fix priority (suggested)
 
@@ -243,6 +251,7 @@
 2. DONE 2026-09-25: `Mutable`-as-key + null-guard `onDeactivate` paths.
 3. PARTIAL 2026-09-25: jar typo fixed + `meteor_version` wired + `fabric.mod.json` pinned + empty mixins unwired.
    Still TODO: full Maven-ization.
-4. TODO: Dedup TpMace/MaceAttect into one `SmashEngine`; delete dead settings/fields.
-5. PARTIAL 2026-09-25: SpearKill queue capped at 500. Still TODO: rate-limit AntiAirMiss/Rise/Speed/MassTpa.
+4. DONE 2026-11-18: TpMace (and MaceMissLite/XinTpMace/MaceDMG) deleted; MaceAttect is now the sole
+   pierce/Cave-Safe smash engine — the dedup is done by deletion.
+5. PARTIAL 2026-09-25: SpearKill queue capped at 500. ~~AntiAirMiss~~ deleted 2026-11-18; still TODO: rate-limit Rise/Speed/MassTpa.
 6. TODO: Async `InvUtils.move` → tick-delayed attack; unify slot reflection into one tested helper.
