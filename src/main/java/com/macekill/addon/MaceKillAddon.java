@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
 
 public class MaceKillAddon extends MeteorAddon {
     public static final Logger LOG = LoggerFactory.getLogger("Qazr-Addons");
-    public static final Category CATEGORY = new Category("Qazr1234");
+    public static final Category CATEGORY = new Category("Qazr-addon");
 
     @Override
     public void onInitialize() {
