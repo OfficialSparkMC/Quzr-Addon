@@ -1,8 +1,8 @@
-# Qazr-Meteor-Addon 0.1 (*Alpha*)
+# Qazr-Addon 
 
 ![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
 <br>
-minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilities.
+> Meteor-Client addon, made by Me. Mostly mace pvp stuff plus some handy utilities.
 
 
 ## Features
@@ -18,7 +18,6 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 
 **Movement**
 - PlayerTp — teleports you to the nearest player, or use `.tp <name>` in chat
-- Rise / Speed / AutoRise — quick vertical movement tricks
 - AntiPop — the server never sees you touch the ground, so no fall damage
 - FreecamTp — fly the freecam somewhere, right click, you're there
 
