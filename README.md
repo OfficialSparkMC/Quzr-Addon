@@ -8,7 +8,6 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 ## Features
 
 **Mace combat**
-- TpMace — teleports to the target and smashes down with the mace, works underground too
 - MaceAttect — same smash but it triggers when YOU hit someone, no auto targeting; Cave Safe handles low roofs
 - Totem bypass — pops stacked totems in one burst, then keeps going one by one until they die; cave mode picks the highest clear air pocket up to 22 blocks (roofs are pierced) and pads the ascent to the packet-5 cap
 - Blacklist — `.blacklist add/remove/dis/list` keeps a kill list (saved across restarts); while the module is on, listed players within range (default 60 blocks) get smashed with UltraAura's code
@@ -27,7 +26,6 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 - OreTracker — finds ores nearby and digs its way to them by itself
 - AutoShulkerBox — places and breaks shulkers over and over for farming
 - ItemGiver / PotionGiver — spawn custom gear and potions in creative mode
-- AutoTotemToHotbar — keeps a totem in your hotbar slot
 - AntiCreeper — kills creepers before they blow up
 - MassTpa / auto-tpa-reject — tpa spam and auto deny
 - Hitback — auto hits back whoever hits you
@@ -35,7 +33,6 @@ minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilit
 **Chat stuff**
 - auto-gg — sends a gg message when you kill someone
 - auto-msg — messages players automatically
-- NearestPlayerHUD — shows the closest player and how far they are
 > heads up: most of the combat and movement stuff sends weird packets, so only use
 > it on servers where that's allowed. you will get banned anywhere with anticheat.
 
