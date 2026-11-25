@@ -1,4 +1,4 @@
-# Qazr-Addon 
+# Qazr-Addon
 
 ![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
 <br>
