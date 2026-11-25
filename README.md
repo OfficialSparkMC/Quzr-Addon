@@ -1,8 +1,8 @@
-# Qazr-Meteor-Addon 0.1 (*Alpha*)
+# Qazr-Addon
 
 ![Quzr Addon Icon](src/main/resources/assets/icons/icon.png)
 <br>
-minecraft meteor addon, made by Me. mostly mace pvp stuff plus some handy utilities.
+> Meteor-Client addon, made by Me. Mostly mace pvp stuff plus some handy utilities.
 
 
 ## Features
@@ -97,4 +97,4 @@ To build again:
 ```
 
 ## Official *discord* server:
-[https://discord.gg/M389NKHFY](https://discord.gg/H8BaMhuDzc)
+[https://discord.gg/H8BaMhuDzc](https://discord.gg/H8BaMhuDzc)
