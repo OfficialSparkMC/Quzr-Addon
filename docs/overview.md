@@ -11,21 +11,21 @@
 | Mod id | `qazr-addons` (`src/main/resources/fabric.mod.json:3`) |
 | Name | `Qazr Addons` (`fabric.mod.json:6`) |
 | Entrypoint | `com.macekill.addon.MaceKillAddon` (`fabric.mod.json:14`) |
-| Category | `Qazr1234` (`MaceKillAddon.java:40`) |
-| Package | `com.macekill.addon` (`MaceKillAddon.java:94`) |
+| Category | `Qazr-addon` (`MaceKillAddon.java:38`) |
+| Package | `com.macekill.addon` (`MaceKillAddon.java:90`) |
 | MC / Yarn / Loader | `1.21.11 / 1.21.11+build.3 / 0.18.6` (`gradle.properties:3-5`) |
 | Meteor | `0.18.6` local jar `libs/MeteorClient-1.21.11-0.18.6.jar` (renamed from `MeteorCilent` typo 2026-09-25) |
 | Java | 21 (`build.gradle:41`, `fabric.mod.json:23`) |
-| Registration | `MaceKillAddon.onInitialize()` adds 24 modules (`MaceKillAddon.java:47-80`) |
+| Registration | `MaceKillAddon.onInitialize()` adds 23 modules (`MaceKillAddon.java:45-76`) |
 
-## Module table (24 modules + 2 commands)
+## Module table (23 modules + 2 commands)
 
 ### Mace / spear combat (see `modules-mace.md`)
 
 | In-game name | Class | One-liner |
 |--------------|-------|-----------|
 | `macemiss` | `modules/MaceKillModule.java` | TP-to-target + VClip multi-height attack, armor-break + totem-bypass modes |
-| `MaceAttect` | `modules/MaceAttect.java` | Hit-triggered smash (manual hit or attack packet), no auto-TP |
+| `Smasher` | `modules/Smasher.java` | Hit-triggered smash (manual hit or attack packet), no auto-TP |
 | `MaceBreakerPro` | `modules/MaceBreakerPro.java` | Axe+mace double-hit on `AttackEntityEvent` to break shields |
 | `SpearKill` | `modules/SpearKill.java` | Spear Blink (packet queue) / Lunge (charged dash) |
 | `UltraAura` | `modules/UltraAura.java` | TP aura: closest-angle target, packet teleport in → attack → teleport back |
@@ -33,9 +33,11 @@
 | `ArrowKiller` | `modules/ArrowKiller.java` | Teleports bow/trident shots onto the target (needs `AntiPop` for the fall) |
 | `inf-reach` | `modules/InfiniteReach.java` | Entity attacks and block interact/break with separate `entity-reach`/`block-reach` (210 each) + far-block hover box; far breaks show vanilla destroy-stage cracks |
 
-> The `MaceMissLite`, `XinTpMace`, `TpMace`, `MaceDMG`, `AntiAirMiss`, `AutoRise` and `AutoTotemToHotbar`
-> module classes were removed entirely on 2026-11-18. `MaceAura` and `AdvancedNoFall` remain on disk
-> with their registration commented out (`MaceKillAddon.java:5,48,66`) — they cannot be enabled in-game.
+> The `MaceMissLite`, `XinTpMace`, `TpMace`, `MaceDMG`, `AntiAirMiss`, `MaceAura`, `AutoRise` and
+> `AutoTotemToHotbar` module classes were removed entirely (most on 2026-11-18, `MaceAura` on
+> 2026-11-25). `MaceAttect` was renamed `Smasher` on 2026-11-25. `AdvancedNoFall` remains on disk
+> with its import/registration commented out (`MaceKillAddon.java:5,63`) — unregistered, cannot be
+> enabled in-game.
 
 ### Movement (see `modules-other.md`)
 
@@ -47,7 +49,7 @@
 | `AntiPop` | `modules/AntiPop.java` | Rebuilds every outgoing move packet with `onGround=false` (server never sees you land) |
 
 > `AdvancedNoFall` is also on disk but its import/registration are commented out
-> (`MaceKillAddon.java:5,66`) — unregistered, cannot be enabled in-game.
+> (`MaceKillAddon.java:5,63`) — unregistered, cannot be enabled in-game.
 
 ### Automation
 
@@ -69,7 +71,6 @@
 | `auto-gg` | `modules/AutoGGModule.java` | GG on kill (death-message parse) + chat prefix/suffix injector |
 | `auto-msg` | `modules/AutoMsgModule.java` | Random/burst harassing DMs, typo engine, tell-once set |
 | `auto-tpa-reject` | `modules/AutoTpaReject.java` | Denies `* wants to be teleported to you` messages |
-| `NearestPlayerHUD` | `modules/NearestPlayerHUD.java` | `getInfoString()` nearest-player name+dist (module info, not HUD element) |
 
 Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,TargetFilter,SortPriority,BurstHeights}.java`,
 `utils/CreativeGiveUtil.java`, `utils/{Attack,Movement,HitResults}.java` (brew-addon ports),
@@ -84,7 +85,7 @@ Shared helpers: `modules/macekill/{Combat,Config,Movement,Inventory,Targeting,Ta
 
 ## Warnings
 
-1. **Ban risk.** `MaceAttect`, `MaceKillModule`, `UltraAura`, `Blacklist`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
+1. **Ban risk.** `Smasher`, `MaceKillModule`, `UltraAura`, `Blacklist`, `ArrowKiller`, `InfiniteReach`, `AntiPop`, `Rise`,
    `Speed`, `MassTpa`, `AutoMineModule` (fly) all send abnormal packet bursts. Use only on test servers.
 2. **Desync risk.** Many modules move the *server* via packets but never update the client
    (or vice versa). See `problems.md` § desync.

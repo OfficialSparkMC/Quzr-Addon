@@ -16,8 +16,8 @@ import java.util.List;
  *
  * The ceiling used here is the PIERCE ceiling (world top above the target), not the
  * VClip clearance to the nearest roof — so bursts keep working inside caves / under a
- * roof, where the smash teleports straight up through the ceiling (see TpMace /
- * MaceAttect stepMoveDown, which skips block-intersecting steps).
+ * roof, where the smash teleports straight up through the ceiling (see Smasher
+ * stepMoveDown, which skips block-intersecting steps).
  */
 public final class BurstHeights {
     private BurstHeights() {}

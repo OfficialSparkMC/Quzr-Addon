@@ -21,14 +21,14 @@
    are incompatible"). Runtime against newer Meteor is untested (we compile against the
    local 0.18.6 jar), so API drift may still break at runtime.
 4. **MEDIUM — naming.** `maven_group com.macekill` vs `archives_base_name Qazr-Addons` vs id
-   `qazr-addons` vs `MaceKillAddon` — pick one brand. `MassTpa`/`MaceAttect`(sic)/`MaceDMG` inconsistent caps.
+   `qazr-addons` vs `MaceKillAddon` — pick one brand. `MassTpa`/`Smasher` inconsistent caps.
 5. **LOW — `README.md`.** Profanity + theft claim, no usage/build info. Keep `docs/` as canonical reference.
 
 ## 1. Duplication — HIGH (maintenance)
 
-- `TpMace.java` (864) vs `MaceAttect.java` (1223): `attackOnce/stepMove/stepMoveDown/hitboxBlocked/
+- `TpMace.java` (deleted 2026-11-18) vs `Smasher.java` (918): `attackOnce/stepMove/stepMoveDown/hitboxBlocked/
   firstClearBelow/findDropColumn/sendAttack/finishAttack/returnToStart/resetState/checkAndSwapWeapon/
-  swapMace/getYawTo/getPitchTo` are ~95% identical. Same for `getDrainHeights/parseHeight/countTotems`
+  swapMace/getYawTo/getPitchTo` were ~95% identical. Same for `getDrainHeights/parseHeight/countTotems`
   ×5 files, `getSelectedSlot/setSelectedSlot` ×7 files, totem-bypass prologue ×5 files.
   Fix: move to `macekill/` (`SmashEngine`, `WeaponSwap`, `Heights`) and delete copies.
 - `Combat.BypassRunner` (`Combat.java`) is never instantiated — dead. `Totem Attacks` /
@@ -48,8 +48,8 @@
    (VClip straight up, then drop onto target); `basePos` reuse matches that design. Left as-is.
 10. **PARTIALLY FIXED 2026-09-25 — hardcoded world top.** `Combat` uses `worldTop(mc)` =
     `world.getTopYInclusive()` with 319 fallback; `getVclipClearance` uses `Math.floor(target.getY())`;
-    TpMace/MaceAttect totem bursts use the pierce ceiling (`worldTop - targetY`, cave-proof).
-    `MaceAura` scan and non-burst `getAttackHeight` paths still hardcode caps — unify next.
+    `Smasher` totem bursts use the pierce ceiling (`worldTop - targetY`, cave-proof).
+    Non-burst `getAttackHeight` paths still hardcode caps — unify next.
 11. **FIXED 2026-09-25 — cave attack position.** `TpMace`/`MaceAttect.findDropColumn` is now
     two-phase: fully-clear column (open sky) else nearest column with a FREE hitbox attack
     spot within 2.9 blocks of the target (`findAttackY`, top-down scan). The old fixed
@@ -66,20 +66,18 @@
     which is exactly bursts stalling partway (~15 hits in, rest whiffed). Skips now fire
     only when they fit in one step (thin roofs); thick rock is passed through in-cap —
     every packet stays within the move cap on vanilla.
-12c. **Stacked totems (20/slot) outlasting the burst — `Sustained Drain` (TpMace/MaceAttect).**
-    A single burst can't exceed reality (actual held totems) and stalls under server mace-
-    damage caps or packet drops. New chain: after an unfinished burst the module keeps one
-    lethal single per cooldown window (22 ticks in the pierce path, 22-60 in Cave Safe) until
-    death or `Max Sustained Hits`. FIXED 2026-09-25 (2nd pass): the chain used to die as soon as the
-    enemy's *visible* totems emptied, because `Detect Totem` only ever sees hands — the
-    client never receives a full enemy inventory (protocol blindness). An armed chain now
-    continues regardless of visibility (`isChainedTarget` / `sustainHit` gate the branch).
+12c. **REMOVED 2026-11-25 — stacked totems outlasting the burst / `Sustained Drain`.**
+    The `Sustained Drain` chain (and its `Max Sustained Hits` setting) was removed from
+    `Smasher` (then `MaceAttect`). A single burst still cannot exceed reality (actual held
+    totems) and stalls under server mace-damage caps or packet drops, but there is no
+    follow-up chain anymore: `Totems To Pop` / `Detect Totem` bound the burst.
 
 ## 3. Inventory / slot desync — HIGH
 
 13. **FIXED 2026-09-25 — reflection `PlayerInventory.selectedSlot` (ROOT CAUSE of the
-    silent-swap bug).** All 9 copies (`macekill/Inventory`, `TpMace`, `MaceAttect`, `MaceAura`,
-    `MaceBreakerPro`, `MaceDMG`, `AutoShulkerBox`, `AutoMineModule`, `SpearKill`) used
+    silent-swap bug).** All 9 copies (`macekill/Inventory`, `TpMace`, `Smasher` (then
+    `MaceAttect`), `MaceAura` (deleted), `MaceBreakerPro`, `MaceDMG`, `AutoShulkerBox`,
+    `AutoMineModule`, `SpearKill`) used
     `getDeclaredField("selectedSlot")` with the Yarn name, which does not exist at runtime
     (intermediary mappings) — so in production reads always returned 0 and writes were silently
     dropped. Effects: silent-swap reverts sent slot 0 instead of the true original (server stuck
@@ -88,12 +86,13 @@
     Now uses the public `PlayerInventory.getSelectedSlot()/setSelectedSlot()` API (verified via
     javap), which Loom remaps correctly — works in dev and production. Dead `Field` decls/imports
     removed. (MaceAttect's dual-name packet-field reflection is unaffected — it already tries both.)
-14. **OPEN — `InvUtils.move()` is async** but `Combat.executeAttack`, `MaceAura.executeAttack`,
-    `XinTpMace.onTick`, `MaceMissLite.doTpAura` attack in the same tick — server still sees the old
-    item → no mace damage. Fix: defer attack 1–2 ticks after a backpack move.
+14. **OPEN (historical) — `InvUtils.move()` is async** but `Combat.executeAttack`, the deleted
+    `MaceAura.executeAttack`, `XinTpMace.onTick`, `MaceMissLite.doTpAura` attacked in the same
+    tick — server still sees the old item → no mace damage. Fix: defer attack 1–2 ticks after a
+    backpack move.
 15. **FIXED 2026-09-25 — `AutoShulkerBox.setSelectedSlot`.** Now validates slot range and sends
     `UpdateSelectedSlotC2SPacket` so server/client stay in sync.
-16. **PARTIALLY FIXED 2026-09-25 — `swapMace` / silent-swap.** `TpMace`/`MaceAttect`
+16. **PARTIALLY FIXED 2026-09-25 — `swapMace` / silent-swap.** `TpMace` (deleted) / `Smasher`
     `onDeactivate`/`resetState`/`switchTo` null-guard `player`/`networkHandler`/`interactionManager`
     and slot range; `swapMace` validates both slots. Found 2026-09-25 — the SILENT-SWAP BUG:
     the revert waited in `resetState()` until after the 3-tick `RETURN_DELAY`, so for 3 ticks
@@ -115,13 +114,13 @@
     slot + nulls. Same-tick double-hit eaten by cooldown still open.
 20. **FIXED 2026-09-25 — `Targeting.isSafeBlock`.** Null-guards `mc/world/pos`.
     XZ-only prediction limitation still open.
-21. **MEDIUM — `MaceAura.positionCache` never invalidated** except on kill/deactivate. Newly placed
-    blocks are treated as air → teleport inside them → fall reset. Clear per tick or on block update.
-22. **MEDIUM — entity loops** (`MaceAura:146`, `Targeting:31`, `TpMace:691`, …) iterate
-    `world.getEntities()` live — CME risk under spawn/despawn. Snapshot or use `world.getPlayers()`.
-23. **LOW — friend checks inconsistent.** `TpMace:718-719` checks both `isFriend` and `shouldAttack`;
-    `MaceAura:152` only `shouldAttack`. Standardize on `shouldAttack`.
-24. **FIXED 2026-11-02 — `MaceAttect` reflection.** `AttackEntityEvent.entity` is now read directly
+21. **OBSOLETE 2026-11-25 — `MaceAura.positionCache` never invalidated** (module deleted).
+22. **OBSOLETE 2026-11-25 — entity loops** (`MaceAura:146`, `Targeting:31`, `TpMace:691`, …) iterate
+    `world.getEntities()` live — CME risk under spawn/despawn. `MaceAura`/`TpMace` are deleted;
+    `Targeting` remains. Snapshot or use `world.getPlayers()`.
+23. **OBSOLETE 2026-11-25 — friend checks inconsistent.** `TpMace:718-719` checked both `isFriend`
+    and `shouldAttack`; `MaceAura:152` only `shouldAttack` (both modules deleted).
+24. **FIXED 2026-11-02 — `Smasher` (then `MaceAttect`) reflection.** `AttackEntityEvent.entity` is now read directly
     (public field), and attack packets use `PlayerInteractEntityC2SPacket.handle(Handler)` plus
     `IPlayerInteractEntityC2SPacket.meteor$getEntity()` — the yarn/intermediary field-name lookup
     and its silent failure mode are gone. `MaceTotemFail`'s `Disable When Blocked` guard was also
@@ -139,7 +138,7 @@
 | `PlayerTp` / `.tp` | stepped long-range TP packets | Same teleport flags as mace smashes; cross-map jumps kick vanilla/Paper. |
 | `AdvancedNoFall` | 1-5 `onGround=true`/tick while falling | Safe by design on vanilla/Paper; Grim-style anticheats flag sustained spoofs. |
 | `ArrowKiller` | 4 no-ground primes + 6-8 tagged teleports + use/release per shot | Blatant server-side teleport; the prime is `onGround=true` unless AntiPop strips it. |
-| `MaceAttect` Cave Safe | 6 move packets per cave climb (4 no-op padding + up/down) | 22-block destination scan: the server accepts a clear endpoint even through a roof; 4 padding packets put the ascent at packet 5 (`sqrt(500)=22.36`). No stacked cycles (1.21.11 resets fall on ascent). Position-only packets remain anticheat-visible. |
+| `Smasher` | Up to a 198-hit pierce burst = thousands of move packets in one tick | Same VClip profile as `MaceKillModule`: 170-block `onGround=false` teleports, anticheat-visible. `Move Step`, `Totems To Pop` and `Detect Totem` bound the burst; the module warns above ~1500 packets. |
 | `Blacklist` | 2 move packets (PAPER) or a stepped path (SPIGOT) + attack packet, per smash | One smash per `Attack Delay` (default 20 ticks) on every blacklisted name in `Scan Distance` (0-256, default 60). Reuses `UltraAura.smash` — whatever ServerType/steps setup UltraAura is configured with. Same ban profile as UltraAura. |
 | `AutoMineModule` fly | `allowFlying` without creative | Fly flag on any anticheat. Needs a real movement bypass or removal. |
 | All VClip smashes | 170-block `onGround=false` teleports | Vanilla `moved too quickly`, Paper `invalid move`, Grim teleport checks. Test-server only. |
@@ -155,7 +154,7 @@
 28. **MEDIUM — A* `key()` drops Y** (`:503-504`). Different levels collide in `gScore/parent`.
     Include Y or scope per `tunnelY`.
 29. **FIXED 2026-09-25 — `onDeactivate`/reset NPEs.** `AutoMineModule.onDeactivate` guards `player`;
-    `FreecamTp` guards `freecam == null` + `player`; `TpMace`/`MaceAttect` guard
+    `FreecamTp` guards `freecam == null` + `player`; `Smasher` guards
     `player`/`networkHandler`/`interactionManager` in `onDeactivate`/`resetState`.
 30. **MEDIUM — `AutoShulkerBox.placeBlock` sequence `0`.** `PlayerInteractBlockC2SPacket(hand, hit, 0)`
     hardcodes sequence; server may reject. Use proper sequence/allocation.
@@ -196,21 +195,11 @@
     server-side teleports to attack outside vanilla reach; trivially detectable by anticheat.
     `AntiPop` directly conflicts with `AdvancedNoFall` (currently unregistered, file kept; both
     rewrite outgoing move packets), so never enable both.
-41. **KNOWN RISK — `MaceAttect` Cave Safe.** Corrected for 1.21.11: `onPlayerMove` calls
-    `onLanding()` on every upward move packet, so stacked up/down cycles cannot build fall.
-    The cave path scans destinations down from `CaveBurst.MAX_LIFT=22` and picks the highest
-    collision-clear endpoint; `isEntityNotCollidingWithBlocks` checks only that endpoint, so
-    the climb may pass through a roof into an air pocket above it. Contiguous clearance is
-    only the fallback. Four no-op padding packets (the last may carry the rotation) make the
-    ascent packet 5 of the tick, raising the cap to `sqrt(500)=22.36` blocks. `CaveBurst`
-    plans one burst hit from the verified endpoint, and `Sustained Drain` repeats the same
-    padded climb for stacked totems one dynamic cooldown window at a time. Caves with no
-    clear endpoint at least ~4.25 blocks up cannot support a lethal mace hit and warn instead
-    of stacking cycles. It still sends position-only teleports (anticheat-visible) and warns
-    once when `AntiPop` is inactive: an unlanded hit leaves real server fall that can hurt on
-    the next landing. Proof: `./gradlew caveBurstSimulation` includes a 2-block cave under a
-    6-block roof with an air pocket, pops 24/24 totems with zero rejected packets, and also
-    covers the 7-block sustained-only and 3-block impossible cases.
+41. **REMOVED 2026-11-25 — `Smasher` (then `MaceAttect`) Cave Safe.** The cave mode,
+    `macekill/CaveBurst.java`, `Sustained Drain`, `Max Sustained Hits` and the
+    `caveBurstSimulation` proof harness were removed. The remaining pierce burst still sends
+    position-only teleports (anticheat-visible) and warns once when `AntiPop` is inactive: an
+    unlanded hit leaves real server fall that can hurt on the next landing.
 42. **1.21.11 DELTA — `ArrowKiller` fallback lookup.** vicore used `World.getChunk(BlockPos)` to
     reject unloaded positions; the port uses `World.isPosLoaded(BlockPos)` (the 1.21.11 API).
     Vehicles use `VehicleMoveC2SPacket.fromVehicle`; the player path tags its
@@ -226,14 +215,15 @@
     flag every smash exactly like UltraAura. One smash per `Attack Delay` ticks while the module
     is on; setting `Attack Delay` near 0 turns it into a continuous packet wall (no client-side
     limiter beyond the delay). Only one victim per attempt, no multi-target.
-
-45. **2026-11-18 — modules deleted.** `TpMace`, `MaceMissLite`, `XinTpMace`, `MaceDMG`,
-    `AntiAirMiss`, `AutoRise` and `AutoTotemToHotbar` were removed entirely (classes +
-    `MaceKillAddon` imports/registrations; 24 modules now registered). `MaceAura` and
-    `AdvancedNoFall` remain on disk with their registration commented out. Historical numeric
-    entries above that reference the deleted files (e.g. #4, #7, #12b/c, #15, #18, #22, #23,
-    #35, #39, #43) describe pre-deletion code and are kept as history. `MaceAttect` absorbed
-    TpMace's role (hit-triggered; Cave Safe path in `MaceAttect.caveClimb` + `macekill/CaveBurst.java`).
+45. **2026-11-18 / 2026-11-25 — modules deleted and renamed.** `TpMace`, `MaceMissLite`,
+    `XinTpMace`, `MaceDMG`, `AntiAirMiss`, `AutoRise` and `AutoTotemToHotbar` were removed on
+    2026-11-18; `MaceAura` and `NearestPlayerHUD` were removed on 2026-11-25. All were deleted
+    as classes + `MaceKillAddon` imports/registrations. `MaceAttect` was renamed `Smasher` on
+    2026-11-25, and its Cave Safe / Sustained Drain features plus `macekill/CaveBurst.java` and
+    the `caveBurstSimulation` task were removed. `AdvancedNoFall` stays on disk with its
+    registration commented out. 23 modules are registered. Historical numeric entries above
+    that reference the deleted files (e.g. #4, #7, #12b/c, #15, #18, #22, #23, #35, #39, #43)
+    describe pre-deletion code and are kept as history.
 
 ## Fix priority (suggested)
 
@@ -241,7 +231,8 @@
 2. DONE 2026-09-25: `Mutable`-as-key + null-guard `onDeactivate` paths.
 3. PARTIAL 2026-09-25: jar typo fixed + `meteor_version` wired + `fabric.mod.json` pinned + empty mixins unwired.
    Still TODO: full Maven-ization.
-4. DONE 2026-11-18: TpMace (and MaceMissLite/XinTpMace/MaceDMG) deleted; MaceAttect is now the sole
-   pierce/Cave-Safe smash engine — the dedup is done by deletion.
+4. DONE 2026-11-18 / 2026-11-25: TpMace (and MaceMissLite/XinTpMace/MaceDMG/MaceAura) deleted;
+   `MaceAttect` renamed `Smasher` and reduced to the pierce-burst smash engine — the dedup is
+   done by deletion.
 5. PARTIAL 2026-09-25: SpearKill queue capped at 500. ~~AntiAirMiss~~ deleted 2026-11-18; still TODO: rate-limit Rise/Speed/MassTpa.
 6. TODO: Async `InvUtils.move` → tick-delayed attack; unify slot reflection into one tested helper.

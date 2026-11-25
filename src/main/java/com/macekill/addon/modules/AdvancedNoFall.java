@@ -15,7 +15,7 @@ import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
  * AdvancedNoFall - takes 0 fall damage without touching mace-smash damage.
  *
  * How it stays smash-safe: it triggers ONLY on CLIENT-side fall state
- * (player.fallDistance). Packet smashes (TpMace / MaceAttect / macemiss / aura)
+ * (player.fallDistance). Packet smashes (Smasher / macemiss / aura)
  * move the SERVER via packets but never move the client, so client fallDistance
  * stays ~0 and this module stays completely idle while the fake fall for the
  * mace bonus accrues server-side. It only fires when YOU are really falling

@@ -214,10 +214,6 @@ author parse `<Name>` only, `/`-prefixed output via `sendChatCommand` else `send
 require message to **end with** `wants to be teleported to you`, 1.5-s cooldown, extract prefix
 as name, `sendChatCommand`. Nothing else ever matches by design.
 
-### NearestPlayerHUD — `modules/NearestPlayerHUD.java` (54 lines)
-`Range(100)`. Only override is `getInfoString()`: nearest alive player name + dist or `None`.
-Not a real Meteor HUD element — shows in the module list, not as screen overlay.
-
 ## Creative
 
 Shared: `utils/CreativeGiveUtil.java` — `give(stack)`: `getEmptySlot` → local `setStack` →
