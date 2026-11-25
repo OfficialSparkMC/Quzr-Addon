@@ -7,9 +7,7 @@ import com.macekill.addon.modules.AntiCreeper;
 import com.macekill.addon.modules.AntiPop;
 import com.macekill.addon.modules.ArrowKiller;
 import com.macekill.addon.modules.AutoMsgModule;
-import com.macekill.addon.modules.MaceAura;
 import com.macekill.addon.modules.MaceBreakerPro;
-import com.macekill.addon.modules.NearestPlayerHUD;
 import com.macekill.addon.modules.Rise;
 import com.macekill.addon.modules.SpeedModule;
 import com.macekill.addon.modules.AutoShulkerBox;
@@ -17,7 +15,7 @@ import com.macekill.addon.modules.Blacklist;
 import com.macekill.addon.modules.AutoTpaReject;
 import com.macekill.addon.modules.SpearKill;
 import com.macekill.addon.modules.UltraAura;
-import com.macekill.addon.modules.MaceAttect;
+import com.macekill.addon.modules.Smasher;
 import com.macekill.addon.modules.AutoGGModule;
 import com.macekill.addon.modules.AutoMineModule;
 import com.macekill.addon.modules.CreativeGiveModule;
@@ -46,8 +44,7 @@ public class MaceKillAddon extends MeteorAddon {
 
         
         Modules.get().add(new MaceKillModule());
-        Modules.get().add(new MaceAura());
-        Modules.get().add(new MaceAttect());
+        Modules.get().add(new Smasher());
         Modules.get().add(new MaceBreakerPro());
         Modules.get().add(new FreecamTp());
         Modules.get().add(new Hitback());
@@ -77,7 +74,6 @@ public class MaceKillAddon extends MeteorAddon {
         Modules.get().add(new AutoGGModule());
         Modules.get().add(new AutoMsgModule());
         Modules.get().add(new CustomPotionModule());
-        Modules.get().add(new NearestPlayerHUD());
         Modules.get().add(new AutoTpaReject());
 
         Commands.add(new TpCommand());

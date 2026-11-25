@@ -60,15 +60,6 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.named('test') {
-    // src/test also holds the plain-Java CaveBurstSimulation proof harness (no JUnit).
+    // No JUnit tests in this addon; keep build green when src/test is empty.
     failOnNoDiscoveredTests = false
-}
-
-// Run with: ./gradlew caveBurstSimulation
-tasks.register('caveBurstSimulation', JavaExec) {
-    group = 'verification'
-    description = 'Runs the cave climb/mace/totem simulation proof.'
-    dependsOn testClasses
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'com.macekill.addon.modules.macekill.CaveBurstSimulation'
 }

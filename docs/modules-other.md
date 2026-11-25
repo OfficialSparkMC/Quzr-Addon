@@ -52,7 +52,7 @@ attack timer. Target = locked target or first sorted entry; `updatePositions` us
 `Entity.getEntityPos()`. After `Attack Delay`: `PAPER` sends one `PositionAndOnGround(targetPos)`
 and one back to `startPos`; `SPIGOT` sends the stepped blink path (`Steps` blocks per packet,
 stopping 4 blocks short on the way in). The client `setPosition` mirrors both hops, then
-`PlayerInteractEntityC2SPacket.attack` + swing, optional hotbar swap to `Weapon`
+`ServerboundAttackPacket` + swing, optional hotbar swap to `Weapon`
 (`SILENT` restores the previous slot), return, timer reset. Filter: living, attackable type,
 not self/camera, inside `Distance` of the bounding box, non-creative, `Friends.shouldAttack`;
 optional water skip. `getInfoString()` = target name.
@@ -180,7 +180,7 @@ Single far packet usually rubberbanded — needs stepping for >10 blocks.
 `Rotate`, `Ignore Friends`, `Only Players`, `Cooldown(10t)`. On
 `PacketEvent.Receive(EntityDamageS2CPacket)` addressed to self with `sourceCauseId>0`:
 resolve attacker, friend/player filters, cooldown gate → `Rotations.rotate(yaw,pitch,attack)`
-sending `PlayerInteractEntityC2SPacket.attack`. Skips attackers farther than 4.5 blocks
+sending `ServerboundAttackPacket`. Skips attackers farther than 4.5 blocks
 (server drops those hits anyway).
 
 ### b-anti-creeper — `modules/AntiCreeper.java` (79 lines)
@@ -212,10 +212,6 @@ author parse `<Name>` only, `/`-prefixed output via `sendChatCommand` else `send
 `deny-command("tpdeny", {player} supported)`. On Meteor `ReceiveMessageEvent`: strip `§` codes,
 require message to **end with** `wants to be teleported to you`, 1.5-s cooldown, extract prefix
 as name, `sendChatCommand`. Nothing else ever matches by design.
-
-### NearestPlayerHUD — `modules/NearestPlayerHUD.java` (54 lines)
-`Range(100)`. Only override is `getInfoString()`: nearest alive player name + dist or `None`.
-Not a real Meteor HUD element — shows in the module list, not as screen overlay.
 
 ## Creative
 

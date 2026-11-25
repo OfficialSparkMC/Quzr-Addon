@@ -1,7 +1,7 @@
 # Qazr-Addons Docs
 
 Meteor Client addon (`com.macekill.addon`, mod id `qazr-addons`) for Minecraft 1.21.11 / Meteor 0.18.6.
-Category in-game: `Qazr1234` (`MaceKillAddon.CATEGORY`).
+Category in-game: `Qazr-addon` (`MaceKillAddon.CATEGORY`).
 
 Source of truth is `src/` — the jars under `libs/` (`MeteorClient-1.21.11-0.18.6.jar`, `orbit-0.2.4.jar`) are
 **local compile-only inputs only** and are gitignored (see `.gitignore`). Never decompile them for docs;

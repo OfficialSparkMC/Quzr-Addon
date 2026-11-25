@@ -7,7 +7,7 @@
 ## 1. Mandatory first reads (in order)
 
 1. `docs/README.md` — index.
-2. `docs/overview.md` — module table (25 modules + `.tp` command; count them in `MaceKillAddon.java`).
+2. `docs/overview.md` — module table (23 modules + `.tp` command; count them in `MaceKillAddon.java`).
 3. `docs/architecture.md` — entry point + `macekill/*` helpers + packet table.
 4. `docs/build.md` — versions in `gradle.properties`, `build.gradle` deps, `fabric.mod.json`.
 5. `docs/problems.md` — known bugs. Do **not** re-introduce anything listed there.
@@ -33,7 +33,7 @@ Every code change that affects behavior, settings, modules, build, or known issu
 
 ### File conventions
 
-- Reference code as `` `path/To/File.java:line` `` (repo-relative, e.g. `` `src/main/java/com/macekill/addon/modules/MaceAttect.java:290` ``).
+- Reference code as `` `path/To/File.java:line` `` (repo-relative, e.g. `` `src/main/java/com/macekill/addon/modules/Smasher.java:290` ``).
 - Module headings: `## <in-game name> — \`modules/X.java\` (<lines> lines)`.
 - Settings inline as `` `Name(default)` ``; keep defaults identical to the `@Setting` builder.
 - Line counts: refresh with `wc -l` on touched files.
@@ -79,9 +79,15 @@ Every code change that affects behavior, settings, modules, build, or known issu
    clean tree. Rule from §4 applies: always add all, always commit, never push unless asked.
 
 ---
-*Last verified: 2026-11-18 — `TpMace`, `MaceMissLite`, `XinTpMace`, `MaceDMG`, `AntiAirMiss`,
+*Last verified: 2026-11-25 — `MaceAttect` renamed `Smasher` (class/file, registration, in-game
+name) and its `Sustained Drain` / `Cave Safe` / `Max Sustained Hits` settings, sustain state
+machine, cave helpers, `macekill/CaveBurst.java`, `CaveBurstSimulation` and the
+`caveBurstSimulation` Gradle task were removed. `MaceAura` and `NearestPlayerHUD` classes were
+deleted on both branches. 23 modules now registered on `26.3` and `main` (was 25/24).
+Docs synced (overview/architecture/modules-*/problems/build). Previously on 2026-11-18 —
+`TpMace`, `MaceMissLite`, `XinTpMace`, `MaceDMG`, `AntiAirMiss`,
 `AutoRise` and `AutoTotemToHotbar` were deleted entirely (classes + `MaceKillAddon`
-imports/registrations; 25 modules now registered). `MaceAura` is registered on the 26.3 branch.
+imports/registrations; 25 modules were registered). `MaceAura` was registered on the 26.3 branch.
 Problems.md #46 documents the removal; the `qazr-addons-1.0.0.jar` artifact on release `0.1.2`
 ("26.3") was rebuilt from this state. Docs synced (overview/architecture/modules-*/problems).
 Previously on 2026-11-16: `InfiniteReach` ported to the 26.3 official mappings:
@@ -113,6 +119,7 @@ burst hit, and `Sustained Drain` repeats the padded climb with a dynamic 22-60 t
 rest; caves with no clear endpoint at least ~4.25 blocks up warn instead of stacking. Added
 `./gradlew caveBurstSimulation` proof (2-high cave under a 6-block roof with a pocket pops 24/24
 totems, zero rejected packets; 7-block sustained-only and 3-block impossible cases covered).
+`Cave Safe`, `Sustained Drain`, `CaveBurst` and that proof task were removed on 2026-11-25.
 Previously: ported vicore `AntiPop` / `UltraAura` / `MaceTotemFail`
 cave path and brew-addon 1.21.8 `AntiCreeper` / `InfiniteReach` (+ `utils/Attack`,
 `utils/Movement`, `utils/HitResults`); ported vicore `ArrowKiller` (needs `AntiPop`); `MaceAttect`

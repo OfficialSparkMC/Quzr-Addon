@@ -6,17 +6,17 @@
 
 - `extends MeteorAddon`, `LOG = "Qazr-Addons"`.
 - `onRegisterCategories()` registers `CATEGORY = new Category("Qazr1234")`.
-- `onInitialize()` adds 25 registered modules via `Modules.get().add(new X())` grouped by comments
+- `onInitialize()` adds 23 registered modules via `Modules.get().add(new X())` grouped by comments
   (重锤战斗 / 长矛战斗 / 移动辅助 / 自动化 / 聊天/信息); `AdvancedNoFall` alone remains on disk
   with its registration commented out (`MaceKillAddon.java`), so it cannot be enabled in-game.
-  (The bundled `MaceMissLite`, `XinTpMace`, `TpMace`, `MaceDMG`, `AntiAirMiss`, `AutoRise` and
-  `AutoTotemToHotbar` modules were removed entirely on 2026-11-18.)
+  (The bundled `MaceMissLite`, `XinTpMace`, `TpMace`, `MaceDMG`, `AntiAirMiss`, `MaceAura`,
+  `AutoRise`, `AutoTotemToHotbar` and `NearestPlayerHUD` modules were removed; `MaceAttect` was
+  renamed `Smasher` on 2026-11-25.)
 - `getPackage()` returns `"com.macekill.addon"` — Meteor uses it to scan settings/commands.
 - Logs module count via `Modules.get().getGroup(CATEGORY).size()`.
 
 To add a module: create class under `modules/`, then add one `Modules.get().add(...)` line here.
-To add a HUD element: it must extend Meteor's `HudElement`, not `Module` (note:
-`NearestPlayerHUD` is currently a `Module` that only abuses `getInfoString()`).
+To add a HUD element: it must extend Meteor's `HudElement`, not `Module`.
 
 ## Shared `macekill/*` helpers
 
@@ -25,7 +25,6 @@ To add a HUD element: it must extend Meteor's `HudElement`, not `Module` (note:
 | `macekill/Config.java` | `record` | `(moveDistance, swingHand, autoTotem, syncClientPos, enableArmorDestroy, ignoreArmorValue, destroyHeights, killHeights)` — passed to `Combat.executeAttack` |
 | `macekill/Combat.java` | static util | `executeAttack`, `findVclipHole`, `vclipSafe`, `needsArmorDestroy`, `parseHeights`, `getVclipClearance`, `worldTop`, `totemBypassHeights`, dead `BypassRunner` |
 | `macekill/BurstHeights.java` | static util | Single-burst totem lists `SPREAD/LIST/INCREMENTAL` (`build`), pierce ceiling, 198 cap, strictly increasing |
-| `macekill/CaveBurst.java` | static util | Pure Cave Safe planner: 22-block destination cap, 4-packet padding, per-tick packet cap, one-climb hit, dynamic sustained delay |
 | `macekill/Movement.java` | static util | `doTpTo`, `sendMovePacket`, `sendRotations`, `sendSlotPacket`, `attackEntity` |
 | `macekill/Inventory.java` | static util + static `lastMaceSwapSlot` | `switchToMace`, `switchBack`, `findTotemSlot`, `ensureTotem`, public `get/setSelectedSlot` access |
 | `macekill/Targeting.java` | static util | `findBestTarget(mc, range, filter, priority)`, `predictPosition`, `isSafeBlock` |
@@ -52,7 +51,7 @@ TickEvent.Pre → find target (Targeting / inline loop)
              → Movement.doTpTo(originalPos)
 ```
 
-`MaceAttect` does **not** use this flow — it has its own
+`Smasher` does **not** use this flow — it has its own
 `stepMove` / `stepMoveDown` / `findDropColumn` copies (~400 duplicated lines).
 `MaceMissLite`, `XinTpMace` and `TpMace` shared this fate and were removed 2026-11-18.
 See `problems.md` § duplication.
@@ -65,24 +64,11 @@ each successive mace hit must deal strictly more damage to beat `hurtResistantTi
 invuln, and the whole list must fire in **one tick / one smash** to beat enemy AutoTotem
 re-equip. Callers add `+3` margin (`Math.min(totems+3, MAX_TOTEM_HITS=198)`).
 
-`MaceAttect`'s **Cave Safe** branch is the corrected 1.21.11 cave path. In
-`ServerPlayNetworkHandler.onPlayerMove`, every upward Y delta calls `player.onLanding()`
-(which zeroes `fallDistance`); the movement cap is `p - velocity² <= 100*q`, where `q` is
-the movement-packet count in the tick (reset to 1 after the 5th). Therefore up/down cycles
-cannot stack fall: each hit is one climb (`up` resets, `down` adds the climb height,
-`attack`). The server accepts a climb based on the **destination** hitbox
-(`isEntityNotCollidingWithBlocks`), and vertical moved-wrongly error is discarded by the
-tautological `if (m > -0.5 || m < 0.5) m = 0.0;`, so a climb may pass through a roof and
-finish in an air pocket above it. `MaceAttect.caveLift()` scans destinations down from
-`CaveBurst.MAX_LIFT=22` and falls back to the contiguous column only when no higher clear
-endpoint exists. Each climb first sends `CAVE_PAD_PACKETS=4` no-op movement packets (the
-last may carry the rotation), making the ascent packet 5 of the tick, which permits
-`sqrt(500)=22.36` blocks. `CaveBurst.burstPlan` uses the full verified endpoint for the
-first climb and therefore emits one burst hit; `Sustained Drain` repeats the compliant
-padded climb for the rest one dynamically computed cooldown window at a time. There is no
-`MAX_CAVE_CYCLES` stack. Proof: `./gradlew caveBurstSimulation` models destination
-acceptance through a thick roof, the 4-packet padding, the movement cap, fall reset, mace
-damage, hurt invulnerability, and 24-totem sustained drain.
+`Smasher`'s totem-bypass path uses the same strictly-increasing single burst. The ascent
+pierces any roof (world top is the only limit), and `stepMoveDown` keeps every packet
+inside the move cap while skipping thin roofs so the descent does not reset fall. `Cave Safe`
+and `Sustained Drain` (and the `CaveBurst` planner + `caveBurstSimulation` proof) were
+removed 2026-11-25; there is no separate cave mode.
 
 ### Inventory switching (all mace modules)
 
@@ -93,7 +79,7 @@ damage, hurt invulnerability, and 24-totem sustained drain.
    remember `maceSwapBackSlot` and move back on finish.
 
 Reflection target was `PlayerInventory.selectedSlot` (`Inventory.java:103-108`), duplicated
-in `MaceAura`, `MaceAttect`, `AutoMineModule`, `AutoShulkerBox`, `SpearKill`
+in `Smasher`, `AutoMineModule`, `AutoShulkerBox`, `SpearKill`
 (the `TpMace` and `MaceDMG` copies were removed with those modules 2026-11-18).
 FIXED 2026-09-25: all copies now use the public `getSelectedSlot()/setSelectedSlot()` API —
 the Yarn-name reflection never resolved at runtime (intermediary), silently breaking slot
@@ -101,18 +87,18 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 
 ### Packet primitives used
 
-- `PlayerMoveC2SPacket.PositionAndOnGround(x,y,z,onGround=false,false)` — teleport + fake fall.
-- `PlayerMoveC2SPacket.LookAndOnGround(yaw,pitch,onGround,false)` — rotation / fall-prime.
-- `PlayerMoveC2SPacket.Full` / `PositionAndOnGround` / `LookAndOnGround` / `OnGroundOnly` — AntiPop
-  rebuilds the same subtype with `onGround=false` (1.21.11 made the packet fields `final`, so no accessor mixin).
-- `PlayerInteractEntityC2SPacket.attack(target, sneaking)` — server-side hit.
-- `PlayerInteractItemC2SPacket(hand, sequence, yaw, pitch)` — bow/trident use (ArrowKiller re-sends it at the teleported position).
-- `PlayerActionC2SPacket(RELEASE_USE_ITEM)` — bow release (ArrowKiller cancels/replays it at the target).
-- `VehicleMoveC2SPacket.fromVehicle(entity)` — ArrowKiller's movement/teleport packet when riding.
-- `UpdateSelectedSlotC2SPacket(slot)` — server slot sync.
-- `CreativeInventoryActionC2SPacket(slot, stack)` — creative give.
-- `PlayerActionC2SPacket(START/STOP_DESTROY_BLOCK)` + `PlayerInteractBlockC2SPacket` — miner/shulker.
-- `clickSlot(syncId, slot, button, SlotActionType.SWAP, player)` — inventory moves.
+- `ServerboundMovePlayerPacket.Pos(x,y,z,onGround=false,horizontalCollision)` — teleport + fake fall.
+- `ServerboundMovePlayerPacket.Rot(yaw,pitch,onGround,horizontalCollision)` — rotation / fall-prime.
+- `ServerboundMovePlayerPacket.PosRot` / `Pos` / `Rot` / `StatusOnly` — AntiPop
+  rebuilds the same subtype with `onGround=false` (movement packet fields are `final`, so no accessor mixin).
+- `ServerboundAttackPacket(entityId)` — server-side hit (26.x split attacks into their own packet).
+- `ServerboundUseItemPacket(hand, sequence, yaw, pitch)` — bow/trident use (ArrowKiller re-sends it at the teleported position).
+- `ServerboundPlayerActionPacket(RELEASE_USE_ITEM)` — bow release (ArrowKiller cancels/replays it at the target).
+- `ServerboundMoveVehiclePacket.fromVehicle(entity)` — ArrowKiller's movement/teleport packet when riding.
+- `ServerboundSetCarriedItemPacket(slot)` — server slot sync.
+- `ServerboundSetCreativeModeSlotPacket(slot, stack)` — creative give.
+- `ServerboundPlayerActionPacket(START/STOP_DESTROY_BLOCK)` + `ServerboundUseItemOnPacket` — miner/shulker.
+- `handleContainerInput(syncId, slot, button, ContainerInput.SWAP, player)` — inventory moves.
 - `sendChatMessage / sendChatCommand` — chat modules.
 
 ## Per-module event wiring
@@ -120,8 +106,7 @@ reverts (root cause of the silent-swap bug, see `problems.md` §3).
 | Module | Listens to | Does on event |
 |--------|------------|---------------|
 | MaceKillModule | `TickEvent.Pre`, phases IDLE/START_DELAY/RETURN_DELAY | TP → delay → smash → return |
-| MaceAura | `TickEvent.Pre` + `attackDelay` cooldown | nearest target → totem list or single height |
-| MaceAttect | `AttackEntityEvent`, `PacketEvent.Send` (public `handle`/`meteor$getEntity`), `TickEvent.Pre` | `pendingTarget` → SMASH (pierce or Cave Safe) → RETURN_DELAY |
+| Smasher | `AttackEntityEvent`, `PacketEvent.Send` (`ServerboundAttackPacket.entityId()`), `TickEvent.Pre` | `pendingTarget` → SMASH (pierce burst) → RETURN_DELAY |
 | MaceBreakerPro | `AttackEntityEvent` | cancel → axe hit → mace hit → restore |
 | UltraAura | `TickEvent.Pre` (target list), `TickEvent.Post` (attack timer) | closest-angle target → packet TP in → attack → TP back |
 | Blacklist | `TickEvent.Post` (attack timer) | `.blacklist` names in `Scan Distance` → `UltraAura.smash(player)` (shared code, UltraAura may be off) |

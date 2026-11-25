@@ -54,16 +54,7 @@ compileOnly files('libs/orbit-0.2.4.jar')
 ./gradlew build        # full build, jar -> build/libs/Qazr-Addons-1.0.0.jar (+ -sources.jar)
 ./gradlew runClient    # loom test client (needs Meteor jar present)
 ./gradlew --refresh-dependencies build   # after changing versions
-./gradlew caveBurstSimulation           # deterministic 1.21.11 cave climb/mace/totem proof
 ```
-
-`caveBurstSimulation` compiles `src/test/java/.../CaveBurstSimulation.java` (a plain `main`, no
-JUnit) and runs it with `JavaExec` against `sourceSets.test.runtimeClasspath`. It models the
-`ServerPlayNetworkHandler.onPlayerMove` packet cap, endpoint acceptance through a roof
-(`isEntityNotCollidingWithBlocks`), the 4-packet padding sequence, upward `onLanding()` fall reset,
-mace fall damage, hurt invulnerability, and totem pops; it exits non-zero on any failed check. The
-`test` task sets `failOnNoDiscoveredTests = false` because this proof harness is the only file
-in the test source set.
 
 ## Version bump checklist
 
@@ -73,9 +64,8 @@ in the test source set.
 4. Update `docs/overview.md` version table + `docs/ai-agents.md` last-verified line.
 5. If MC/Meteor changes: update `minecraft_version`, `yarn_mappings`, `loader_version`,
    `meteor_version`, local `libs/*.jar` names in `build.gradle`, and re-verify
-   `MaceAttect`'s public packet API (`PlayerInteractEntityC2SPacket.handle(Handler)` +
-   `IPlayerInteractEntityC2SPacket.meteor$getEntity()`) and the public
-   `PlayerInventory.getSelectedSlot()/setSelectedSlot()` calls (the old field-name
+   `Smasher`'s packet API (`ServerboundAttackPacket.entityId()`) and the public
+   `Inventory.getSelectedSlot()/setSelectedSlot()` calls (the old field-name
    reflection is gone).
 
 ## Known build smells (detail in `problems.md`)
